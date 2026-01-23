@@ -1,0 +1,33 @@
+FR-1 AI Trip Planner
+FR-1.1: The system shall allow users (guest or logged-in) to input trip preferences including location, dates, duration, trip type, budget, and transportation.
+FR-1.2: The system shall generate day-by-day itineraries with activities, estimated times, weather summaries, and transport suggestions, with routes.
+FR-1.3: The system shall suggest multi-city route recommendations for multi-day trips.
+FR-1.4: The system shall provide fallback or alternative suggestions if the AI cannot produce a direct match.
+FR-1.5: The system shall consolidate group members' preferences to generate optimized group itineraries.
+
+FR-2 User Access & Identity Management
+FR-2.1: Guests shall be able to browse and use the trip planner without login.
+FR-2.2: Registration shall require an email or phone number.
+FR-2.3: Login shall require valid user credentials.
+FR-2.4: Users must complete at least one verification step (email/phone/payment) to join groups or chat.
+
+FR-3 User Profiles
+FR-3.1: Users shall have profiles containing name, bio, and ratings.
+FR-3.2: The system shall display only minimal public profile information to strangers (name, short bio, rating).
+FR-3.3: Verified hosts shall have a verification badge visible on their profile.
+
+FR-4 Group Trip Management
+FR-4.1: Authenticated users shall be able to create a group trip.
+FR-4.2: The system shall generate an invite link or code for group trip members.
+FR-4.3: Members shall submit their own trip preferences for AI consolidation.
+FR-4.4: Hosts shall accept or reject join requests.
+
+FR-5 Discovery Feed
+FR-5.1: The system shall display public trips created by verified hosts.
+FR-5.2: Users shall be able to filter public trips by date, location, distance, weather, scenery, host verification, and type.
+FR-5.3: Users shall be able to request to join a public trip.
+
+FR-6 Real-Time Chat
+FR-6.1: The system shall provide real-time chat for verified group members.
+FR-6.2: Each group shall have its own chat room.
+FR-6.3: Chat messages shall be stored securely.

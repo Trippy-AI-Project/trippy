@@ -1,0 +1,388 @@
+# =============================================================================
+# Trippy Platform - CI/CD Pipeline
+# =============================================================================
+# This workflow runs build and test checks for pull requests and pushes
+# to main/develop branches. All services must build and pass tests.
+# =============================================================================
+
+name: CI Build & Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+  MAVEN_OPTS: '-Xmx1024m'
+
+jobs:
+  # ===========================================================================
+  # DETECT CHANGES - Determine which services need to be built
+  # ===========================================================================
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      api-gateway: ${{ steps.changes.outputs.api-gateway }}
+      user-service: ${{ steps.changes.outputs.user-service }}
+      trip-service: ${{ steps.changes.outputs.trip-service }}
+      chat-service: ${{ steps.changes.outputs.chat-service }}
+      ai-service: ${{ steps.changes.outputs.ai-service }}
+      notification-service: ${{ steps.changes.outputs.notification-service }}
+      payment-service: ${{ steps.changes.outputs.payment-service }}
+      any-service: ${{ steps.changes.outputs.any-service }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect file changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            api-gateway:
+              - 'services/api-gateway/**'
+              - 'pom.xml'
+            user-service:
+              - 'services/user-service/**'
+              - 'pom.xml'
+            trip-service:
+              - 'services/trip-service/**'
+              - 'pom.xml'
+            chat-service:
+              - 'services/chat-service/**'
+              - 'pom.xml'
+            ai-service:
+              - 'services/ai-service/**'
+              - 'pom.xml'
+            notification-service:
+              - 'services/notification-service/**'
+              - 'pom.xml'
+            payment-service:
+              - 'services/payment-service/**'
+              - 'pom.xml'
+            any-service:
+              - 'services/**'
+              - 'pom.xml'
+
+  # ===========================================================================
+  # BUILD PARENT POM - Validate parent POM and install to local repo
+  # ===========================================================================
+  build-parent:
+    name: Build Parent POM
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any-service == 'true' || github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Validate Parent POM
+        run: mvn validate -N -B
+
+      - name: Install Parent POM
+        run: mvn install -N -B -DskipTests
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+  # ===========================================================================
+  # BUILD & TEST SERVICES
+  # ===========================================================================
+  build-api-gateway:
+    name: Build API Gateway
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-parent]
+    if: |
+      always() && 
+      needs.build-parent.result == 'success' &&
+      (needs.detect-changes.outputs.api-gateway == 'true' || github.event_name == 'push')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & Test API Gateway
+        run: |
+          mvn install -N -B -DskipTests
+          mvn -pl services/api-gateway clean verify -B -DskipTests=false
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-gateway-test-results
+          path: services/api-gateway/target/surefire-reports/
+          retention-days: 7
+
+  build-user-service:
+    name: Build User Service
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-parent]
+    if: |
+      always() && 
+      needs.build-parent.result == 'success' &&
+      (needs.detect-changes.outputs.user-service == 'true' || github.event_name == 'push')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & Test User Service
+        run: |
+          mvn install -N -B -DskipTests
+          mvn -pl services/user-service clean verify -B -DskipTests=false
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-service-test-results
+          path: services/user-service/target/surefire-reports/
+          retention-days: 7
+
+  build-trip-service:
+    name: Build Trip Service
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-parent]
+    if: |
+      always() && 
+      needs.build-parent.result == 'success' &&
+      (needs.detect-changes.outputs.trip-service == 'true' || github.event_name == 'push')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & Test Trip Service
+        run: |
+          mvn install -N -B -DskipTests
+          mvn -pl services/trip-service clean verify -B -DskipTests=false
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trip-service-test-results
+          path: services/trip-service/target/surefire-reports/
+          retention-days: 7
+
+  build-chat-service:
+    name: Build Chat Service
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-parent]
+    if: |
+      always() && 
+      needs.build-parent.result == 'success' &&
+      (needs.detect-changes.outputs.chat-service == 'true' || github.event_name == 'push')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & Test Chat Service
+        run: |
+          mvn install -N -B -DskipTests
+          mvn -pl services/chat-service clean verify -B -DskipTests=false
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-service-test-results
+          path: services/chat-service/target/surefire-reports/
+          retention-days: 7
+
+  build-ai-service:
+    name: Build AI Service
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-parent]
+    if: |
+      always() && 
+      needs.build-parent.result == 'success' &&
+      (needs.detect-changes.outputs.ai-service == 'true' || github.event_name == 'push')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & Test AI Service
+        run: |
+          mvn install -N -B -DskipTests
+          mvn -pl services/ai-service clean verify -B -DskipTests=false
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-service-test-results
+          path: services/ai-service/target/surefire-reports/
+          retention-days: 7
+
+  build-notification-service:
+    name: Build Notification Service
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-parent]
+    if: |
+      always() && 
+      needs.build-parent.result == 'success' &&
+      (needs.detect-changes.outputs.notification-service == 'true' || github.event_name == 'push')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & Test Notification Service
+        run: |
+          mvn install -N -B -DskipTests
+          mvn -pl services/notification-service clean verify -B -DskipTests=false
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-service-test-results
+          path: services/notification-service/target/surefire-reports/
+          retention-days: 7
+
+  build-payment-service:
+    name: Build Payment Service
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-parent]
+    if: |
+      always() && 
+      needs.build-parent.result == 'success' &&
+      (needs.detect-changes.outputs.payment-service == 'true' || github.event_name == 'push')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & Test Payment Service
+        run: |
+          mvn install -N -B -DskipTests
+          mvn -pl services/payment-service clean verify -B -DskipTests=false
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-service-test-results
+          path: services/payment-service/target/surefire-reports/
+          retention-days: 7
+
+  # ===========================================================================
+  # FINAL STATUS CHECK - Gate for merging
+  # ===========================================================================
+  ci-status:
+    name: CI Status Check
+    runs-on: ubuntu-latest
+    needs:
+      - build-parent
+      - build-api-gateway
+      - build-user-service
+      - build-trip-service
+      - build-chat-service
+      - build-ai-service
+      - build-notification-service
+      - build-payment-service
+    if: always()
+    steps:
+      - name: Check Build Results
+        run: |
+          echo "Build Parent: ${{ needs.build-parent.result }}"
+          echo "API Gateway: ${{ needs.build-api-gateway.result }}"
+          echo "User Service: ${{ needs.build-user-service.result }}"
+          echo "Trip Service: ${{ needs.build-trip-service.result }}"
+          echo "Chat Service: ${{ needs.build-chat-service.result }}"
+          echo "AI Service: ${{ needs.build-ai-service.result }}"
+          echo "Notification Service: ${{ needs.build-notification-service.result }}"
+          echo "Payment Service: ${{ needs.build-payment-service.result }}"
+          
+          # Check if any required job failed
+          if [[ "${{ needs.build-parent.result }}" == "failure" ]]; then
+            echo "❌ Parent POM build failed"
+            exit 1
+          fi
+          
+          # Check each service (skipped is OK, failure is not)
+          for result in \
+            "${{ needs.build-api-gateway.result }}" \
+            "${{ needs.build-user-service.result }}" \
+            "${{ needs.build-trip-service.result }}" \
+            "${{ needs.build-chat-service.result }}" \
+            "${{ needs.build-ai-service.result }}" \
+            "${{ needs.build-notification-service.result }}" \
+            "${{ needs.build-payment-service.result }}"
+          do
+            if [[ "$result" == "failure" ]]; then
+              echo "❌ One or more services failed to build"
+              exit 1
+            fi
+          done
+          
+          echo "✅ All builds passed!"

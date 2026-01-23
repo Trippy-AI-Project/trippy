@@ -1,0 +1,19 @@
+# Environment files with secrets
+.env
+*.env.local
+
+# Data directories (if using local bind mounts)
+data/
+
+# Backup files
+backups/
+*.sql
+*.rdb
+
+# Log files
+*.log
+
+# SSL certificates (if stored locally)
+*.pem
+*.crt
+*.key
