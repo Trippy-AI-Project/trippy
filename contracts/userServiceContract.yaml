@@ -105,11 +105,11 @@ info:
 servers:
   - url: http://localhost:8081
     description: Local Development (Direct)
-  - url: http://localhost:8080/api/v1
+  - url: http://localhost:3000
     description: Local via API Gateway
   - url: http://user-service.internal:8081
     description: Internal Cluster URL (K8s/Docker)
-  - url: https://api.trippy.dev/api/v1
+  - url: https://api.trippy.dev
     description: Production Gateway
 
 tags:
@@ -191,7 +191,7 @@ components:
           format: date-time
         path:
           type: string
-          example: "/api/v1/auth/register"
+          example: "/auth/register"
         details:
           type: array
           items:
@@ -767,7 +767,7 @@ paths:
   # =====================================================
   # AUTHENTICATION ENDPOINTS (Public - No Auth Required)
   # =====================================================
-  /api/v1/auth/register:
+  /auth/register:
     post:
       summary: Register New User
       operationId: registerUser
@@ -805,7 +805,7 @@ paths:
         '429':
           description: Rate limit exceeded
 
-  /api/v1/auth/login:
+  /auth/login:
     post:
       summary: User Login
       operationId: loginUser
@@ -843,7 +843,7 @@ paths:
         '429':
           description: Too many failed attempts
 
-  /api/v1/auth/refresh:
+  /auth/refresh:
     post:
       summary: Refresh Access Token
       operationId: refreshToken
@@ -868,7 +868,7 @@ paths:
         '401':
           description: Invalid or expired refresh token
 
-  /api/v1/auth/logout:
+  /auth/logout:
     post:
       summary: Logout User
       operationId: logoutUser
@@ -950,7 +950,7 @@ paths:
   # =====================================================
   # PASSWORD MANAGEMENT (Public & Protected)
   # =====================================================
-  /api/v1/auth/password/forgot:
+  /auth/password/forgot:
     post:
       summary: Request Password Reset
       operationId: forgotPassword
@@ -979,7 +979,7 @@ paths:
                     type: string
                     example: "If an account exists, a reset link has been sent."
 
-  /api/v1/auth/password/reset:
+  /auth/password/reset:
     post:
       summary: Reset Password with Token
       operationId: resetPassword
@@ -998,7 +998,7 @@ paths:
         '400':
           description: Invalid or expired token
 
-  /api/v1/users/me/password:
+  /users/me/password:
     put:
       summary: Change Password
       operationId: changePassword
@@ -1026,7 +1026,7 @@ paths:
   # =====================================================
   # USER PROFILE ENDPOINTS (Protected - User Auth)
   # =====================================================
-  /api/v1/users/me:
+  /users/me:
     get:
       summary: Get My Profile
       operationId: getMyProfile
@@ -1110,7 +1110,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /api/v1/users/me/avatar:
+  /users/me/avatar:
     post:
       summary: Upload Avatar
       operationId: uploadAvatar
@@ -1169,7 +1169,7 @@ paths:
   # =====================================================
   # VERIFICATION ENDPOINTS (Protected)
   # =====================================================
-  /api/v1/users/me/verification/send:
+  /users/me/verification/send:
     post:
       summary: Send Verification Code
       operationId: sendVerificationCode
@@ -1207,7 +1207,7 @@ paths:
         '429':
           description: Too many requests
 
-  /api/v1/users/me/verification/verify:
+  /users/me/verification/verify:
     post:
       summary: Verify Code
       operationId: verifyCode
@@ -1237,7 +1237,7 @@ paths:
   # =====================================================
   # SUBSCRIPTION ENDPOINTS (Protected)
   # =====================================================
-  /api/v1/users/me/subscription:
+  /users/me/subscription:
     get:
       summary: Get My Subscription
       operationId: getMySubscription
@@ -1258,7 +1258,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /api/v1/subscriptions/plans:
+  /subscriptions/plans:
     get:
       summary: Get Available Plans
       operationId: getSubscriptionPlans
@@ -1295,7 +1295,7 @@ paths:
   # =====================================================
   # USER SEARCH (Protected)
   # =====================================================
-  /api/v1/users/search:
+  /users/search:
     get:
       summary: Search Users
       operationId: searchUsers
@@ -1342,7 +1342,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /api/v1/users/{userId}:
+  /users/{userId}:
     get:
       summary: Get Public User Profile
       operationId: getPublicUserProfile
@@ -1367,7 +1367,7 @@ paths:
   # =====================================================
   # INTERNAL S2S ENDPOINTS (Service Auth)
   # =====================================================
-  /internal/v1/users/{userId}/profile:
+  /users/{userId}/profile:
     get:
       summary: "[Internal] Get User Profile for Chat"
       operationId: internalGetUserProfile
@@ -1392,7 +1392,7 @@ paths:
         '404':
           description: User not found
 
-  /internal/v1/users/batch:
+  /users/batch:
     post:
       summary: "[Internal] Batch Get User Profiles"
       operationId: internalBatchGetUsers
@@ -1420,7 +1420,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BatchUsersResponse'
 
-  /internal/v1/users/{userId}/subscription/quota:
+  /users/{userId}/subscription/quota:
     get:
       summary: "[Internal] Check Subscription Quota"
       operationId: internalCheckQuota
@@ -1445,7 +1445,7 @@ paths:
         '404':
           description: User not found
 
-  /internal/v1/users/{userId}/subscription/increment:
+  /users/{userId}/subscription/increment:
     post:
       summary: "[Internal] Increment Trip Usage"
       operationId: internalIncrementTripUsage
@@ -1478,7 +1478,7 @@ paths:
         '404':
           description: User not found
 
-  /internal/v1/users/{userId}/exists:
+  /users/{userId}/exists:
     get:
       summary: "[Internal] Check User Exists"
       operationId: internalCheckUserExists
@@ -1511,7 +1511,7 @@ paths:
   # =====================================================
   # ADMIN ENDPOINTS (Admin Auth)
   # =====================================================
-  /admin/v1/users:
+  /admin/users:
     get:
       summary: "[Admin] List All Users"
       operationId: adminListUsers
@@ -1554,7 +1554,7 @@ paths:
         '403':
           description: Forbidden - Not an admin
 
-  /admin/v1/users/{userId}:
+  /admin/users/{userId}:
     get:
       summary: "[Admin] Get User Details"
       operationId: adminGetUser
@@ -1603,7 +1603,7 @@ paths:
         '404':
           description: User not found
 
-  /admin/v1/users/{userId}/subscription:
+  /admin/users/{userId}/subscription:
     patch:
       summary: "[Admin] Override Subscription"
       operationId: adminUpdateSubscription

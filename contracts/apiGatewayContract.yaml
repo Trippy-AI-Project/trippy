@@ -35,15 +35,15 @@ info:
     ## Route Configuration
     | Path Pattern | Target Service | Auth Required | Rate Limit |
     |--------------|----------------|---------------|------------|
-    | `/api/v1/auth/**` | user-service | No (except logout) | 10/min |
-    | `/api/v1/users/**` | user-service | Yes | 100/min |
-    | `/api/v1/trips/**` | trip-service | Yes | 100/min |
-    | `/api/v1/chat/**` | chat-service | Yes | 200/min |
-    | `/api/v1/ai/**` | ai-service | Yes | 20/min |
-    | `/api/v1/payments/**` | payment-service | Yes | 50/min |
-    | `/api/v1/notifications/**` | notification-service | Yes | 100/min |
-    | `/api/v1/subscriptions/**` | user-service | Mixed | 50/min |
-    | `/api/v1/admin/**` | Various | Admin Role | 100/min |
+    | `/auth/**` | user-service | No (except logout) | 10/min |
+    | `/users/**` | user-service | Yes | 100/min |
+    | `/trips/**` | trip-service | Yes | 100/min |
+    | `/trips/**/chat/**` | chat-service | Yes | 200/min |
+    | `/ai/**` | ai-service | Yes | 20/min |
+    | `/payments/**` | payment-service | Yes | 50/min |
+    | `/notifications/**` | notification-service | Yes | 100/min |
+    | `/subscriptions/**` | user-service | Mixed | 50/min |
+    | `/admin/**` | Various | Admin Role | 100/min |
     | `/ws/**` | chat-service | Yes (WS Auth) | N/A |
 
     ## Headers Injected to Downstream Services
@@ -87,7 +87,7 @@ info:
     email: platform-team@trippy.dev
 
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:3000
     description: Local Development
   - url: https://api.trippy.dev
     description: Production
@@ -132,7 +132,7 @@ components:
           example: 401
         path:
           type: string
-          example: "/api/v1/trips"
+          example: "/trips"
         correlationId:
           type: string
           format: uuid
@@ -190,7 +190,7 @@ components:
           type: array
           items:
             type: string
-          example: ["Path=/api/v1/users/**"]
+          example: ["Path=/users/**"]
         filters:
           type: array
           items:
@@ -267,14 +267,14 @@ x-gateway-routes:
   # =====================================================
   - id: auth-public
     description: Public authentication endpoints (no JWT required)
-    pathPattern: /api/v1/auth/register, /api/v1/auth/login, /api/v1/auth/refresh, /api/v1/auth/password/**
+    pathPattern: /auth/register, /auth/login, /auth/refresh, /auth/password/**
     targetService: user-service
     authRequired: false
     rateLimitPerMinute: 10
 
   - id: auth-protected
     description: Protected auth endpoints (logout)
-    pathPattern: /api/v1/auth/logout
+    pathPattern: /auth/logout
     targetService: user-service
     authRequired: true
     rateLimitPerMinute: 20
@@ -291,14 +291,14 @@ x-gateway-routes:
   # =====================================================
   - id: user-profile
     description: User profile operations
-    pathPattern: /api/v1/users/**
+    pathPattern: /users/**
     targetService: user-service
     authRequired: true
     rateLimitPerMinute: 100
 
   - id: subscriptions-public
     description: Public subscription plans listing
-    pathPattern: /api/v1/subscriptions/plans
+    pathPattern: /subscriptions/plans
     targetService: user-service
     authRequired: false
     rateLimitPerMinute: 50
@@ -308,7 +308,7 @@ x-gateway-routes:
   # =====================================================
   - id: trips
     description: Trip management endpoints
-    pathPattern: /api/v1/trips/**
+    pathPattern: /trips/**
     targetService: trip-service
     authRequired: true
     rateLimitPerMinute: 100
@@ -321,7 +321,7 @@ x-gateway-routes:
   # =====================================================
   - id: chat-http
     description: Chat HTTP endpoints (history, send message)
-    pathPattern: /api/v1/chat/**
+    pathPattern: /trips/**/chat/**
     targetService: chat-service
     authRequired: true
     rateLimitPerMinute: 200
@@ -339,7 +339,7 @@ x-gateway-routes:
   # =====================================================
   - id: ai-public
     description: AI discovery endpoints (destination suggestions)
-    pathPattern: /api/v1/ai/**
+    pathPattern: /ai/**
     targetService: ai-service
     authRequired: true
     rateLimitPerMinute: 20
@@ -350,7 +350,7 @@ x-gateway-routes:
   # =====================================================
   - id: payments
     description: Payment endpoints
-    pathPattern: /api/v1/payments/**
+    pathPattern: /payments/**
     targetService: payment-service
     authRequired: true
     rateLimitPerMinute: 50
@@ -360,7 +360,7 @@ x-gateway-routes:
   # =====================================================
   - id: notifications
     description: Notification preferences and history
-    pathPattern: /api/v1/notifications/**
+    pathPattern: /notifications/**
     targetService: notification-service
     authRequired: true
     rateLimitPerMinute: 100
@@ -370,7 +370,7 @@ x-gateway-routes:
   # =====================================================
   - id: admin-users
     description: Admin user management
-    pathPattern: /api/v1/admin/users/**
+    pathPattern: /admin/users/**
     targetService: user-service
     authRequired: true
     requiredRole: ADMIN
@@ -378,7 +378,7 @@ x-gateway-routes:
 
   - id: admin-trips
     description: Admin trip management
-    pathPattern: /api/v1/admin/trips/**
+    pathPattern: /admin/trips/**
     targetService: trip-service
     authRequired: true
     requiredRole: ADMIN

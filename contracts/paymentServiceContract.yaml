@@ -7,7 +7,7 @@ info:
     This document serves as the blueprint for implementing this service.
 
     ## Service Responsibilities
-    - Process subscription payments (FREE → PREMIUM/ENTERPRISE upgrades)
+    - Confirm subscription payments (dummy verification)
     - Handle payment method management (add/remove cards)
     - Transaction history and receipts
     - Refund processing
@@ -16,29 +16,26 @@ info:
     ## Architecture Pattern
     **Layered Architecture**
     - Simple payment processing flow
-    - Integration with payment provider (Stripe)
+    - Internal verification and confirmation (no external provider)
 
     ## API Categories
     | Category | Access | Description |
     |----------|--------|-------------|
-    | **Protected** | JWT (User) | Payment methods, history, checkout |
+    | **Protected** | JWT (User) | Payment methods, verification, subscriptions |
     | **Internal S2S** | Service Token | Process payments from other services |
-    | **Webhook** | Stripe Signature | Payment provider callbacks |
 
     ## Payment Flow
     1. User selects subscription plan on frontend
-    2. Frontend calls `/api/v1/payments/checkout` to create checkout session
-    3. User completes payment on Stripe-hosted page (or embedded)
-    4. Stripe sends webhook to `/webhooks/stripe`
-    5. Payment Service verifies webhook signature
-    6. Payment Service updates subscription via User Service
-    7. User Service updates user's plan
+    2. Frontend calls `/payments/checkout` to request payment confirmation
+    3. Payment Service performs dummy verification and records the transaction
+    4. Payment Service updates subscription via User Service
+    5. User Service updates user's plan
 
     ## S2S Communication (Outbound)
     | Target Service | Purpose | Endpoint Called |
     |----------------|---------|-----------------|
-    | **User Service** | Update subscription after payment | `PATCH /internal/v1/users/{userId}/subscription` |
-    | **User Service** | Get user details for invoice | `GET /internal/v1/users/{userId}/profile` |
+    | **User Service** | Update subscription after payment | `PATCH /users/{userId}/subscription` |
+    | **User Service** | Get user details for invoice | `GET /users/{userId}/profile` |
 
     ## Request Headers
     | Header | Required | Description |
@@ -47,20 +44,18 @@ info:
     | `X-User-Id` | Injected by Gateway | User UUID from JWT |
     | `X-Service-Token` | Internal S2S | Service-to-service auth |
     | `X-Correlation-ID` | All requests | UUID for distributed tracing |
-    | `Stripe-Signature` | Webhooks | Stripe webhook signature |
 
     ## Database Schema
     - **Schema Name**: `payment_schema`
     - **Tables**: 
-      - `payment_methods` - Stored payment methods (id, user_id, stripe_payment_method_id, last4, brand)
+      - `payment_methods` - Stored payment methods (id, user_id, brand, last4, expiry_month, expiry_year)
       - `transactions` - Payment history (id, user_id, amount, currency, status, type, created_at)
-      - `subscriptions` - Stripe subscription mapping (id, user_id, stripe_subscription_id, status)
+      - `subscriptions` - Subscription mapping (id, user_id, status, current_period_end)
       - `invoices` - Generated invoices (id, transaction_id, invoice_url, pdf_url)
 
     ## External Dependencies
     | Dependency | Purpose |
     |------------|---------|
-    | **Stripe API** | Payment processing |
     | **PostgreSQL** | Transaction persistence |
     | **User Service** | Subscription updates |
 
@@ -75,20 +70,18 @@ info:
 servers:
   - url: http://localhost:8086
     description: Local Development (Direct)
-  - url: http://localhost:8080/api/v1
+  - url: http://localhost:3000
     description: Local via API Gateway
   - url: http://payment-service.internal:8086
     description: Internal Cluster URL (K8s/Docker)
 
 tags:
-  - name: Checkout
-    description: Payment checkout and subscription purchase
+  - name: Subscriptions
+    description: Subscription purchase, verification, and management
   - name: PaymentMethods
     description: Payment method management
   - name: Transactions
     description: Transaction history and invoices
-  - name: Webhooks
-    description: Payment provider callbacks
   - name: Internal
     description: Service-to-service APIs
 
@@ -103,11 +96,6 @@ components:
       type: apiKey
       in: header
       name: X-Service-Token
-
-    StripeWebhook:
-      type: apiKey
-      in: header
-      name: Stripe-Signature
 
   parameters:
     CorrelationId:
@@ -229,8 +217,9 @@ components:
         paymentMethodId:
           type: string
           format: uuid
-        stripePaymentIntentId:
+        verificationReference:
           type: string
+          description: Internal confirmation reference for the dummy verification flow
         invoiceUrl:
           type: string
           format: uri
@@ -266,42 +255,62 @@ components:
     # =====================================================
     # REQUEST SCHEMAS
     # =====================================================
-    CreateCheckoutRequest:
+    PaymentConfirmationRequest:
       type: object
       required:
         - planId
+        - paymentMethodId
       properties:
         planId:
           type: string
           enum: ["premium_monthly", "premium_yearly", "enterprise_monthly", "enterprise_yearly"]
-        successUrl:
+        paymentMethodId:
           type: string
-          format: uri
-          description: Redirect URL after successful payment
-        cancelUrl:
+          format: uuid
+        promoCode:
           type: string
-          format: uri
-          description: Redirect URL if user cancels
+        clientReferenceId:
+          type: string
 
-    CheckoutResponse:
+    PaymentConfirmationResponse:
       type: object
       properties:
-        checkoutSessionId:
+        transactionId:
           type: string
-          description: Stripe checkout session ID
-        checkoutUrl:
+          format: uuid
+        status:
+          $ref: '#/components/schemas/TransactionStatus'
+        subscription:
+          $ref: '#/components/schemas/SubscriptionInfo'
+        verificationReference:
           type: string
-          format: uri
-          description: URL to redirect user for payment
+        confirmedAt:
+          type: string
+          format: date-time
 
     AddPaymentMethodRequest:
       type: object
       required:
-        - stripePaymentMethodId
+        - brand
+        - last4
+        - expiryMonth
+        - expiryYear
       properties:
-        stripePaymentMethodId:
+        brand:
           type: string
-          description: Payment method ID from Stripe.js
+          enum: ["visa", "mastercard", "amex"]
+        last4:
+          type: string
+          example: "4242"
+        expiryMonth:
+          type: integer
+          minimum: 1
+          maximum: 12
+        expiryYear:
+          type: integer
+          example: 2026
+        holderName:
+          type: string
         setAsDefault:
           type: boolean
           default: false
@@ -384,17 +393,17 @@ components:
 # =========================================================
 paths:
   # =====================================================
-  # CHECKOUT
+  # SUBSCRIPTIONS
   # =====================================================
-  /api/v1/payments/checkout:
+  /payments/checkout:
     post:
-      summary: Create Checkout Session
-      operationId: createCheckout
-      tags: [Checkout]
+      summary: Confirm Subscription Purchase
+      operationId: confirmSubscriptionPurchase
+      tags: [Subscriptions]
       security: [BearerAuth: []]
       description: |
-        Creates a Stripe checkout session for subscription purchase.
-        Returns URL to redirect user to Stripe-hosted payment page.
+        Performs dummy verification for the selected plan and confirms
+        the subscription purchase in a single request.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       requestBody:
@@ -402,22 +411,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateCheckoutRequest'
+              $ref: '#/components/schemas/PaymentConfirmationRequest'
       responses:
         '200':
-          description: Checkout session created
+          description: Payment confirmed and subscription activated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CheckoutResponse'
+                $ref: '#/components/schemas/PaymentConfirmationResponse'
         '400':
-          description: Invalid plan
+          description: Invalid plan or payment method
 
-  /api/v1/payments/plans:
+  /payments/plans:
     get:
       summary: Get Available Plans
       operationId: getPlans
-      tags: [Checkout]
+      tags: [Subscriptions]
       description: Returns all available subscription plans with pricing.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
@@ -434,13 +443,13 @@ paths:
   # =====================================================
   # SUBSCRIPTION MANAGEMENT
   # =====================================================
-  /api/v1/payments/subscription:
+  /payments/subscription:
     get:
       summary: Get My Subscription
       operationId: getMySubscription
-      tags: [Checkout]
+      tags: [Subscriptions]
       security: [BearerAuth: []]
-      description: Returns current subscription details from Stripe.
+      description: Returns current subscription details from the payment ledger.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       responses:
@@ -456,7 +465,7 @@ paths:
     delete:
       summary: Cancel Subscription
       operationId: cancelSubscription
-      tags: [Checkout]
+      tags: [Subscriptions]
       security: [BearerAuth: []]
       description: |
         Cancels the current subscription.
@@ -478,11 +487,11 @@ paths:
         '404':
           description: No active subscription
 
-  /api/v1/payments/subscription/reactivate:
+  /payments/subscription/reactivate:
     post:
       summary: Reactivate Subscription
       operationId: reactivateSubscription
-      tags: [Checkout]
+      tags: [Subscriptions]
       security: [BearerAuth: []]
       description: Reactivates a subscription that was set to cancel at period end.
       parameters:
@@ -500,7 +509,7 @@ paths:
   # =====================================================
   # PAYMENT METHODS
   # =====================================================
-  /api/v1/payments/methods:
+  /payments/methods:
     get:
       summary: List Payment Methods
       operationId: listPaymentMethods
@@ -525,8 +534,7 @@ paths:
       tags: [PaymentMethods]
       security: [BearerAuth: []]
       description: |
-        Adds a new payment method.
-        The stripePaymentMethodId comes from Stripe.js on the frontend.
+        Adds a new payment method for dummy verification and subscriptions.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       requestBody:
@@ -545,7 +553,7 @@ paths:
         '400':
           description: Invalid payment method
 
-  /api/v1/payments/methods/{paymentMethodId}:
+  /payments/methods/{paymentMethodId}:
     delete:
       summary: Remove Payment Method
       operationId: removePaymentMethod
@@ -563,7 +571,7 @@ paths:
         '404':
           description: Payment method not found
 
-  /api/v1/payments/methods/{paymentMethodId}/default:
+  /payments/methods/{paymentMethodId}/default:
     post:
       summary: Set Default Payment Method
       operationId: setDefaultPaymentMethod
@@ -585,7 +593,7 @@ paths:
   # =====================================================
   # TRANSACTIONS
   # =====================================================
-  /api/v1/payments/transactions:
+  /payments/transactions:
     get:
       summary: Get Transaction History
       operationId: getTransactions
@@ -612,7 +620,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TransactionListResponse'
 
-  /api/v1/payments/transactions/{transactionId}:
+  /payments/transactions/{transactionId}:
     get:
       summary: Get Transaction Details
       operationId: getTransaction
@@ -631,7 +639,7 @@ paths:
         '404':
           description: Transaction not found
 
-  /api/v1/payments/transactions/{transactionId}/invoice:
+  /payments/transactions/{transactionId}/invoice:
     get:
       summary: Get Invoice PDF
       operationId: getInvoice
@@ -659,48 +667,9 @@ paths:
           description: Invoice not found
 
   # =====================================================
-  # WEBHOOKS
-  # =====================================================
-  /webhooks/stripe:
-    post:
-      summary: Stripe Webhook Handler
-      operationId: handleStripeWebhook
-      tags: [Webhooks]
-      description: |
-        Handles Stripe webhook events.
-        
-        **Events handled:**
-        - `checkout.session.completed` - Payment successful
-        - `invoice.paid` - Subscription renewed
-        - `invoice.payment_failed` - Payment failed
-        - `customer.subscription.deleted` - Subscription cancelled
-        - `customer.subscription.updated` - Subscription changed
-        
-        **S2S Calls on success:**
-        - `PATCH user-service/admin/v1/users/{userId}/subscription` to update plan
-      parameters:
-        - name: Stripe-Signature
-          in: header
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              description: Stripe event payload
-      responses:
-        '200':
-          description: Webhook processed
-        '400':
-          description: Invalid signature
-
-  # =====================================================
   # INTERNAL S2S
   # =====================================================
-  /internal/v1/payments/process:
+  /payments/process:
     post:
       summary: "[Internal] Process Direct Payment"
       operationId: internalProcessPayment
@@ -709,8 +678,8 @@ paths:
       description: |
         **Consumer**: User Service (for admin subscription grants)
         
-        Processes a payment directly without checkout flow.
-        Used for backend-initiated transactions.
+        Processes a payment directly without user checkout.
+        Used for backend-initiated confirmations.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       requestBody:
@@ -747,7 +716,7 @@ paths:
         '400':
           description: Payment failed
 
-  /internal/v1/users/{userId}/has-payment-method:
+  /users/{userId}/has-payment-method:
     get:
       summary: "[Internal] Check User Has Payment Method"
       operationId: internalHasPaymentMethod

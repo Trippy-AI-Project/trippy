@@ -32,11 +32,11 @@ info:
     ## S2S Communication (Outbound)
     | Target Service | Purpose | Endpoint Called |
     |----------------|---------|-----------------|
-    | **User Service** | Check quota before trip creation | `GET /internal/v1/users/{userId}/subscription/quota` |
-    | **User Service** | Increment usage after creation | `POST /internal/v1/users/{userId}/subscription/increment` |
-    | **User Service** | Validate user exists (invitations) | `GET /internal/v1/users/{userId}/exists` |
-    | **User Service** | Batch get user profiles | `POST /internal/v1/users/batch` |
-    | **AI Service** | Generate itinerary | `POST /internal/v1/generate/itinerary` |
+    | **User Service** | Check quota before trip creation | `GET /users/{userId}/subscription/quota` |
+    | **User Service** | Increment usage after creation | `POST /users/{userId}/subscription/increment` |
+    | **User Service** | Validate user exists (invitations) | `GET /users/{userId}/exists` |
+    | **User Service** | Batch get user profiles | `POST /users/batch` |
+    | **AI Service** | Generate itinerary | `POST /ai/itineraries` |
 
     ## Request Headers
     | Header | Required | Description |
@@ -71,7 +71,7 @@ info:
 servers:
   - url: http://localhost:8082
     description: Local Development (Direct)
-  - url: http://localhost:8080/api/v1
+  - url: http://localhost:3000
     description: Local via API Gateway
   - url: http://trip-service.internal:8082
     description: Internal Cluster URL (K8s/Docker)
@@ -505,7 +505,7 @@ paths:
   # =====================================================
   # TRIP MANAGEMENT
   # =====================================================
-  /api/v1/trips:
+  /trips:
     get:
       summary: List My Trips
       operationId: getMyTrips
@@ -545,9 +545,9 @@ paths:
         Creates a new trip. User becomes OWNER.
         
         **S2S Flow:**
-        1. `GET user-service/internal/v1/users/{userId}/subscription/quota` - Check quota
+        1. `GET http://localhost:8081/users/{userId}/subscription/quota` - Check quota
         2. Create trip in database
-        3. `POST user-service/internal/v1/users/{userId}/subscription/increment` - Increment usage
+        3. `POST http://localhost:8081/users/{userId}/subscription/increment` - Increment usage
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       requestBody:
@@ -566,7 +566,7 @@ paths:
         '403':
           description: Subscription quota exceeded
 
-  /api/v1/trips/{tripId}:
+  /trips/{tripId}:
     get:
       summary: Get Trip Details
       operationId: getTrip
@@ -625,7 +625,7 @@ paths:
         '403':
           description: Only owner can delete
 
-  /api/v1/trips/{tripId}/cover:
+  /trips/{tripId}/cover:
     post:
       summary: Upload Cover Image
       operationId: uploadCoverImage
@@ -658,7 +658,7 @@ paths:
   # =====================================================
   # ITINERARY
   # =====================================================
-  /api/v1/trips/{tripId}/itinerary:
+  /trips/{tripId}/itinerary:
     get:
       summary: Get Itinerary
       operationId: getItinerary
@@ -698,7 +698,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Itinerary'
 
-  /api/v1/trips/{tripId}/itinerary/generate:
+  /trips/{tripId}/itinerary/generate:
     post:
       summary: Generate AI Itinerary
       operationId: generateItinerary
@@ -708,7 +708,7 @@ paths:
         Calls AI Service to generate itinerary.
         
         **S2S Call:**
-        `POST ai-service/internal/v1/generate/itinerary`
+        `POST http://localhost:8084/ai/itineraries`
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
         - $ref: '#/components/parameters/TripId'
@@ -732,7 +732,7 @@ paths:
   # =====================================================
   # PARTICIPANTS
   # =====================================================
-  /api/v1/trips/{tripId}/participants:
+  /trips/{tripId}/participants:
     get:
       summary: List Participants
       operationId: getParticipants
@@ -751,7 +751,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Participant'
 
-  /api/v1/trips/{tripId}/invite:
+  /trips/{tripId}/invitations:
     post:
       summary: Invite User
       operationId: inviteParticipant
@@ -761,7 +761,7 @@ paths:
         Invite user to trip. Requires OWNER or EDITOR.
         
         **S2S Call:**
-        `GET user-service/internal/v1/users/{userId}/exists`
+        `GET http://localhost:8081/users/{userId}/exists`
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
         - $ref: '#/components/parameters/TripId'
@@ -781,7 +781,7 @@ paths:
         '404':
           description: User not found
 
-  /api/v1/trips/{tripId}/join:
+  /trips/{tripId}/invitations/accept:
     post:
       summary: Accept Invitation
       operationId: joinTrip
@@ -798,7 +798,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Participant'
 
-  /api/v1/trips/{tripId}/decline:
+  /trips/{tripId}/invitations/decline:
     post:
       summary: Decline Invitation
       operationId: declineInvitation
@@ -811,7 +811,7 @@ paths:
         '200':
           description: Declined
 
-  /api/v1/trips/{tripId}/leave:
+  /trips/{tripId}/participants/leave:
     post:
       summary: Leave Trip
       operationId: leaveTrip
@@ -826,7 +826,7 @@ paths:
         '400':
           description: Owner cannot leave
 
-  /api/v1/trips/{tripId}/participants/{userId}:
+  /trips/{tripId}/participants/{userId}:
     patch:
       summary: Update Participant Role
       operationId: updateParticipant
@@ -867,7 +867,7 @@ paths:
         '204':
           description: Removed
 
-  /api/v1/invitations:
+  /trips/invitations:
     get:
       summary: My Pending Invitations
       operationId: getMyInvitations
@@ -903,7 +903,7 @@ paths:
   # =====================================================
   # DISCOVERY
   # =====================================================
-  /api/v1/discover:
+  /trips/discover:
     get:
       summary: Discovery Feed
       operationId: getDiscoveryFeed
@@ -938,7 +938,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TripListResponse'
 
-  /api/v1/discover/{tripId}/request-join:
+  /trips/{tripId}/join-requests:
     post:
       summary: Request to Join Public Trip
       operationId: requestJoinPublicTrip
@@ -963,7 +963,7 @@ paths:
   # =====================================================
   # INTERNAL S2S
   # =====================================================
-  /internal/v1/trips/{tripId}/exists:
+  /trips/{tripId}/exists:
     get:
       summary: "[Internal] Check Trip Exists"
       operationId: internalCheckTripExists
@@ -983,7 +983,7 @@ paths:
         '404':
           description: Not found
 
-  /internal/v1/trips/{tripId}/participants:
+  /trips/{tripId}/participants:
     get:
       summary: "[Internal] Get Participants"
       operationId: internalGetParticipants
@@ -1001,7 +1001,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TripParticipantsResponse'
 
-  /internal/v1/trips/{tripId}/is-participant/{userId}:
+  /trips/{tripId}/is-participant/{userId}:
     get:
       summary: "[Internal] Check Participant"
       operationId: internalIsParticipant
@@ -1030,7 +1030,7 @@ paths:
   # =====================================================
   # ADMIN
   # =====================================================
-  /admin/v1/trips:
+  /admin/trips:
     get:
       summary: "[Admin] List All Trips"
       operationId: adminListTrips
@@ -1056,7 +1056,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TripListResponse'
 
-  /admin/v1/trips/{tripId}:
+  /admin/trips/{tripId}:
     delete:
       summary: "[Admin] Delete Trip"
       operationId: adminDeleteTrip

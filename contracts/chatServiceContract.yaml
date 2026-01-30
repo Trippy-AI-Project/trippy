@@ -30,13 +30,13 @@ info:
     ## S2S Communication (Outbound)
     | Target Service | Purpose | Endpoint Called |
     |----------------|---------|-----------------|
-    | **Trip Service** | Verify user is participant | `GET /internal/v1/trips/{tripId}/is-participant/{userId}` |
-    | **Trip Service** | Get trip participants | `GET /internal/v1/trips/{tripId}/participants` |
-    | **User Service** | Get user profiles for display | `POST /internal/v1/users/batch` |
+    | **Trip Service** | Verify user is participant | `GET /trips/{tripId}/is-participant/{userId}` |
+    | **Trip Service** | Get trip participants | `GET /trips/{tripId}/participants` |
+    | **User Service** | Get user profiles for display | `POST /users/batch` |
 
     ## WebSocket Protocol
     - **Protocol**: STOMP over WebSocket
-    - **Endpoint**: `ws://localhost:8083/ws/chat` or `wss://api.trippy.dev/ws/chat`
+    - **Endpoint**: `ws://localhost:3000/ws/chat` or `wss://api.trippy.dev/ws/chat`
     - **Auth**: JWT token passed as query param `?token=<jwt>` or in STOMP CONNECT headers
     
     ### Subscribe Destinations
@@ -85,7 +85,7 @@ info:
 servers:
   - url: http://localhost:8083
     description: Local Development (Direct)
-  - url: http://localhost:8080/api/v1
+  - url: http://localhost:3000
     description: Local via API Gateway
   - url: http://chat-service.internal:8083
     description: Internal Cluster URL (K8s/Docker)
@@ -389,7 +389,7 @@ paths:
   # =====================================================
   # MESSAGE ENDPOINTS
   # =====================================================
-  /api/v1/trips/{tripId}/chat/messages:
+  /trips/{tripId}/chat/messages:
     get:
       summary: Get Chat History
       operationId: getChatHistory
@@ -402,7 +402,7 @@ paths:
         **Authorization**: User must be an ACCEPTED participant.
         
         **S2S Call**:
-        `GET trip-service/internal/v1/trips/{tripId}/is-participant/{userId}`
+        `GET http://localhost:8082/trips/{tripId}/is-participant/{userId}`
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
         - $ref: '#/components/parameters/TripId'
@@ -468,7 +468,7 @@ paths:
         '404':
           description: Trip not found
 
-  /api/v1/trips/{tripId}/chat/messages/{messageId}:
+  /trips/{tripId}/chat/messages/{messageId}:
     patch:
       summary: Edit Message
       operationId: editMessage
@@ -520,7 +520,7 @@ paths:
         '404':
           description: Message not found
 
-  /api/v1/trips/{tripId}/chat/messages/{messageId}/read:
+  /trips/{tripId}/chat/messages/{messageId}/read:
     post:
       summary: Mark Message as Read
       operationId: markAsRead
@@ -540,7 +540,7 @@ paths:
   # =====================================================
   # ATTACHMENT ENDPOINTS
   # =====================================================
-  /api/v1/trips/{tripId}/chat/attachments:
+  /trips/{tripId}/chat/attachments:
     post:
       summary: Upload Attachment
       operationId: uploadAttachment
@@ -581,7 +581,7 @@ paths:
   # =====================================================
   # PRESENCE ENDPOINTS
   # =====================================================
-  /api/v1/trips/{tripId}/chat/presence:
+  /trips/{tripId}/chat/presence:
     get:
       summary: Get Room Presence
       operationId: getRoomPresence
@@ -604,7 +604,7 @@ paths:
   # =====================================================
   # INTERNAL S2S ENDPOINTS
   # =====================================================
-  /internal/v1/trips/{tripId}/chat/system-message:
+  /trips/{tripId}/chat/system-message:
     post:
       summary: "[Internal] Send System Message"
       operationId: internalSendSystemMessage
@@ -634,7 +634,7 @@ paths:
         '404':
           description: Trip not found
 
-  /internal/v1/trips/{tripId}/chat/room:
+  /trips/{tripId}/chat/room:
     post:
       summary: "[Internal] Create Chat Room"
       operationId: internalCreateChatRoom

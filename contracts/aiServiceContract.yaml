@@ -66,7 +66,7 @@ info:
 servers:
   - url: http://localhost:8084
     description: Local Development (Direct)
-  - url: http://localhost:8080/api/v1
+  - url: http://localhost:3000
     description: Local via API Gateway
   - url: http://ai-service.internal:8084
     description: Internal Cluster URL (K8s/Docker)
@@ -488,7 +488,7 @@ paths:
   # =====================================================
   # DISCOVERY (Public via Gateway)
   # =====================================================
-  /api/v1/ai/discover:
+  /ai/destination-suggestions:
     post:
       summary: Get Destination Suggestions
       operationId: getDestinationSuggestions
@@ -525,7 +525,7 @@ paths:
   # =====================================================
   # TRAVEL ADVICE (Public via Gateway)
   # =====================================================
-  /api/v1/ai/advice:
+  /ai/travel-advice:
     post:
       summary: Get Travel Advice
       operationId: getTravelAdvice
@@ -556,7 +556,7 @@ paths:
   # =====================================================
   # INTERNAL S2S ENDPOINTS
   # =====================================================
-  /internal/v1/generate/itinerary:
+  /ai/itineraries:
     post:
       summary: "[Internal] Generate Itinerary"
       operationId: internalGenerateItinerary
@@ -596,7 +596,7 @@ paths:
         '503':
           description: AI provider unavailable
 
-  /internal/v1/consolidate/preferences:
+  /ai/preferences/consolidate:
     post:
       summary: "[Internal] Consolidate Group Preferences"
       operationId: internalConsolidatePreferences
@@ -623,7 +623,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConsolidatedPreferences'
 
-  /internal/v1/usage/{userId}:
+  /ai/usage/{userId}:
     get:
       summary: "[Internal] Get User AI Usage"
       operationId: internalGetUserUsage

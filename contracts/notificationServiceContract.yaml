@@ -41,12 +41,12 @@ info:
     ## S2S Communication (Inbound - Other services call this)
     | Source Service | Purpose | Endpoint |
     |----------------|---------|----------|
-    | **User Service** | Send verification email | `POST /internal/v1/notifications/email/verification` |
-    | **User Service** | Send password reset | `POST /internal/v1/notifications/email/password-reset` |
-    | **User Service** | Send welcome email | `POST /internal/v1/notifications/email/welcome` |
-    | **Trip Service** | Send invitation | `POST /internal/v1/notifications/trip-invitation` |
-    | **Payment Service** | Payment receipt | `POST /internal/v1/notifications/email/payment-receipt` |
-    | **Chat Service** | New message alert | `POST /internal/v1/notifications/push/new-message` |
+    | **User Service** | Send verification email | `POST /notifications/email/verification` |
+    | **User Service** | Send password reset | `POST /notifications/email/password-reset` |
+    | **User Service** | Send welcome email | `POST /notifications/email/welcome` |
+    | **Trip Service** | Send invitation | `POST /notifications/trip-invitation` |
+    | **Payment Service** | Payment receipt | `POST /notifications/email/payment-receipt` |
+    | **Chat Service** | New message alert | `POST /notifications/push/new-message` |
 
     ## Request Headers
     | Header | Required | Description |
@@ -80,7 +80,7 @@ info:
 servers:
   - url: http://localhost:8085
     description: Local Development (Direct)
-  - url: http://localhost:8080/api/v1
+  - url: http://localhost:3000
     description: Local via API Gateway
   - url: http://notification-service.internal:8085
     description: Internal Cluster URL (K8s/Docker)
@@ -509,7 +509,7 @@ paths:
   # =====================================================
   # NOTIFICATIONS (User-facing)
   # =====================================================
-  /api/v1/notifications:
+  /notifications:
     get:
       summary: Get My Notifications
       operationId: getMyNotifications
@@ -539,7 +539,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotificationListResponse'
 
-  /api/v1/notifications/unread-count:
+  /notifications/unread-count:
     get:
       summary: Get Unread Count
       operationId: getUnreadCount
@@ -559,7 +559,7 @@ paths:
                   unreadCount:
                     type: integer
 
-  /api/v1/notifications/{notificationId}/read:
+  /notifications/{notificationId}/read:
     post:
       summary: Mark as Read
       operationId: markAsRead
@@ -574,7 +574,7 @@ paths:
         '404':
           description: Notification not found
 
-  /api/v1/notifications/read-all:
+  /notifications/read-all:
     post:
       summary: Mark All as Read
       operationId: markAllAsRead
@@ -586,7 +586,7 @@ paths:
         '200':
           description: All marked as read
 
-  /api/v1/notifications/{notificationId}:
+  /notifications/{notificationId}:
     delete:
       summary: Delete Notification
       operationId: deleteNotification
@@ -604,7 +604,7 @@ paths:
   # =====================================================
   # PREFERENCES
   # =====================================================
-  /api/v1/notifications/preferences:
+  /notifications/preferences:
     get:
       summary: Get My Preferences
       operationId: getMyPreferences
@@ -644,7 +644,7 @@ paths:
   # =====================================================
   # PUSH DEVICES
   # =====================================================
-  /api/v1/notifications/devices:
+  /notifications/devices:
     get:
       summary: List My Devices
       operationId: listMyDevices
@@ -684,7 +684,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PushDevice'
 
-  /api/v1/notifications/devices/{deviceId}:
+  /notifications/devices/{deviceId}:
     delete:
       summary: Unregister Device
       operationId: unregisterDevice
@@ -705,7 +705,7 @@ paths:
   # =====================================================
   # INTERNAL S2S - EMAIL
   # =====================================================
-  /internal/v1/notifications/email/send:
+  /notifications/email/send:
     post:
       summary: "[Internal] Send Email"
       operationId: internalSendEmail
@@ -737,7 +737,7 @@ paths:
                   status:
                     $ref: '#/components/schemas/DeliveryStatus'
 
-  /internal/v1/notifications/email/verification:
+  /notifications/email/verification:
     post:
       summary: "[Internal] Send Verification Email"
       operationId: internalSendVerificationEmail
@@ -756,7 +756,7 @@ paths:
         '202':
           description: Email queued
 
-  /internal/v1/notifications/email/password-reset:
+  /notifications/email/password-reset:
     post:
       summary: "[Internal] Send Password Reset Email"
       operationId: internalSendPasswordResetEmail
@@ -775,7 +775,7 @@ paths:
         '202':
           description: Email queued
 
-  /internal/v1/notifications/email/welcome:
+  /notifications/email/welcome:
     post:
       summary: "[Internal] Send Welcome Email"
       operationId: internalSendWelcomeEmail
@@ -807,7 +807,7 @@ paths:
         '202':
           description: Email queued
 
-  /internal/v1/notifications/email/payment-receipt:
+  /notifications/email/payment-receipt:
     post:
       summary: "[Internal] Send Payment Receipt"
       operationId: internalSendPaymentReceipt
@@ -829,7 +829,7 @@ paths:
   # =====================================================
   # INTERNAL S2S - PUSH
   # =====================================================
-  /internal/v1/notifications/push/send:
+  /notifications/push/send:
     post:
       summary: "[Internal] Send Push Notification"
       operationId: internalSendPush
@@ -848,7 +848,7 @@ paths:
         '202':
           description: Push queued
 
-  /internal/v1/notifications/push/new-message:
+  /notifications/push/new-message:
     post:
       summary: "[Internal] New Message Push"
       operationId: internalSendNewMessagePush
@@ -895,7 +895,7 @@ paths:
   # =====================================================
   # INTERNAL S2S - IN-APP
   # =====================================================
-  /internal/v1/notifications/in-app/send:
+  /notifications/in-app/send:
     post:
       summary: "[Internal] Create In-App Notification"
       operationId: internalSendInApp
@@ -918,7 +918,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Notification'
 
-  /internal/v1/notifications/trip-invitation:
+  /notifications/trip-invitation:
     post:
       summary: "[Internal] Send Trip Invitation Notification"
       operationId: internalSendTripInvitation
