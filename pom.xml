@@ -20,13 +20,7 @@
 
     <!-- ==================== MODULES ==================== -->
     <modules>
-        <module>services/api-gateway</module>
-        <module>services/user-service</module>
-        <module>services/trip-service</module>
-        <module>services/chat-service</module>
-        <module>services/ai-service</module>
-        <module>services/notification-service</module>
-        <module>services/payment-service</module>
+        <module>services</module>
     </modules>
 
     <!-- ==================== PROPERTIES ==================== -->
@@ -43,6 +37,9 @@
         <lombok.version>1.18.34</lombok.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <springdoc-openapi.version>2.7.0</springdoc-openapi.version>
+        <postgresql.version>42.7.3</postgresql.version>
+        <spring-ai.version>1.0.0-M6</spring-ai.version>
+        <stripe.version>28.2.0</stripe.version>
     </properties>
 
     <!-- ==================== DEPENDENCY MANAGEMENT ==================== -->
@@ -69,6 +66,27 @@
                 <groupId>org.mapstruct</groupId>
                 <artifactId>mapstruct</artifactId>
                 <version>${mapstruct.version}</version>
+            </dependency>
+
+            <!-- PostgreSQL Driver -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.version}</version>
+            </dependency>
+
+            <!-- Spring AI (OpenAI) -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
+                <version>${spring-ai.version}</version>
+            </dependency>
+
+            <!-- Stripe SDK -->
+            <dependency>
+                <groupId>com.stripe</groupId>
+                <artifactId>stripe-java</artifactId>
+                <version>${stripe.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

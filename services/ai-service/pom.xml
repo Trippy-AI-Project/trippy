@@ -25,7 +25,6 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
-            <version>1.0.0-M4</version>
         </dependency>
 
         <!-- Spring Data JPA (for caching/logging) -->

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pse.trippy</groupId>
+        <artifactId>trippy-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>services</artifactId>
+    <packaging>pom</packaging>
+
+    <name>services</name>
+    <description>Aggregator for all backend services</description>
+
+    <modules>
+        <module>api-gateway</module>
+        <module>user-service</module>
+        <module>trip-service</module>
+        <module>chat-service</module>
+        <module>ai-service</module>
+        <module>notification-service</module>
+        <module>payment-service</module>
+    </modules>
+</project>
