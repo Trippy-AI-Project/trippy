@@ -69,10 +69,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${POSTGRES_CPU_LIMIT:-2}"
-          memory: ${POSTGRES_MEMORY_LIMIT:-2g}
+          cpus: 2
+          memory: 2g
         reservations:
-          memory: ${POSTGRES_MEMORY_RESERVATION:-1g}
+          memory: 1g
 
     logging:
       driver: "json-file"
@@ -120,16 +120,16 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${REDIS_CPU_LIMIT:-1}"
-          memory: ${REDIS_MEMORY_LIMIT:-1g}
+          cpus: 1
+          memory: 1g
         reservations:
-          memory: ${REDIS_MEMORY_RESERVATION:-512m}
+          memory: 512m
 
     logging:
       driver: "json-file"
       options:
-        max-size: "${LOG_MAX_SIZE:-50m}"
-        max-file: "${LOG_MAX_FILE:-5}"
+        max-size: "50m"
+        max-file: "5"
 
   # ===========================================================================
   # RABBITMQ - Message Broker for Async Communication
@@ -170,10 +170,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${RABBITMQ_CPU_LIMIT:-1}"
-          memory: ${RABBITMQ_MEMORY_LIMIT:-1g}
+          cpus: 1
+          memory: 1g
         reservations:
-          memory: ${RABBITMQ_MEMORY_RESERVATION:-512m}
+          memory: 512m
 
     logging:
       driver: "json-file"
@@ -223,10 +223,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${SONARQUBE_CPU_LIMIT:-2}"
-          memory: ${SONARQUBE_MEMORY_LIMIT:-4g}
+          cpus: 2
+          memory: 4g
         reservations:
-          memory: ${SONARQUBE_MEMORY_RESERVATION:-2g}
+          memory: 2g
 
     ulimits:
       nofile:

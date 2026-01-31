@@ -2,16 +2,16 @@
 # Trippy Platform - CI/CD Pipeline
 # =============================================================================
 # This workflow runs build and test checks for pull requests and pushes
-# to main/develop branches. All services must build and pass tests.
+# to dev/prod branches. All services must build and pass tests.
 # =============================================================================
 
 name: CI Build & Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ dev, prod ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ dev, prod ]
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -25,7 +25,7 @@ env:
 
 jobs:
   # ===========================================================================
-  # DETECT CHANGES - Determine which services need to be built
+  # DETECT CHANGES - Determined which services need to be built
   # ===========================================================================
   detect-changes:
     name: Detect Changes
