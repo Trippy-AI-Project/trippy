@@ -13,6 +13,11 @@ on:
   pull_request:
     branches: [ dev, prod ]
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 # Cancel in-progress runs for the same branch
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -135,6 +140,24 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/api-gateway clean verify -B -DskipTests=false
 
+
+      - name: Run static analysis (Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -pl services/api-gateway -B -DskipTests checkstyle:check spotbugs:check pmd:check
+
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      - name: Reviewdog annotations
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/api-gateway/target/checkstyle-result.xml
+          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/api-gateway/target/spotbugsXml.xml
+          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/api-gateway/target/pmd.xml
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -166,6 +189,24 @@ jobs:
         run: |
           mvn install -N -B -DskipTests
           mvn -pl services/user-service clean verify -B -DskipTests=false
+
+
+      - name: Run static analysis (Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -pl services/user-service -B -DskipTests checkstyle:check spotbugs:check pmd:check
+
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      - name: Reviewdog annotations
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/user-service/target/checkstyle-result.xml
+          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/user-service/target/spotbugsXml.xml
+          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/user-service/target/pmd.xml
 
       - name: Upload Test Results
         if: always()
@@ -199,6 +240,24 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/trip-service clean verify -B -DskipTests=false
 
+
+      - name: Run static analysis (Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -pl services/trip-service -B -DskipTests checkstyle:check spotbugs:check pmd:check
+
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      - name: Reviewdog annotations
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/trip-service/target/checkstyle-result.xml
+          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/trip-service/target/spotbugsXml.xml
+          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/trip-service/target/pmd.xml
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -230,6 +289,24 @@ jobs:
         run: |
           mvn install -N -B -DskipTests
           mvn -pl services/chat-service clean verify -B -DskipTests=false
+
+
+      - name: Run static analysis (Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -pl services/chat-service -B -DskipTests checkstyle:check spotbugs:check pmd:check
+
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      - name: Reviewdog annotations
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/chat-service/target/checkstyle-result.xml
+          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/chat-service/target/spotbugsXml.xml
+          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/chat-service/target/pmd.xml
 
       - name: Upload Test Results
         if: always()
@@ -263,6 +340,24 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/ai-service clean verify -B -DskipTests=false
 
+
+      - name: Run static analysis (Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -pl services/ai-service -B -DskipTests checkstyle:check spotbugs:check pmd:check
+
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      - name: Reviewdog annotations
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/ai-service/target/checkstyle-result.xml
+          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/ai-service/target/spotbugsXml.xml
+          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/ai-service/target/pmd.xml
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -295,6 +390,24 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/notification-service clean verify -B -DskipTests=false
 
+
+      - name: Run static analysis (Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -pl services/notification-service -B -DskipTests checkstyle:check spotbugs:check pmd:check
+
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      - name: Reviewdog annotations
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/notification-service/target/checkstyle-result.xml
+          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/notification-service/target/spotbugsXml.xml
+          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/notification-service/target/pmd.xml
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -326,6 +439,24 @@ jobs:
         run: |
           mvn install -N -B -DskipTests
           mvn -pl services/payment-service clean verify -B -DskipTests=false
+
+
+      - name: Run static analysis (Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -pl services/payment-service -B -DskipTests checkstyle:check spotbugs:check pmd:check
+
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      - name: Reviewdog annotations
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/payment-service/target/checkstyle-result.xml
+          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/payment-service/target/spotbugsXml.xml
+          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/payment-service/target/pmd.xml
 
       - name: Upload Test Results
         if: always()
