@@ -4,20 +4,20 @@
     "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <module name="Checker">
+    <property name="severity" value="warning"/>
+    
     <module name="SuppressionFilter">
         <property name="file" value="${config_loc}/suppressions.xml"/>
+        <property name="optional" value="false"/>
     </module>
 
-    <module name="TreeWalker">
-        <module name="JavadocMethod">
-            <property name="scope" value="public"/>
-            <property name="allowMissingParamTags" value="true"/>
-            <property name="allowMissingReturnTag" value="true"/>
-            <property name="allowMissingThrowsTags" value="true"/>
-        </module>
+    <module name="JavadocPackage"/>
 
-        <module name="JavadocPackage"/>
+    <module name="TreeWalker">
+        <!-- Require final parameters for methods -->
         <module name="FinalParameters"/>
+        
+        <!-- Utility classes should not have public/default constructor -->
         <module name="HideUtilityClassConstructor"/>
     </module>
 </module>

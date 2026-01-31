@@ -145,8 +145,9 @@
                     <artifactId>maven-checkstyle-plugin</artifactId>
                     <version>3.3.1</version>
                     <configuration>
-                        <configLocation>config/checkstyle/checkstyle.xml</configLocation>
-                        <suppressionsLocation>config/checkstyle/suppressions.xml</suppressionsLocation>
+                        <configLocation>${maven.multiModuleProjectDirectory}/.github/checkstyle/checkstyle.xml</configLocation>
+                        <suppressionsLocation>${maven.multiModuleProjectDirectory}/.github/checkstyle/suppressions.xml</suppressionsLocation>
+                        <propertyExpansion>config_loc=${maven.multiModuleProjectDirectory}/.github/checkstyle</propertyExpansion>
                         <failOnViolation>true</failOnViolation>
                     </configuration>
                 </plugin>
@@ -158,7 +159,25 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-pmd-plugin</artifactId>
-                    <version>3.21.2</version>
+                    <version>3.25.0</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>net.sourceforge.pmd</groupId>
+                            <artifactId>pmd-core</artifactId>
+                            <version>7.7.0</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>net.sourceforge.pmd</groupId>
+                            <artifactId>pmd-java</artifactId>
+                            <version>7.7.0</version>
+                        </dependency>
+                    </dependencies>
+                    <configuration>
+                        <targetJdk>${java.version}</targetJdk>
+                        <linkXRef>false</linkXRef>
+                        <failOnViolation>true</failOnViolation>
+                        <printFailingErrors>true</printFailingErrors>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.springframework.boot</groupId>
