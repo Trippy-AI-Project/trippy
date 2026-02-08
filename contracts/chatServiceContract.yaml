@@ -209,6 +209,10 @@ components:
         isEdited:
           type: boolean
           default: false
+        isDeleted:
+          type: boolean
+          default: false
+          description: True when message has been soft-deleted
         readBy:
           type: array
           items:
@@ -359,6 +363,7 @@ components:
           format: uuid
         content:
           type: string
+          maxLength: 4000                          # FIX 4: added maxLength (was unbounded)
           example: "Alice joined the trip"
         metadata:
           type: object
@@ -478,6 +483,7 @@ paths:
         Edit a previously sent message.
         Only the sender can edit their own messages.
         Edited messages are marked with `isEdited: true`.
+        Cannot edit a message that has been deleted.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
         - $ref: '#/components/parameters/TripId'
@@ -499,6 +505,8 @@ paths:
           description: Can only edit own messages
         '404':
           description: Message not found
+        '409':                                     # FIX 8: added conflict guard for deleted messages
+          description: Cannot edit a deleted message
 
     delete:
       summary: Delete Message
@@ -506,15 +514,21 @@ paths:
       tags: [Messages]
       security: [BearerAuth: []]
       description: |
-        Delete a message. Only sender can delete.
-        Message content is replaced with "[Message deleted]".
+        Soft-delete a message. Only the sender can delete.
+        Message content is replaced with "[Message deleted]" and
+        `isDeleted` is set to `true`. The full updated message object
+        is returned so clients can update state immediately.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
         - $ref: '#/components/parameters/TripId'
         - $ref: '#/components/parameters/MessageId'
       responses:
-        '204':
-          description: Message deleted
+        '200':                                     # FIX 3: changed from 204 to 200 with body
+          description: Message soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
         '403':
           description: Can only delete own messages
         '404':
@@ -534,6 +548,8 @@ paths:
       responses:
         '200':
           description: Marked as read
+        '403':                                     # FIX 6: added missing participant check
+          description: Not a participant
         '404':
           description: Message not found
 
@@ -574,9 +590,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/UploadAttachmentResponse'
         '400':
-          description: Invalid file type or size
+          description: Invalid file type
         '403':
           description: Not a participant
+        '413':                                     # FIX 5: added proper oversized-file response
+          description: File exceeds 10MB size limit
 
   # =====================================================
   # PRESENCE ENDPOINTS
@@ -600,11 +618,13 @@ paths:
                 $ref: '#/components/schemas/RoomPresence'
         '403':
           description: Not a participant
+        '404':                                     # FIX 7: added missing trip-not-found response
+          description: Trip not found
 
   # =====================================================
   # INTERNAL S2S ENDPOINTS
   # =====================================================
-  /trips/{tripId}/chat/system-message:
+  /trips/{tripId}/chat/system-messages:                # FIX 1a: pluralized (was system-message)
     post:
       summary: "[Internal] Send System Message"
       operationId: internalSendSystemMessage
@@ -634,7 +654,7 @@ paths:
         '404':
           description: Trip not found
 
-  /trips/{tripId}/chat/room:
+  /trips/{tripId}/chat/rooms:                          # FIX 1b: pluralized (was room)
     post:
       summary: "[Internal] Create Chat Room"
       operationId: internalCreateChatRoom
