@@ -1,0 +1,54 @@
+package pse.trippy.paymentservice.model.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * PaymentMethod entity representing a payment method.
+ * Maps to the 'payment_methods' table in the payment_schema.
+ */
+@Entity
+@Table(name = "payment_methods", schema = "payment_schema")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class PaymentMethod {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private UUID userId;
+
+    @Column(nullable = false, length = 50)
+    private String type;
+
+    @Column(nullable = false, length = 4)
+    private String last4;
+
+    @Column(nullable = false, length = 50)
+    private String brand;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isDefault = false;
+
+    @Column(nullable = false, updatable = false)
+    @Builder.Default
+    private Instant createdAt = Instant.now();
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+    }
+}
