@@ -48,7 +48,7 @@ export default function TripCard({
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="h-full w-full bg-trippy-gradient opacity-30" />
+          <div className="h-full w-full bg-trippy-500 opacity-30" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 

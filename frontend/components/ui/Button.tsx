@@ -8,7 +8,7 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-trippy-gradient text-white shadow-lg shadow-trippy-500/25 hover:shadow-trippy-500/40 hover:scale-[1.02]",
+    "bg-trippy-500 text-white shadow-lg shadow-trippy-500/25 hover:shadow-trippy-500/40 hover:scale-[1.02]",
   secondary:
     "glass text-foreground hover:bg-surface-hover",
   ghost:

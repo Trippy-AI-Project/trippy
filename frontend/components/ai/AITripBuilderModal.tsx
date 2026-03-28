@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
-  Bot,
+  
   Send,
   MapPin,
   Calendar,
@@ -268,8 +268,8 @@ export default function AITripBuilderModal({ open, onClose }: AITripBuilderModal
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-trippy-gradient flex items-center justify-center">
-                    <Bot size={18} className="text-white" />
+                  <div className="w-9 h-9 rounded-xl bg-trippy-500 flex items-center justify-center">
+                    <Sparkles size={18} className="text-white" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-sm">AI Trip Builder</h3>
@@ -296,7 +296,7 @@ export default function AITripBuilderModal({ open, onClose }: AITripBuilderModal
                     <div
                       className={`max-w-[85%] ${
                         msg.role === "user"
-                          ? "bg-trippy-gradient text-white rounded-2xl rounded-br-md px-4 py-2.5"
+                          ? "bg-trippy-500 text-white rounded-2xl rounded-br-md px-4 py-2.5"
                           : "space-y-3"
                       }`}
                     >
@@ -375,7 +375,7 @@ export default function AITripBuilderModal({ open, onClose }: AITripBuilderModal
                   <button
                     type="submit"
                     disabled={!input.trim() || isTyping}
-                    className="w-9 h-9 rounded-xl bg-trippy-gradient flex items-center justify-center text-white disabled:opacity-40 transition-opacity cursor-pointer"
+                    className="w-9 h-9 rounded-xl bg-trippy-500 flex items-center justify-center text-white disabled:opacity-40 transition-opacity cursor-pointer"
                   >
                     <Send size={14} />
                   </button>
@@ -473,7 +473,7 @@ function TripResultCard({
                 {trip.itinerary.map((day) => (
                   <div key={day.day} className="flex gap-2">
                     <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-trippy-gradient text-white text-[10px] flex items-center justify-center font-bold">
+                      <div className="w-6 h-6 rounded-full bg-trippy-500 text-white text-[10px] flex items-center justify-center font-bold">
                         {day.day}
                       </div>
                       {day.day < trip.itinerary.length && (

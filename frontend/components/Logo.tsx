@@ -16,7 +16,7 @@ export default function Logo({ size = "md", className }: LogoProps) {
   const s = sizeMap[size];
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className="bg-trippy-gradient p-1.5 rounded-lg">
+      <div className="bg-trippy-500 p-1.5 rounded-lg">
         <Compass size={s.icon} className="text-white" />
       </div>
       <span className={cn("font-bold tracking-tight text-foreground", s.text)}>
