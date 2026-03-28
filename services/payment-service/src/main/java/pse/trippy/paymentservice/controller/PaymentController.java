@@ -48,33 +48,44 @@ public class PaymentController {
             // Validate request
             if (request.getPlanId() == null || request.getPlanId().trim().isEmpty()) {
                 return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Invalid request: planId is required"));
+                        .body(ErrorResponse.validation("planId is required"));
             }
-
             if (request.getPaymentMethodId() == null || request.getPaymentMethodId().trim().isEmpty()) {
                 return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Invalid request: paymentMethodId is required"));
+                        .body(ErrorResponse.validation("paymentMethodId is required"));
             }
-
-            // Get user ID from principal (in real scenario, extract from JWT token)
-            // For now, use a dummy UUID from principal name
-            UUID userId = UUID.fromString(principal.getName());
-
-            // Process checkout
+            UUID userId;
+            try {
+                userId = UUID.fromString(principal.getName());
+            } catch (Exception ex) {
+                // Authentication/config error, not a client error
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ErrorResponse.internal("Invalid principal UUID format"));
+            }
             CheckoutResponseDto response = paymentService.checkout(userId, request);
-
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
-                    .body(new ErrorResponse("Bad request: " + e.getMessage()));
+                    .body(ErrorResponse.validation(e.getMessage()));
         } catch (Exception e) {
+            // Do not expose internal exception messages
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Internal server error: " + e.getMessage()));
+                    .body(ErrorResponse.internal("Unexpected server error"));
         }
     }
 
     /**
      * Error response DTO.
      */
-    public record ErrorResponse(String error) {}
+    /**
+     * Contract-aligned error response DTO.
+     */
+    public record ErrorResponse(String error, String message, String timestamp) {
+        public static ErrorResponse validation(String message) {
+            return new ErrorResponse("VALIDATION_ERROR", message, java.time.Instant.now().toString());
+        }
+        public static ErrorResponse internal(String message) {
+            return new ErrorResponse("INTERNAL_ERROR", message, java.time.Instant.now().toString());
+        }
+    }
 }

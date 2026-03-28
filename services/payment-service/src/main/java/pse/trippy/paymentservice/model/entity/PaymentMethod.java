@@ -14,7 +14,11 @@ import java.util.UUID;
  * Maps to the 'payment_methods' table in the payment_schema.
  */
 @Entity
-@Table(name = "payment_methods", schema = "payment_schema")
+@Table(
+    name = "payment_methods",
+    schema = "payment_schema",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"userId", "isDefault"})
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -39,7 +43,7 @@ public class PaymentMethod {
 
     @Column(nullable = false)
     @Builder.Default
-    private Boolean isDefault = false;
+    private boolean isDefault = false;
 
     @Column(nullable = false, updatable = false)
     @Builder.Default

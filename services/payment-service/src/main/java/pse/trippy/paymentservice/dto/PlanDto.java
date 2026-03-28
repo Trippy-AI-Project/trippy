@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * DTO for plan information.
@@ -20,15 +20,25 @@ public class PlanDto {
     @JsonProperty("planId")
     private String planId;
 
-    @JsonProperty("price")
-    private BigDecimal price;
+    @JsonProperty("name")
+    private String name;
 
-    @JsonProperty("currency")
-    private String currency;
+    @JsonProperty("displayName")
+    private String displayName;
+
+    @JsonProperty("price")
+    private MoneyDto price;
+
+    @JsonProperty("interval")
+    private String interval;
 
     @JsonProperty("features")
-    private String features;
+    private List<String> features;
 
-    @JsonProperty("billingCycle")
-    private String billingCycle;
+    @JsonProperty("tripsLimit")
+    private Integer tripsLimit;
+
+    @JsonProperty("aiGenerationsLimit")
+    private Integer aiGenerationsLimit;
+}
 }
