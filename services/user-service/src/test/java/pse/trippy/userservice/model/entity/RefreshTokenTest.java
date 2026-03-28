@@ -24,7 +24,7 @@ class RefreshTokenTest {
     private User buildUser() {
         return User.builder()
                 .email("bob@example.com")
-                .passwordHash("$2a$12$hashedpassword")
+                .passwordHash("mock-pw-hash")
                 .displayName("Bob")
                 .build();
     }
