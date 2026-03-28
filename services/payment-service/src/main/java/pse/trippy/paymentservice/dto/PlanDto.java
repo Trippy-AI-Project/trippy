@@ -41,4 +41,3 @@ public class PlanDto {
     @JsonProperty("aiGenerationsLimit")
     private Integer aiGenerationsLimit;
 }
-}
