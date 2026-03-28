@@ -41,7 +41,7 @@ class JwtServiceTest {
         return User.builder()
                 .id(UUID.randomUUID())
                 .email("alice@example.com")
-                .passwordHash("$2a$12$hash")
+                .passwordHash("mock-pw-hash")
                 .displayName("Alice")
                 .role(UserRole.USER)
                 .plan(SubscriptionPlan.FREE)

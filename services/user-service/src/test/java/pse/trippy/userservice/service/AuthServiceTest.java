@@ -77,7 +77,7 @@ class AuthServiceTest {
         return User.builder()
                 .id(UUID.randomUUID())
                 .email("bob@example.com")
-                .passwordHash("$2a$12$hashedpw")
+                .passwordHash("mock-pw-hash")
                 .displayName("Bob")
                 .role(UserRole.USER)
                 .plan(SubscriptionPlan.FREE)
@@ -99,11 +99,11 @@ class AuthServiceTest {
             User user = buildUser();
             LoginRequest request = LoginRequest.builder()
                     .email("bob@example.com")
-                    .password("SecureP@ss1")
+                    .password("mock-password")
                     .build();
 
             when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("SecureP@ss1", "$2a$12$hashedpw")).thenReturn(true);
+            when(passwordEncoder.matches("mock-password", "mock-pw-hash")).thenReturn(true);
             when(jwtService.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
             when(jwtService.getAccessTokenExpirySeconds()).thenReturn(ACCESS_TOKEN_EXPIRY);
 
@@ -123,11 +123,11 @@ class AuthServiceTest {
             User user = buildUser();
             LoginRequest request = LoginRequest.builder()
                     .email("bob@example.com")
-                    .password("SecureP@ss1")
+                    .password("mock-password")
                     .build();
 
             when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("SecureP@ss1", "$2a$12$hashedpw")).thenReturn(true);
+            when(passwordEncoder.matches("mock-password", "mock-pw-hash")).thenReturn(true);
             when(jwtService.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
             when(jwtService.getAccessTokenExpirySeconds()).thenReturn(ACCESS_TOKEN_EXPIRY);
 
@@ -170,7 +170,7 @@ class AuthServiceTest {
                     .build();
 
             when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("wrong-password", "$2a$12$hashedpw")).thenReturn(false);
+            when(passwordEncoder.matches("wrong-password", "mock-pw-hash")).thenReturn(false);
 
             assertThatThrownBy(() -> authService.login(request))
                     .isInstanceOf(InvalidCredentialsException.class)
