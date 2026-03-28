@@ -15,6 +15,7 @@ import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.EmailAlreadyExistsException;
 import pse.trippy.userservice.service.AuthService;
+import pse.trippy.userservice.TestFixtures;
 
 import java.util.UUID;
 
@@ -58,7 +59,7 @@ class AuthControllerTest {
             UUID userId = UUID.randomUUID();
             RegisterRequest request = RegisterRequest.builder()
                     .email("john@example.com")
-                    .password("SecureP@ss1")
+                    .password(TestFixtures.validPassword())
                     .displayName("John Doe")
                     .build();
 
@@ -88,7 +89,7 @@ class AuthControllerTest {
             // Given
             RegisterRequest request = RegisterRequest.builder()
                     .email("existing@example.com")
-                    .password("SecureP@ss1")
+                    .password(TestFixtures.validPassword())
                     .displayName("John Doe")
                     .build();
 
@@ -110,7 +111,7 @@ class AuthControllerTest {
             // Given
             RegisterRequest request = RegisterRequest.builder()
                     .email("invalid-email")
-                    .password("SecureP@ss1")
+                    .password(TestFixtures.validPassword())
                     .displayName("John Doe")
                     .build();
 
@@ -129,7 +130,7 @@ class AuthControllerTest {
             // Given - password missing special char
             RegisterRequest request = RegisterRequest.builder()
                     .email("john@example.com")
-                    .password("WeakPass1")
+                    .password(TestFixtures.weakPassword())
                     .displayName("John Doe")
                     .build();
 
@@ -146,12 +147,12 @@ class AuthControllerTest {
         @DisplayName("returns 400 Bad Request for missing displayName")
         void returnsBadRequestForMissingDisplayName() throws Exception {
             // Given
-            String requestJson = """
+            String requestJson = String.format("""
                     {
                         "email": "john@example.com",
-                        "password": "SecureP@ss1"
+                        "password": "%s"
                     }
-                    """;
+                    """, TestFixtures.validPassword());
 
             // When/Then
             mockMvc.perform(post(REGISTER_URL)
@@ -168,7 +169,7 @@ class AuthControllerTest {
             // Given
             RegisterRequest request = RegisterRequest.builder()
                     .email("john@example.com")
-                    .password("Sh@1")
+                    .password(TestFixtures.shortPassword())
                     .displayName("John Doe")
                     .build();
 

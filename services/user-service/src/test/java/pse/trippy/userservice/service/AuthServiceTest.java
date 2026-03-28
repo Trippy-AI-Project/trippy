@@ -17,6 +17,7 @@ import pse.trippy.userservice.model.entity.User;
 import pse.trippy.userservice.model.enums.SubscriptionPlan;
 import pse.trippy.userservice.model.enums.UserRole;
 import pse.trippy.userservice.repository.UserRepository;
+import pse.trippy.userservice.TestFixtures;
 
 import java.util.UUID;
 
@@ -46,9 +47,9 @@ class AuthServiceTest {
 
     private RegisterRequest validRequest;
     private static final String TEST_EMAIL = "john@example.com";
-    private static final String TEST_PASSWORD = "SecureP@ss1";
+    private static final String TEST_PASSWORD = TestFixtures.validPassword();
     private static final String TEST_DISPLAY_NAME = "John Doe";
-    private static final String HASHED_PASSWORD = "$2a$12$hashedPasswordValue";
+    private static final String HASHED_PASSWORD = TestFixtures.bcryptHash();
 
     @BeforeEach
     void setUp() {
