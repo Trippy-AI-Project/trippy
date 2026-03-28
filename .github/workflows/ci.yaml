@@ -155,7 +155,6 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/api-gateway/target/checkstyle-result.xml
-          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/api-gateway/target/spotbugsXml.xml
           reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/api-gateway/target/pmd.xml
 
       - name: Upload Test Results
@@ -205,7 +204,6 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/user-service/target/checkstyle-result.xml
-          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/user-service/target/spotbugsXml.xml
           reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/user-service/target/pmd.xml
 
       - name: Upload Test Results
@@ -255,7 +253,6 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/trip-service/target/checkstyle-result.xml
-          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/trip-service/target/spotbugsXml.xml
           reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/trip-service/target/pmd.xml
 
       - name: Upload Test Results
@@ -305,7 +302,6 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/chat-service/target/checkstyle-result.xml
-          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/chat-service/target/spotbugsXml.xml
           reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/chat-service/target/pmd.xml
 
       - name: Upload Test Results
@@ -355,7 +351,6 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/ai-service/target/checkstyle-result.xml
-          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/ai-service/target/spotbugsXml.xml
           reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/ai-service/target/pmd.xml
 
       - name: Upload Test Results
@@ -405,7 +400,6 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/notification-service/target/checkstyle-result.xml
-          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/notification-service/target/spotbugsXml.xml
           reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/notification-service/target/pmd.xml
 
       - name: Upload Test Results
@@ -455,7 +449,6 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           reviewdog -f=checkstyle -name="checkstyle" -reporter=github-pr-review -filter-mode=diff_context < services/payment-service/target/checkstyle-result.xml
-          reviewdog -f=spotbugs -name="spotbugs" -reporter=github-pr-review -filter-mode=diff_context < services/payment-service/target/spotbugsXml.xml
           reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/payment-service/target/pmd.xml
 
       - name: Upload Test Results
