@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import pse.trippy.userservice.exception.AccountNotVerifiedException;
 import pse.trippy.userservice.exception.InvalidCredentialsException;
 import pse.trippy.userservice.exception.InvalidTokenException;
 import pse.trippy.userservice.model.dto.LoginRequest;
@@ -81,7 +82,7 @@ class AuthServiceTest {
                 .displayName("Bob")
                 .role(UserRole.USER)
                 .plan(SubscriptionPlan.FREE)
-                .emailVerified(false)
+                .emailVerified(true)
                 .build();
     }
 
@@ -113,6 +114,8 @@ class AuthServiceTest {
             assertThat(response.getRefreshToken()).isNotBlank();
             assertThat(response.getExpiresIn()).isEqualTo(ACCESS_TOKEN_EXPIRY);
             assertThat(response.getTokenType()).isEqualTo("Bearer");
+            assertThat(response.getUser()).isNotNull();
+            assertThat(response.getUser().getEmail()).isEqualTo("bob@example.com");
 
             verify(refreshTokenRepository).save(any(RefreshToken.class));
         }
@@ -175,6 +178,27 @@ class AuthServiceTest {
             assertThatThrownBy(() -> authService.login(request))
                     .isInstanceOf(InvalidCredentialsException.class)
                     .hasMessage("Invalid email or password");
+
+            verify(refreshTokenRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("throws AccountNotVerifiedException when email is not verified")
+        void throwsWhenEmailNotVerified() {
+            User user = buildUser();
+            user.setEmailVerified(false);
+            
+            LoginRequest request = LoginRequest.builder()
+                    .email("bob@example.com")
+                    .password("mock-password")
+                    .build();
+
+            when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("mock-password", "mock-pw-hash")).thenReturn(true);
+
+            assertThatThrownBy(() -> authService.login(request))
+                    .isInstanceOf(AccountNotVerifiedException.class)
+                    .hasMessageContaining("Account not verified");
 
             verify(refreshTokenRepository, never()).save(any());
         }

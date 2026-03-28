@@ -5,12 +5,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pse.trippy.userservice.exception.AccountNotVerifiedException;
 import pse.trippy.userservice.exception.InvalidCredentialsException;
 import pse.trippy.userservice.exception.InvalidTokenException;
 import pse.trippy.userservice.model.dto.LoginRequest;
 import pse.trippy.userservice.model.dto.LoginResponse;
 import pse.trippy.userservice.model.dto.RefreshTokenRequest;
 import pse.trippy.userservice.model.dto.TokenResponse;
+import pse.trippy.userservice.model.dto.UserProfileDto;
 import pse.trippy.userservice.model.entity.RefreshToken;
 import pse.trippy.userservice.model.entity.User;
 import pse.trippy.userservice.repository.RefreshTokenRepository;
@@ -73,15 +75,30 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
+        if (!user.isEmailVerified()) {
+            throw new AccountNotVerifiedException("Account not verified. Please verify your email.");
+        }
+
         String accessToken = jwtService.generateAccessToken(user);
         String rawRefreshToken = createRefreshToken(user, request.isRememberMe());
 
         log.info("User logged in: userId={}", user.getId());
 
+        UserProfileDto userProfileDto = UserProfileDto.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .displayName(user.getDisplayName())
+                .avatarUrl(user.getAvatarUrl())
+                .bio(user.getBio())
+                .phoneNumber(user.getPhoneNumber())
+                .emailVerified(user.isEmailVerified())
+                .build();
+
         return LoginResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(rawRefreshToken)
                 .expiresIn(jwtService.getAccessTokenExpirySeconds())
+                .user(userProfileDto)
                 .build();
     }
 
@@ -97,7 +114,7 @@ public class AuthService {
      * @return new tokens and expiry metadata
      * @throws InvalidTokenException if the token is unknown or expired
      */
-    @Transactional
+    @Transactional(noRollbackFor = InvalidTokenException.class)
     public TokenResponse refreshToken(RefreshTokenRequest request) {
         String hashedToken = hashToken(request.getRefreshToken());
 

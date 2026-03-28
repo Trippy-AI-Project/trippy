@@ -23,7 +23,7 @@ import java.security.interfaces.RSAPublicKey;
 public class RsaKeyProperties {
 
     /** Key identifier included in JWTs and the JWKS response. */
-    public static final String KEY_ID = "trippy-key-1";
+    public final String KEY_ID = "trippy-key-" + java.util.UUID.randomUUID().toString();
 
     private static final int KEY_SIZE = 2048;
 

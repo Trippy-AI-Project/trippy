@@ -120,7 +120,7 @@ class JwtServiceTest {
             SignedJWT signedJwt = SignedJWT.parse(token);
 
             assertThat(signedJwt.getHeader().getAlgorithm().getName()).isEqualTo("RS256");
-            assertThat(signedJwt.getHeader().getKeyID()).isEqualTo(RsaKeyProperties.KEY_ID);
+            assertThat(signedJwt.getHeader().getKeyID()).isEqualTo(rsaKeys.KEY_ID);
         }
 
         @Test

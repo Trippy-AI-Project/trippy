@@ -59,7 +59,7 @@ public class JwtService {
                 .build();
 
         JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)
-                .keyID(RsaKeyProperties.KEY_ID)
+                .keyID(rsaKeys.KEY_ID)
                 .build();
 
         SignedJWT signedJwt = new SignedJWT(header, claims);

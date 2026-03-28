@@ -28,7 +28,7 @@ public class JwksController {
     @GetMapping(value = "/.well-known/jwks.json", produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> getJwks() {
         RSAKey rsaKey = new RSAKey.Builder(rsaKeys.getPublicKey())
-                .keyID(RsaKeyProperties.KEY_ID)
+                .keyID(rsaKeys.KEY_ID)
                 .algorithm(com.nimbusds.jose.JWSAlgorithm.RS256)
                 .keyUse(com.nimbusds.jose.jwk.KeyUse.SIGNATURE)
                 .build();
