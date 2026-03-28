@@ -10,16 +10,19 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.chatservice.dto.request.SendMessageRequest;
 import pse.trippy.chatservice.dto.response.ChatMessageResponse;
+import pse.trippy.chatservice.dto.response.MessageHistoryResponse;
 import pse.trippy.chatservice.model.enums.MessageType;
 import pse.trippy.chatservice.service.ChatMessageService;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -79,5 +82,43 @@ class ChatMessageControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("GET /trips/{tripId}/chat/messages returns paginated history")
+    void getMessageHistoryReturnsPaginatedHistory() throws Exception {
+        UUID tripId = UUID.randomUUID();
+        UUID msgId = UUID.randomUUID();
+
+        MessageHistoryResponse historyResponse = MessageHistoryResponse.builder()
+                .messages(List.of(ChatMessageResponse.builder()
+                        .id(msgId)
+                        .senderId(UUID.randomUUID())
+                        .senderDisplayName("Alice")
+                        .content("Hello!")
+                        .type("TEXT")
+                        .createdAt(Instant.now())
+                        .edited(false)
+                        .build()))
+                .page(0)
+                .size(50)
+                .totalMessages(1)
+                .hasMore(false)
+                .build();
+
+        when(chatMessageService.getMessageHistory(eq(tripId), eq(0), eq(50), any()))
+                .thenReturn(historyResponse);
+
+        mockMvc.perform(get("/trips/{tripId}/chat/messages", tripId)
+                        .param("page", "0")
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messages").isArray())
+                .andExpect(jsonPath("$.messages[0].id").value(msgId.toString()))
+                .andExpect(jsonPath("$.messages[0].content").value("Hello!"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(50))
+                .andExpect(jsonPath("$.totalMessages").value(1))
+                .andExpect(jsonPath("$.hasMore").value(false));
     }
 }
