@@ -4,16 +4,20 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.chatservice.dto.request.SendMessageRequest;
 import pse.trippy.chatservice.dto.response.ChatMessageResponse;
+import pse.trippy.chatservice.dto.response.MessageHistoryResponse;
 import pse.trippy.chatservice.model.enums.MessageType;
 import pse.trippy.chatservice.service.ChatMessageService;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -25,6 +29,17 @@ import java.util.UUID;
 public class ChatMessageController {
 
     private final ChatMessageService chatMessageService;
+
+    @GetMapping("/trips/{tripId}/chat/messages")
+    public ResponseEntity<MessageHistoryResponse> getMessageHistory(
+            @PathVariable UUID tripId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) Instant before) {
+
+        MessageHistoryResponse history = chatMessageService.getMessageHistory(tripId, page, size, before);
+        return ResponseEntity.ok(history);
+    }
 
     @PostMapping("/trips/{tripId}/chat/messages")
     public ResponseEntity<ChatMessageResponse> sendMessage(
