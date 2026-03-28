@@ -1,0 +1,102 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:3000"
+            allowedMethods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+            allowedHeaders: Authorization,Content-Type,X-Correlation-ID
+            exposedHeaders: X-Correlation-ID
+            allowCredentials: true
+            maxAge: 3600
+      
+      routes:
+        # User Service Routes
+        - id: auth-route
+          uri: http://user-service:8081
+          predicates:
+            - Path=/auth/**
+          filters:
+            - StripPrefix=1
+
+        - id: users-route
+          uri: http://user-service:8081
+          predicates:
+            - Path=/users/**
+          filters:
+            - StripPrefix=1
+
+        - id: wellknown-route
+          uri: http://user-service:8081
+          predicates:
+            - Path=/.well-known/**
+
+        # Trip Service Routes
+        - id: trips-route
+          uri: http://trip-service:8082
+          predicates:
+            - Path=/trips/**
+          filters:
+            - StripPrefix=1
+
+        # Chat Service Routes (REST)
+        - id: trips-chat-route
+          uri: http://chat-service:8083
+          predicates:
+            - Path=/trips/**/chat/**
+          filters:
+            - StripPrefix=3
+
+        # WebSocket Route
+        - id: websocket-route
+          uri: ws://chat-service:8083
+          predicates:
+            - Path=/ws/**
+          filters:
+            - StripPrefix=1
+
+        # AI Service Routes
+        - id: ai-route
+          uri: http://ai-service:8084
+          predicates:
+            - Path=/ai/**
+          filters:
+            - StripPrefix=1
+
+        # Notification Service Routes
+        - id: notification-route
+          uri: http://notification-service:8085
+          predicates:
+            - Path=/notifications/**
+          filters:
+            - StripPrefix=1
+
+        # Payment Service Routes
+        - id: payment-route
+          uri: http://payment-service:8086
+          predicates:
+            - Path=/payments/**
+          filters:
+            - StripPrefix=1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    pse.trippy.apigateway: DEBUG
