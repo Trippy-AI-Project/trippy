@@ -28,6 +28,7 @@ import {
   Play,
   Waves,
 } from "lucide-react";
+import AITripBuilderModal from "@/components/ai/AITripBuilderModal";
 import Logo from "@/components/Logo";
 import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
 
@@ -289,6 +290,9 @@ export default function LandingPage() {
   const [selectedPrefs, setSelectedPrefs] = useState<string[]>(["Beach & Islands", "City Breaks"]);
   const [hoveredTrip, setHoveredTrip] = useState<string | null>(null);
   const [showAITooltip, setShowAITooltip] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [showAIBuilder, setShowAIBuilder] = useState(false);
 
   // Auto-cycle AI steps
   useEffect(() => {
@@ -303,6 +307,26 @@ export default function LandingPage() {
       prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label]
     );
   };
+
+  const toggleFilter = (tag: string) => {
+    setActiveFilters((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  // Filter trips by search query + active tag filters
+  const filteredTrips = TRENDING_TRIPS.filter((trip) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      trip.title.toLowerCase().includes(q) ||
+      trip.destination.toLowerCase().includes(q) ||
+      trip.tags.some((t) => t.toLowerCase().includes(q));
+    const matchesTags =
+      activeFilters.length === 0 ||
+      trip.tags.some((t) => activeFilters.includes(t));
+    return matchesSearch && matchesTags;
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
@@ -336,16 +360,17 @@ export default function LandingPage() {
               onMouseEnter={() => setShowAITooltip(true)}
               onMouseLeave={() => setShowAITooltip(false)}
             >
-              <Link href="/register">
-                <button className="relative group flex items-center gap-2 rounded-xl bg-gradient-to-r from-trippy-400 via-trippy-500 to-accent-400 p-[1px] transition-all hover:shadow-lg hover:shadow-trippy-500/25">
+              <button
+                onClick={() => setShowAIBuilder(true)}
+                className="relative group flex items-center gap-2 rounded-xl bg-gradient-to-r from-trippy-400 via-trippy-500 to-accent-400 p-[1px] transition-all hover:shadow-lg hover:shadow-trippy-500/25 cursor-pointer"
+              >
                   <span className="flex items-center gap-2 rounded-[11px] bg-background/90 px-3.5 py-2 text-sm font-medium transition-all group-hover:bg-background/70">
                     <Bot size={16} className="text-trippy-600" />
                     <span className="hidden sm:inline bg-gradient-to-r from-trippy-300 via-trippy-400 to-accent-300 bg-clip-text text-transparent font-semibold">
                       AI Trip
                     </span>
                   </span>
-                </button>
-              </Link>
+              </button>
               <AnimatePresence>
                 {showAITooltip && (
                   <motion.div
@@ -461,30 +486,51 @@ export default function LandingPage() {
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
               <input
                 type="text"
-                placeholder={`Search trips — ${typedDestination}|`}
-                readOnly
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={searchQuery ? "" : `Search trips — ${typedDestination}|`}
                 className="w-full bg-transparent py-3.5 pl-12 pr-4 text-sm text-foreground placeholder:text-muted/70 outline-none"
               />
             </div>
-            <Link href="/register" className="shrink-0">
+            <a href="#discover" className="shrink-0">
               <Button size="lg" className="w-full sm:w-auto whitespace-nowrap">
                 <Search size={16} />
                 Explore Trips
               </Button>
-            </Link>
+            </a>
           </div>
 
           {/* Quick filter pills */}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {["Beach", "Mountains", "City Break", "Adventure", "Wellness", "Road Trip"].map(
-              (tag) => (
-                <span
-                  key={tag}
-                  className="glass-sm px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover cursor-pointer transition-all"
-                >
-                  {tag}
-                </span>
-              )
+              (tag) => {
+                // Map filter labels to trip tag names where different
+                const tagMap: Record<string, string> = { "City Break": "City", "Mountains": "Nature" };
+                const mappedTag = tagMap[tag] ?? tag;
+                const isActive = activeFilters.includes(mappedTag);
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => toggleFilter(mappedTag)}
+                    className={`glass-sm px-3 py-1.5 text-xs font-medium cursor-pointer transition-all ${
+                      isActive
+                        ? "!bg-trippy-500/15 !border-trippy-500/30 text-foreground"
+                        : "text-muted hover:text-foreground hover:bg-surface-hover"
+                    }`}
+                  >
+                    {tag}
+                    {isActive && <span className="ml-1.5">✕</span>}
+                  </button>
+                );
+              }
+            )}
+            {(activeFilters.length > 0 || searchQuery) && (
+              <button
+                onClick={() => { setActiveFilters([]); setSearchQuery(""); }}
+                className="px-3 py-1.5 text-xs font-medium text-danger cursor-pointer hover:underline"
+              >
+                Clear all
+              </button>
             )}
           </div>
         </motion.div>
@@ -542,8 +588,10 @@ export default function LandingPage() {
         </div>
 
         {/* Trip Cards Grid */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {TRENDING_TRIPS.map((trip, i) => (
+        <AnimatePresence mode="popLayout">
+          {filteredTrips.length > 0 ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredTrips.map((trip, i) => (
             <motion.div
               key={trip.id}
               custom={i}
@@ -656,7 +704,36 @@ export default function LandingPage() {
               </GlassCard>
             </motion.div>
           ))}
-        </div>
+            </div>
+          ) : (
+            <motion.div
+              key="no-results"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="text-center py-16"
+            >
+              <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-trippy-500/10 flex items-center justify-center">
+                <Search size={28} className="text-trippy-600" />
+              </div>
+              <h3 className="text-lg font-semibold">No trips found</h3>
+              <p className="mt-2 text-muted max-w-md mx-auto">
+                No trips match &ldquo;{searchQuery || activeFilters.join(", ")}&rdquo;. Try a different search or{" "}
+                <button onClick={() => setShowAIBuilder(true)} className="text-trippy-600 font-medium hover:underline cursor-pointer">
+                  let AI create one for you
+                </button>.
+              </p>
+              <div className="mt-4 flex justify-center gap-3">
+                <Button variant="secondary" size="sm" onClick={() => { setSearchQuery(""); setActiveFilters([]); }}>
+                  Clear filters
+                </Button>
+                <Button size="sm" onClick={() => setShowAIBuilder(true)}>
+                  <Bot size={14} /> AI Trip Builder
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       {/* ════════════════════════════════════════════════════════════════
@@ -753,11 +830,9 @@ export default function LandingPage() {
 
                   {/* CTA */}
                   <div className="pt-2 flex gap-3">
-                    <Link href="/register" className="flex-1">
-                      <Button className="w-full" size="sm">
+                    <Button className="w-full flex-1" size="sm" onClick={() => setShowAIBuilder(true)}>
                         <Sparkles size={14} /> Generate my trip
-                      </Button>
-                    </Link>
+                    </Button>
                     <Button variant="secondary" size="sm">Customize</Button>
                   </div>
                 </div>
@@ -808,11 +883,9 @@ export default function LandingPage() {
                 })}
               </div>
 
-              <Link href="/register">
-                <Button size="lg" className="mt-4 bg-gradient-to-r from-trippy-500 via-trippy-400 to-accent-400 hover:shadow-trippy-500/25">
+              <Button size="lg" className="mt-4 bg-gradient-to-r from-trippy-500 via-trippy-400 to-accent-400 hover:shadow-trippy-500/25" onClick={() => setShowAIBuilder(true)}>
                   <Bot size={16} /> Try AI Trip Builder <ArrowRight size={16} />
-                </Button>
-              </Link>
+              </Button>
             </motion.div>
           </div>
         </div>
@@ -1106,11 +1179,9 @@ export default function LandingPage() {
                   Start for free <ArrowRight size={16} />
                 </Button>
               </Link>
-              <Link href="/register">
-                <Button variant="secondary" size="lg">
+              <Button variant="secondary" size="lg" onClick={() => setShowAIBuilder(true)}>
                   <Bot size={16} /> Try AI Trip Builder
-                </Button>
-              </Link>
+              </Button>
             </div>
             <p className="mt-4 text-xs text-muted flex items-center justify-center gap-2">
               <Shield size={12} /> No credit card required &middot; Free forever for personal use
@@ -1164,6 +1235,9 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* AI Trip Builder Modal */}
+      <AITripBuilderModal open={showAIBuilder} onClose={() => setShowAIBuilder(false)} />
     </div>
   );
 }
