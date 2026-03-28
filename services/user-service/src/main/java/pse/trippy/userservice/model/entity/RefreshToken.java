@@ -25,7 +25,7 @@ import java.util.UUID;
 /**
  * Stores active refresh tokens for users, persisted in {@code user_schema.refresh_tokens}.
  *
- * <p>The {@code token} column holds a BCrypt hash of the raw token value
+ * <p>The {@code token} column holds a SHA-256 hash of the raw token value
  * — the plaintext is never stored. A unique index ensures one-time token use.
  */
 @Entity
@@ -54,6 +54,10 @@ public class RefreshToken {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false, updatable = false)
     private User user;
+
+    @Column(name = "remember_me", nullable = false)
+    @Builder.Default
+    private boolean rememberMe = false;
 
     @NotNull
     @Column(name = "expires_at", nullable = false)

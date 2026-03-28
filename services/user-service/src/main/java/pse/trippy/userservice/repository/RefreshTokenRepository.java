@@ -27,6 +27,18 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     Optional<RefreshToken> findByToken(String token);
 
     /**
+     * Atomically deletes the refresh token matching the given hash.
+     * Returns the number of rows deleted (0 or 1), which guards against
+     * concurrent reuse of the same refresh token.
+     *
+     * @param token hashed token value
+     * @return number of rows deleted
+     */
+    @Modifying
+    @Query("DELETE FROM RefreshToken rt WHERE rt.token = :token")
+    int deleteByTokenValue(@Param("token") String token);
+
+    /**
      * Returns all active refresh tokens that belong to the specified user.
      *
      * @param userId the owner's UUID
