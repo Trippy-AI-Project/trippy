@@ -10,6 +10,10 @@ backups/
 *.sql
 *.rdb
 
+# Allow init scripts (override *.sql above)
+!init-scripts/
+!init-scripts/**
+
 # Log files
 *.log
 
