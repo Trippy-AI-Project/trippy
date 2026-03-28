@@ -29,7 +29,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/**",
                                 "/.well-known/**",
-                                "/actuator/**",
+                                "/actuator/health",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()

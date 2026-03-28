@@ -7,7 +7,6 @@ import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import pse.trippy.userservice.config.RsaKeyProperties;
@@ -25,7 +24,6 @@ import java.util.UUID;
  * {@code plan}, {@code emailVerified}, {@code jti}.
  */
 @Service
-@Slf4j
 public class JwtService {
 
     private final RsaKeyProperties rsaKeys;

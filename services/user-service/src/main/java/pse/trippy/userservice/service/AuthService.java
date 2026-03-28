@@ -27,7 +27,8 @@ import java.util.UUID;
 /**
  * Handles user authentication workflows: login and refresh-token rotation.
  *
- * <p>Refresh tokens are stored as SHA-256 hashes in the database.
+ * <p>Refresh tokens are stored as SHA-256 hashes in the database
+ * (see {@link pse.trippy.userservice.model.entity.RefreshToken} for details).
  * The raw token (a UUID) is returned to the client and never persisted.
  */
 @Service
@@ -88,6 +89,10 @@ public class AuthService {
      * Validates the provided refresh token, rotates it (delete old → create new),
      * and returns a new access/refresh token pair.
      *
+     * <p>Uses an atomic {@code DELETE WHERE token = ?} to prevent concurrent reuse.
+     * The {@code rememberMe} flag from the original token is carried over to the
+     * replacement, preserving the session's extended-validity semantics.
+     *
      * @param request contains the raw refresh token
      * @return new tokens and expiry metadata
      * @throws InvalidTokenException if the token is unknown or expired
@@ -100,15 +105,20 @@ public class AuthService {
                 .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
 
         if (storedToken.isExpired()) {
-            refreshTokenRepository.delete(storedToken);
+            refreshTokenRepository.deleteByTokenValue(hashedToken);
             throw new InvalidTokenException("Refresh token has expired");
         }
 
         User user = storedToken.getUser();
+        boolean rememberMe = storedToken.isRememberMe();
 
-        // Rotate: delete old token, issue new one
-        refreshTokenRepository.delete(storedToken);
-        String newRawRefreshToken = createRefreshToken(user, false);
+        // Atomic delete guards against concurrent reuse (race condition)
+        int deleted = refreshTokenRepository.deleteByTokenValue(hashedToken);
+        if (deleted == 0) {
+            throw new InvalidTokenException("Refresh token already consumed");
+        }
+
+        String newRawRefreshToken = createRefreshToken(user, rememberMe);
         String accessToken = jwtService.generateAccessToken(user);
 
         log.info("Refresh token rotated: userId={}", user.getId());
@@ -134,6 +144,7 @@ public class AuthService {
         RefreshToken entity = RefreshToken.builder()
                 .token(hashToken(rawToken))
                 .user(user)
+                .rememberMe(rememberMe)
                 .expiresAt(Instant.now().plus(expiryDays, ChronoUnit.DAYS))
                 .build();
 

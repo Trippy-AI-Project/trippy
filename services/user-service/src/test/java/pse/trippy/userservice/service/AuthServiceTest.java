@@ -203,6 +203,7 @@ class AuthServiceTest {
                     .build();
 
             when(refreshTokenRepository.findByToken(hashedToken)).thenReturn(Optional.of(storedToken));
+            when(refreshTokenRepository.deleteByTokenValue(hashedToken)).thenReturn(1);
             when(jwtService.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
             when(jwtService.getAccessTokenExpirySeconds()).thenReturn(ACCESS_TOKEN_EXPIRY);
 
@@ -213,8 +214,8 @@ class AuthServiceTest {
             assertThat(response.getRefreshToken()).isNotEqualTo(rawToken);
             assertThat(response.getExpiresIn()).isEqualTo(ACCESS_TOKEN_EXPIRY);
 
-            // Old token deleted, new one saved
-            verify(refreshTokenRepository).delete(storedToken);
+            // Old token atomically deleted, new one saved
+            verify(refreshTokenRepository).deleteByTokenValue(hashedToken);
             verify(refreshTokenRepository).save(any(RefreshToken.class));
         }
 
@@ -251,7 +252,7 @@ class AuthServiceTest {
                     .isInstanceOf(InvalidTokenException.class)
                     .hasMessage("Refresh token has expired");
 
-            verify(refreshTokenRepository).delete(expiredToken);
+            verify(refreshTokenRepository).deleteByTokenValue(hashedToken);
         }
     }
 

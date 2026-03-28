@@ -38,7 +38,7 @@ class UserRepositoryTest {
     void setUp() {
         savedUser = userRepository.save(User.builder()
                 .email("charlie@example.com")
-                .passwordHash("$2a$12$hashedpw")
+                .passwordHash("mock-pw-hash")
                 .displayName("Charlie")
                 .role(UserRole.USER)
                 .plan(SubscriptionPlan.FREE)
