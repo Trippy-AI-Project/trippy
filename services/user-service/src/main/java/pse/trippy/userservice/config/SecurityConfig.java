@@ -12,6 +12,9 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * Security configuration for the User Service.
+ *
+ * <p>Auth endpoints and the JWKS endpoint are public; everything else requires authentication.
+ * Sessions are disabled (stateless JWT-based auth).
  */
 @Configuration
 @EnableWebSecurity
@@ -32,11 +35,18 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers(
+                                "/auth/**",
+                                "/.well-known/**",
+                                "/actuator/health",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 );
 

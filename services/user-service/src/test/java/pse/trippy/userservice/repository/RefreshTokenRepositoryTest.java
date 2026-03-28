@@ -42,7 +42,7 @@ class RefreshTokenRepositoryTest {
     void setUp() {
         user = userRepository.save(User.builder()
                 .email("diana@example.com")
-                .passwordHash("$2a$12$hashedpw")
+                .passwordHash("mock-pw-hash")
                 .displayName("Diana")
                 .build());
 
@@ -103,7 +103,7 @@ class RefreshTokenRepositoryTest {
         void returnsEmptyListForUserWithNoTokens() {
             User other = userRepository.save(User.builder()
                     .email("eve@example.com")
-                    .passwordHash("$2a$12$pw")
+                    .passwordHash("mock-pw-hash")
                     .displayName("Eve")
                     .build());
 
@@ -132,7 +132,7 @@ class RefreshTokenRepositoryTest {
         void doesNotAffectOtherUsers() {
             User other = userRepository.save(User.builder()
                     .email("frank@example.com")
-                    .passwordHash("$2a$12$pw")
+                    .passwordHash("mock-pw-hash")
                     .displayName("Frank")
                     .build());
             refreshTokenRepository.save(RefreshToken.builder()
