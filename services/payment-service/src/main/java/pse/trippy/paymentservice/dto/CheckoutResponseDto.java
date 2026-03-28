@@ -34,27 +34,6 @@ public class CheckoutResponseDto {
     @JsonProperty("confirmedAt")
     private Instant confirmedAt;
 
-    @JsonProperty("amount")
-    private AmountDto amount;
-
-    @JsonProperty("message")
-    private String message;
-
-    /**
-     * Nested DTO for amount information.
-     */
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class AmountDto {
-        @JsonProperty("value")
-        private BigDecimal value;
-
-        @JsonProperty("currency")
-        private String currency;
-    }
-}
 
 /**
  * Contract-aligned subscription info DTO.
