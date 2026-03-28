@@ -145,17 +145,6 @@ jobs:
         run: |
           mvn -pl services/api-gateway -B -DskipTests pmd:check
 
-      - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
-        uses: reviewdog/action-setup@v1
-
-      - name: Reviewdog annotations
-        if: github.event_name == 'pull_request'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/api-gateway/target/pmd.xml
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -192,17 +181,6 @@ jobs:
       - name: Run static analysis (PMD)
         run: |
           mvn -pl services/user-service -B -DskipTests pmd:check
-
-      - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
-        uses: reviewdog/action-setup@v1
-
-      - name: Reviewdog annotations
-        if: github.event_name == 'pull_request'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/user-service/target/pmd.xml
 
       - name: Upload Test Results
         if: always()
@@ -241,17 +219,6 @@ jobs:
         run: |
           mvn -pl services/trip-service -B -DskipTests pmd:check
 
-      - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
-        uses: reviewdog/action-setup@v1
-
-      - name: Reviewdog annotations
-        if: github.event_name == 'pull_request'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/trip-service/target/pmd.xml
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -288,17 +255,6 @@ jobs:
       - name: Run static analysis (PMD)
         run: |
           mvn -pl services/chat-service -B -DskipTests pmd:check
-
-      - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
-        uses: reviewdog/action-setup@v1
-
-      - name: Reviewdog annotations
-        if: github.event_name == 'pull_request'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/chat-service/target/pmd.xml
 
       - name: Upload Test Results
         if: always()
@@ -337,17 +293,6 @@ jobs:
         run: |
           mvn -pl services/ai-service -B -DskipTests pmd:check
 
-      - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
-        uses: reviewdog/action-setup@v1
-
-      - name: Reviewdog annotations
-        if: github.event_name == 'pull_request'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/ai-service/target/pmd.xml
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -385,17 +330,6 @@ jobs:
         run: |
           mvn -pl services/notification-service -B -DskipTests pmd:check
 
-      - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
-        uses: reviewdog/action-setup@v1
-
-      - name: Reviewdog annotations
-        if: github.event_name == 'pull_request'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/notification-service/target/pmd.xml
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -432,17 +366,6 @@ jobs:
       - name: Run static analysis (PMD)
         run: |
           mvn -pl services/payment-service -B -DskipTests pmd:check
-
-      - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
-        uses: reviewdog/action-setup@v1
-
-      - name: Reviewdog annotations
-        if: github.event_name == 'pull_request'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          reviewdog -f=pmd -name="pmd" -reporter=github-pr-review -filter-mode=diff_context < services/payment-service/target/pmd.xml
 
       - name: Upload Test Results
         if: always()
