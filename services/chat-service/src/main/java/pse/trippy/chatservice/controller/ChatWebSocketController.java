@@ -8,11 +8,8 @@ import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Controller;
 import pse.trippy.chatservice.dto.request.SendMessageRequest;
 import pse.trippy.chatservice.dto.response.ChatMessageResponse;
-import pse.trippy.chatservice.model.entity.ChatMessage;
-import pse.trippy.chatservice.model.entity.ChatRoom;
 import pse.trippy.chatservice.model.enums.MessageType;
-import pse.trippy.chatservice.repository.ChatMessageRepository;
-import pse.trippy.chatservice.service.ChatRoomService;
+import pse.trippy.chatservice.service.ChatMessageService;
 
 import java.util.UUID;
 
@@ -24,8 +21,7 @@ import java.util.UUID;
 @Slf4j
 public class ChatWebSocketController {
 
-    private final ChatRoomService chatRoomService;
-    private final ChatMessageRepository chatMessageRepository;
+    private final ChatMessageService chatMessageService;
 
     /**
      * Handles messages sent to /app/trips/{tripId}/send.
@@ -37,11 +33,9 @@ public class ChatWebSocketController {
             @DestinationVariable UUID tripId,
             SendMessageRequest request) {
 
-        log.info("Received message for trip {}: {}", tripId, request.getContent());
+        log.info("Received STOMP message for trip {}: {}", tripId, request.getContent());
 
-        ChatRoom room = chatRoomService.getRoomByTripId(tripId);
-
-        // For now, use a placeholder sender until JWT auth is integrated
+        // Placeholder sender until JWT auth is integrated on WebSocket handshake
         UUID senderId = UUID.randomUUID();
         String senderName = "Anonymous";
 
@@ -52,22 +46,7 @@ public class ChatWebSocketController {
             messageType = MessageType.TEXT;
         }
 
-        ChatMessage message = chatMessageRepository.save(ChatMessage.builder()
-                .chatRoom(room)
-                .senderId(senderId)
-                .senderDisplayName(senderName)
-                .content(request.getContent())
-                .messageType(messageType)
-                .build());
-
-        return ChatMessageResponse.builder()
-                .id(message.getId())
-                .senderId(message.getSenderId())
-                .senderDisplayName(message.getSenderDisplayName())
-                .content(message.getContent())
-                .type(message.getMessageType().name())
-                .createdAt(message.getCreatedAt())
-                .edited(false)
-                .build();
+        return chatMessageService.sendMessage(
+                tripId, senderId, senderName, request.getContent(), messageType);
     }
 }
