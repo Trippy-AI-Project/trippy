@@ -5,7 +5,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pse.trippy.userservice.dto.request.RegisterRequest;
+import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.AccountNotVerifiedException;
+import pse.trippy.userservice.exception.EmailAlreadyExistsException;
 import pse.trippy.userservice.exception.InvalidCredentialsException;
 import pse.trippy.userservice.exception.InvalidTokenException;
 import pse.trippy.userservice.model.dto.LoginRequest;
@@ -15,6 +18,8 @@ import pse.trippy.userservice.model.dto.TokenResponse;
 import pse.trippy.userservice.model.dto.UserProfileDto;
 import pse.trippy.userservice.model.entity.RefreshToken;
 import pse.trippy.userservice.model.entity.User;
+import pse.trippy.userservice.model.enums.SubscriptionPlan;
+import pse.trippy.userservice.model.enums.UserRole;
 import pse.trippy.userservice.repository.RefreshTokenRepository;
 import pse.trippy.userservice.repository.UserRepository;
 
@@ -27,11 +32,10 @@ import java.util.Base64;
 import java.util.UUID;
 
 /**
- * Handles user authentication workflows: login and refresh-token rotation.
+ * Service handling authentication operations: registration, login, logout.
  *
- * <p>Refresh tokens are stored as SHA-256 hashes in the database
- * (see {@link pse.trippy.userservice.model.entity.RefreshToken} for details).
- * The raw token (a UUID) is returned to the client and never persisted.
+ * <p>Handles user authentication workflows: login and refresh-token rotation.
+ * Refresh tokens are stored as SHA-256 hashes in the database.
  */
 @Service
 @Slf4j
@@ -60,11 +64,50 @@ public class AuthService {
     }
 
     /**
+     * Registers a new user with the provided credentials.
+     *
+     * @param request the registration request containing email, password, and displayName
+     * @return response with userId and email
+     * @throws EmailAlreadyExistsException if email is already registered
+     */
+    @Transactional
+    public RegisterResponse register(RegisterRequest request) {
+        log.info("Attempting to register user with email: {}", request.getEmail());
+
+        // Check for duplicate email
+        if (userRepository.existsByEmail(request.getEmail())) {
+            log.warn("Registration failed: email already exists - {}", request.getEmail());
+            throw new EmailAlreadyExistsException(request.getEmail());
+        }
+
+        // Create user entity with hashed password
+        User user = User.builder()
+                .email(request.getEmail())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .displayName(request.getDisplayName())
+                .role(UserRole.USER)
+                .plan(SubscriptionPlan.FREE)
+                .emailVerified(false)
+                .build();
+
+        User savedUser = userRepository.save(user);
+        log.info("User registered successfully with ID: {}", savedUser.getId());
+
+        return RegisterResponse.builder()
+                .userId(savedUser.getId())
+                .email(savedUser.getEmail())
+                .message("Registration successful. Please verify your email.")
+                .verificationRequired(true)
+                .build();
+    }
+
+    /**
      * Authenticates the user and returns an access/refresh token pair.
      *
      * @param request login credentials
      * @return tokens and expiry metadata
      * @throws InvalidCredentialsException if email is unknown or password is wrong
+     * @throws AccountNotVerifiedException if the account is not verified (403 Forbidden)
      */
     @Transactional
     public LoginResponse login(LoginRequest request) {
@@ -105,10 +148,6 @@ public class AuthService {
     /**
      * Validates the provided refresh token, rotates it (delete old → create new),
      * and returns a new access/refresh token pair.
-     *
-     * <p>Uses an atomic {@code DELETE WHERE token = ?} to prevent concurrent reuse.
-     * The {@code rememberMe} flag from the original token is carried over to the
-     * replacement, preserving the session's extended-validity semantics.
      *
      * @param request contains the raw refresh token
      * @return new tokens and expiry metadata
@@ -156,30 +195,30 @@ public class AuthService {
      */
     private String createRefreshToken(User user, boolean rememberMe) {
         String rawToken = UUID.randomUUID().toString();
+        String hashedToken = hashToken(rawToken);
         int expiryDays = rememberMe ? rememberMeExpiryDays : refreshTokenExpiryDays;
 
-        RefreshToken entity = RefreshToken.builder()
-                .token(hashToken(rawToken))
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(hashedToken)
                 .user(user)
                 .rememberMe(rememberMe)
                 .expiresAt(Instant.now().plus(expiryDays, ChronoUnit.DAYS))
                 .build();
 
-        refreshTokenRepository.save(entity);
+        refreshTokenRepository.save(refreshToken);
         return rawToken;
     }
 
     /**
-     * Produces a deterministic SHA-256 hash of the given token string,
-     * encoded as URL-safe Base64 (no padding).
+     * Computes the SHA-256 hash of a token and returns it as a Base64-encoded string.
      */
-    static String hashToken(String rawToken) {
+    public static String hashToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hash);
         } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 not available", ex);
+            throw new IllegalStateException("SHA-256 algorithm not available", ex);
         }
     }
 }

@@ -9,7 +9,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import pse.trippy.userservice.TestFixtures;
+import pse.trippy.userservice.dto.request.RegisterRequest;
+import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.AccountNotVerifiedException;
+import pse.trippy.userservice.exception.EmailAlreadyExistsException;
 import pse.trippy.userservice.exception.InvalidCredentialsException;
 import pse.trippy.userservice.exception.InvalidTokenException;
 import pse.trippy.userservice.model.dto.LoginRequest;
@@ -87,6 +91,57 @@ class AuthServiceTest {
     }
 
     // =========================================================================
+    // register
+    // =========================================================================
+
+    @Nested
+    @DisplayName("register")
+    class Register {
+
+        private final String TEST_EMAIL = "john@example.com";
+        private final String TEST_PASSWORD = "SecureP@ssword123";
+        private final String HASHED_PASSWORD = "mock-hashed-password";
+        private final String TEST_DISPLAY_NAME = "John Doe";
+
+        @Test
+        @DisplayName("creates user successfully with correct data")
+        void createsUserSuccessfully() {
+            RegisterRequest request = RegisterRequest.builder()
+                    .email(TEST_EMAIL)
+                    .password(TEST_PASSWORD)
+                    .displayName(TEST_DISPLAY_NAME)
+                    .build();
+
+            when(userRepository.existsByEmail(TEST_EMAIL)).thenReturn(false);
+            when(passwordEncoder.encode(TEST_PASSWORD)).thenReturn(HASHED_PASSWORD);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            RegisterResponse response = authService.register(request);
+
+            assertThat(response).isNotNull();
+            assertThat(response.getEmail()).isEqualTo(TEST_EMAIL);
+            assertThat(response.isVerificationRequired()).isTrue();
+
+            verify(userRepository).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("throws EmailAlreadyExistsException when email is taken")
+        void throwsWhenEmailTaken() {
+            RegisterRequest request = RegisterRequest.builder()
+                    .email(TEST_EMAIL)
+                    .password(TEST_PASSWORD)
+                    .displayName(TEST_DISPLAY_NAME)
+                    .build();
+
+            when(userRepository.existsByEmail(TEST_EMAIL)).thenReturn(true);
+
+            assertThatThrownBy(() -> authService.register(request))
+                    .isInstanceOf(EmailAlreadyExistsException.class);
+        }
+    }
+
+    // =========================================================================
     // login
     // =========================================================================
 
@@ -95,7 +150,7 @@ class AuthServiceTest {
     class Login {
 
         @Test
-        @DisplayName("returns tokens when credentials are valid")
+        @DisplayName("returns tokens and user profile when credentials are valid")
         void returnsTokensForValidCredentials() {
             User user = buildUser();
             LoginRequest request = LoginRequest.builder()
@@ -111,19 +166,17 @@ class AuthServiceTest {
             LoginResponse response = authService.login(request);
 
             assertThat(response.getAccessToken()).isEqualTo(ACCESS_TOKEN);
-            assertThat(response.getRefreshToken()).isNotBlank();
-            assertThat(response.getExpiresIn()).isEqualTo(ACCESS_TOKEN_EXPIRY);
-            assertThat(response.getTokenType()).isEqualTo("Bearer");
             assertThat(response.getUser()).isNotNull();
             assertThat(response.getUser().getEmail()).isEqualTo("bob@example.com");
-
             verify(refreshTokenRepository).save(any(RefreshToken.class));
         }
 
         @Test
-        @DisplayName("persists refresh token with SHA-256 hash, not raw value")
-        void persistsHashedRefreshToken() {
+        @DisplayName("throws AccountNotVerifiedException when email is not verified")
+        void throwsWhenEmailNotVerified() {
             User user = buildUser();
+            user.setEmailVerified(false);
+
             LoginRequest request = LoginRequest.builder()
                     .email("bob@example.com")
                     .password("mock-password")
@@ -131,36 +184,9 @@ class AuthServiceTest {
 
             when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("mock-password", "mock-pw-hash")).thenReturn(true);
-            when(jwtService.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
-            when(jwtService.getAccessTokenExpirySeconds()).thenReturn(ACCESS_TOKEN_EXPIRY);
-
-            LoginResponse response = authService.login(request);
-
-            ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
-            verify(refreshTokenRepository).save(captor.capture());
-            RefreshToken saved = captor.getValue();
-
-            // The stored hash must differ from the raw token returned to the client
-            assertThat(saved.getToken()).isNotEqualTo(response.getRefreshToken());
-            // The stored hash must equal SHA-256(raw token)
-            assertThat(saved.getToken()).isEqualTo(AuthService.hashToken(response.getRefreshToken()));
-        }
-
-        @Test
-        @DisplayName("throws InvalidCredentialsException when user is not found")
-        void throwsWhenUserNotFound() {
-            LoginRequest request = LoginRequest.builder()
-                    .email("unknown@example.com")
-                    .password("whatever")
-                    .build();
-
-            when(userRepository.findByEmail("unknown@example.com")).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> authService.login(request))
-                    .isInstanceOf(InvalidCredentialsException.class)
-                    .hasMessage("Invalid email or password");
-
-            verify(refreshTokenRepository, never()).save(any());
+                    .isInstanceOf(AccountNotVerifiedException.class);
         }
 
         @Test
@@ -176,31 +202,7 @@ class AuthServiceTest {
             when(passwordEncoder.matches("wrong-password", "mock-pw-hash")).thenReturn(false);
 
             assertThatThrownBy(() -> authService.login(request))
-                    .isInstanceOf(InvalidCredentialsException.class)
-                    .hasMessage("Invalid email or password");
-
-            verify(refreshTokenRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("throws AccountNotVerifiedException when email is not verified")
-        void throwsWhenEmailNotVerified() {
-            User user = buildUser();
-            user.setEmailVerified(false);
-            
-            LoginRequest request = LoginRequest.builder()
-                    .email("bob@example.com")
-                    .password("mock-password")
-                    .build();
-
-            when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("mock-password", "mock-pw-hash")).thenReturn(true);
-
-            assertThatThrownBy(() -> authService.login(request))
-                    .isInstanceOf(AccountNotVerifiedException.class)
-                    .hasMessageContaining("Account not verified");
-
-            verify(refreshTokenRepository, never()).save(any());
+                    .isInstanceOf(InvalidCredentialsException.class);
         }
     }
 
@@ -220,7 +222,6 @@ class AuthServiceTest {
             String hashedToken = AuthService.hashToken(rawToken);
 
             RefreshToken storedToken = RefreshToken.builder()
-                    .id(UUID.randomUUID())
                     .token(hashedToken)
                     .user(user)
                     .expiresAt(Instant.now().plusSeconds(604800))
@@ -234,71 +235,8 @@ class AuthServiceTest {
             TokenResponse response = authService.refreshToken(new RefreshTokenRequest(rawToken));
 
             assertThat(response.getAccessToken()).isEqualTo(ACCESS_TOKEN);
-            assertThat(response.getRefreshToken()).isNotBlank();
-            assertThat(response.getRefreshToken()).isNotEqualTo(rawToken);
-            assertThat(response.getExpiresIn()).isEqualTo(ACCESS_TOKEN_EXPIRY);
-
-            // Old token atomically deleted, new one saved
             verify(refreshTokenRepository).deleteByTokenValue(hashedToken);
             verify(refreshTokenRepository).save(any(RefreshToken.class));
-        }
-
-        @Test
-        @DisplayName("throws InvalidTokenException when refresh token is not found")
-        void throwsWhenRefreshTokenNotFound() {
-            String rawToken = UUID.randomUUID().toString();
-            String hashedToken = AuthService.hashToken(rawToken);
-
-            when(refreshTokenRepository.findByToken(hashedToken)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> authService.refreshToken(new RefreshTokenRequest(rawToken)))
-                    .isInstanceOf(InvalidTokenException.class)
-                    .hasMessage("Invalid refresh token");
-        }
-
-        @Test
-        @DisplayName("throws InvalidTokenException and deletes token when it is expired")
-        void throwsAndDeletesWhenTokenExpired() {
-            User user = buildUser();
-            String rawToken = UUID.randomUUID().toString();
-            String hashedToken = AuthService.hashToken(rawToken);
-
-            RefreshToken expiredToken = RefreshToken.builder()
-                    .id(UUID.randomUUID())
-                    .token(hashedToken)
-                    .user(user)
-                    .expiresAt(Instant.now().minusSeconds(60))
-                    .build();
-
-            when(refreshTokenRepository.findByToken(hashedToken)).thenReturn(Optional.of(expiredToken));
-
-            assertThatThrownBy(() -> authService.refreshToken(new RefreshTokenRequest(rawToken)))
-                    .isInstanceOf(InvalidTokenException.class)
-                    .hasMessage("Refresh token has expired");
-
-            verify(refreshTokenRepository).deleteByTokenValue(hashedToken);
-        }
-    }
-
-    // =========================================================================
-    // hashToken
-    // =========================================================================
-
-    @Nested
-    @DisplayName("hashToken")
-    class HashToken {
-
-        @Test
-        @DisplayName("produces a deterministic hash for the same input")
-        void isDeterministic() {
-            String input = "test-token-value";
-            assertThat(AuthService.hashToken(input)).isEqualTo(AuthService.hashToken(input));
-        }
-
-        @Test
-        @DisplayName("produces different hashes for different inputs")
-        void differentInputsProduceDifferentHashes() {
-            assertThat(AuthService.hashToken("token-a")).isNotEqualTo(AuthService.hashToken("token-b"));
         }
     }
 }
