@@ -26,7 +26,7 @@ class UserTest {
     private User.UserBuilder validUserBuilder() {
         return User.builder()
                 .email("alice@example.com")
-                .passwordHash("$2a$12$hashedpassword")
+                .passwordHash("mock-pw-hash")
                 .displayName("Alice");
     }
 
