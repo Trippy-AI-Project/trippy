@@ -1,0 +1,13 @@
+package pse.trippy.notificationservice.model.enums;
+
+public enum NotificationType {
+    TRIP_INVITATION,
+    INVITATION_ACCEPTED,
+    TRIP_UPDATED,
+    NEW_MESSAGE,
+    PAYMENT_SUCCESS,
+    SYSTEM,
+    WELCOME,
+    EMAIL_VERIFICATION,
+    PASSWORD_RESET
+}
