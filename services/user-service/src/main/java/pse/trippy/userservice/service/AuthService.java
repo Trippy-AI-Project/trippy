@@ -81,13 +81,14 @@ public class AuthService {
         }
 
         // Create user entity with hashed password
+        // emailVerified defaults to true until email verification flow is implemented
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .displayName(request.getDisplayName())
                 .role(UserRole.USER)
                 .plan(SubscriptionPlan.FREE)
-                .emailVerified(false)
+                .emailVerified(true)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -96,8 +97,8 @@ public class AuthService {
         return RegisterResponse.builder()
                 .userId(savedUser.getId())
                 .email(savedUser.getEmail())
-                .message("Registration successful. Please verify your email.")
-                .verificationRequired(true)
+                .message("Registration successful.")
+                .verificationRequired(false)
                 .build();
     }
 
@@ -184,6 +185,25 @@ public class AuthService {
                 .refreshToken(newRawRefreshToken)
                 .expiresIn(jwtService.getAccessTokenExpirySeconds())
                 .build();
+    }
+
+    // ------------------------------------------------------------------
+    // Logout
+    // ------------------------------------------------------------------
+
+    /**
+     * Revokes the given refresh token, effectively logging the user out of
+     * the device that holds this token.
+     *
+     * @param rawRefreshToken the raw refresh token to revoke
+     */
+    @Transactional
+    public void logout(String rawRefreshToken) {
+        String hashedToken = hashToken(rawRefreshToken);
+        int deleted = refreshTokenRepository.deleteByTokenValue(hashedToken);
+        if (deleted > 0) {
+            log.info("Refresh token revoked during logout");
+        }
     }
 
     // ------------------------------------------------------------------

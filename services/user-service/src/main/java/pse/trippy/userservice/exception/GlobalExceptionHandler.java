@@ -21,6 +21,20 @@ import java.util.List;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleUserNotFound(
+            UserNotFoundException ex, WebRequest request) {
+
+        log.warn("User not found: {}", ex.getMessage());
+        ErrorResponse response = ErrorResponse.builder()
+                .error("NOT_FOUND")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(extractPath(request))
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(
             InvalidCredentialsException ex, WebRequest request) {

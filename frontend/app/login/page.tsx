@@ -1,12 +1,45 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { GlassCard, Button, Input } from "@/components/ui";
+import { login, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(email, password, rememberMe);
+      router.push("/dashboard");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(
+          typeof err.body?.message === "string"
+            ? err.body.message
+            : "Invalid email or password",
+        );
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
       {/* Ambient gradients */}
@@ -29,53 +62,75 @@ export default function LoginPage() {
         </div>
 
         <GlassCard variant="strong" className="space-y-5">
-          <div className="space-y-4">
-            <div className="relative">
-              <Mail
-                size={16}
-                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-              />
-              <Input
-                id="email"
-                type="email"
-                placeholder="Email address"
-                className="pl-10"
-              />
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                {error}
+              </p>
+            )}
+
+            <div className="space-y-4">
+              <div className="relative">
+                <Mail
+                  size={16}
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+                />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Email address"
+                  className="pl-10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="relative">
+                <Lock
+                  size={16}
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+                />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Password"
+                  className="pl-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
-            <div className="relative">
-              <Lock
-                size={16}
-                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-              />
-              <Input
-                id="password"
-                type="password"
-                placeholder="Password"
-                className="pl-10"
-              />
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 text-muted">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-border bg-surface accent-trippy-500"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Remember me
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-trippy-400 hover:text-trippy-300 transition-colors"
+              >
+                Forgot password?
+              </Link>
             </div>
-          </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 text-muted">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-border bg-surface accent-trippy-500"
-              />
-              Remember me
-            </label>
-            <Link
-              href="/forgot-password"
-              className="text-trippy-400 hover:text-trippy-300 transition-colors"
-            >
-              Forgot password?
-            </Link>
-          </div>
-
-          <Button className="w-full" size="lg">
-            Sign in <ArrowRight size={16} />
-          </Button>
+            <Button className="w-full" size="lg" type="submit" disabled={loading}>
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <>
+                  Sign in <ArrowRight size={16} />
+                </>
+              )}
+            </Button>
+          </form>
 
           <div className="relative my-2">
             <div className="absolute inset-0 flex items-center">
