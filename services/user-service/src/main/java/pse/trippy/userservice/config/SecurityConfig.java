@@ -45,7 +45,8 @@ public class SecurityConfig {
                                 "/.well-known/**",
                                 "/actuator/health",
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                "/users/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
