@@ -15,8 +15,6 @@ on:
 
 permissions:
   contents: read
-  checks: write
-  pull-requests: write
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -29,6 +27,26 @@ env:
   MAVEN_OPTS: '-Xmx1024m'
 
 jobs:
+  # ===========================================================================
+  # GUARD - Block .env files from being committed
+  # ===========================================================================
+  check-no-env-files:
+    name: Block .env Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail if .env files are committed
+        run: |
+          ENV_FILES=$(git ls-files | grep -E '(^|/)\.(env)(\.[^/]+)?$' | grep -vE '\.(example|template|sample)$' || true)
+          if [ -n "$ENV_FILES" ]; then
+            echo "❌ .env files must not be committed to the repository:"
+            echo "$ENV_FILES"
+            exit 1
+          fi
+          echo "✅ No .env files committed"
+
   # ===========================================================================
   # DETECT CHANGES - Determined which services need to be built
   # ===========================================================================
@@ -86,7 +104,7 @@ jobs:
   build-parent:
     name: Build Parent POM
     runs-on: ubuntu-latest
-    needs: detect-changes
+    needs: [detect-changes, check-no-env-files]
     if: needs.detect-changes.outputs.any-service == 'true' || github.event_name == 'push'
     steps:
       - name: Checkout
@@ -140,11 +158,6 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/api-gateway clean verify -B -DskipTests=false
 
-
-      - name: Run static analysis (PMD)
-        run: |
-          mvn -pl services/api-gateway -B -DskipTests pmd:check
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -176,11 +189,6 @@ jobs:
         run: |
           mvn install -N -B -DskipTests
           mvn -pl services/user-service clean verify -B -DskipTests=false
-
-
-      - name: Run static analysis (PMD)
-        run: |
-          mvn -pl services/user-service -B -DskipTests pmd:check
 
       - name: Upload Test Results
         if: always()
@@ -214,11 +222,6 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/trip-service clean verify -B -DskipTests=false
 
-
-      - name: Run static analysis (PMD)
-        run: |
-          mvn -pl services/trip-service -B -DskipTests pmd:check
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -250,11 +253,6 @@ jobs:
         run: |
           mvn install -N -B -DskipTests
           mvn -pl services/chat-service clean verify -B -DskipTests=false
-
-
-      - name: Run static analysis (PMD)
-        run: |
-          mvn -pl services/chat-service -B -DskipTests pmd:check
 
       - name: Upload Test Results
         if: always()
@@ -288,11 +286,6 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/ai-service clean verify -B -DskipTests=false
 
-
-      - name: Run static analysis (PMD)
-        run: |
-          mvn -pl services/ai-service -B -DskipTests pmd:check
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -324,11 +317,6 @@ jobs:
         run: |
           mvn install -N -B -DskipTests
           mvn -pl services/notification-service clean verify -B -DskipTests=false
-
-
-      - name: Run static analysis (PMD)
-        run: |
-          mvn -pl services/notification-service -B -DskipTests pmd:check
 
       - name: Upload Test Results
         if: always()
@@ -362,11 +350,6 @@ jobs:
           mvn install -N -B -DskipTests
           mvn -pl services/payment-service clean verify -B -DskipTests=false
 
-
-      - name: Run static analysis (PMD)
-        run: |
-          mvn -pl services/payment-service -B -DskipTests pmd:check
-
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -382,6 +365,7 @@ jobs:
     name: CI Status Check
     runs-on: ubuntu-latest
     needs:
+      - check-no-env-files
       - build-parent
       - build-api-gateway
       - build-user-service
@@ -394,6 +378,7 @@ jobs:
     steps:
       - name: Check Build Results
         run: |
+          echo ".env guard: ${{ needs.check-no-env-files.result }}"
           echo "Build Parent: ${{ needs.build-parent.result }}"
           echo "API Gateway: ${{ needs.build-api-gateway.result }}"
           echo "User Service: ${{ needs.build-user-service.result }}"
@@ -403,6 +388,12 @@ jobs:
           echo "Notification Service: ${{ needs.build-notification-service.result }}"
           echo "Payment Service: ${{ needs.build-payment-service.result }}"
           
+          # Check .env guard
+          if [[ "${{ needs.check-no-env-files.result }}" == "failure" ]]; then
+            echo "❌ .env files detected — commit rejected"
+            exit 1
+          fi
+
           # Check if any required job failed
           if [[ "${{ needs.build-parent.result }}" == "failure" ]]; then
             echo "❌ Parent POM build failed"

@@ -1,179 +1,142 @@
 package pse.trippy.paymentservice.controller;
 
-import org.junit.jupiter.api.BeforeEach;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import pse.trippy.paymentservice.dto.CheckoutRequestDto;
-import pse.trippy.paymentservice.dto.CheckoutResponseDto;
-import pse.trippy.paymentservice.dto.PlanDto;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+import pse.trippy.paymentservice.config.SecurityConfig;
+import pse.trippy.paymentservice.dto.request.CheckoutRequest;
+import pse.trippy.paymentservice.dto.response.CheckoutResponse;
+import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.service.PaymentService;
 
 import java.math.BigDecimal;
-import java.security.Principal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Unit tests for PaymentController.
- */
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(PaymentController.class)
+@Import(SecurityConfig.class)
+@DisplayName("PaymentController")
 class PaymentControllerTest {
 
-    @Mock
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
     private PaymentService paymentService;
 
-    @InjectMocks
-    private PaymentController paymentController;
-
-    private UUID userId;
-    private Principal principal;
-
-    @BeforeEach
-    void setUp() {
-        userId = UUID.randomUUID();
-        principal = mock(Principal.class);
-        when(principal.getName()).thenReturn(userId.toString());
-    }
-
     @Test
-    void testGetPlans() {
-        List<PlanDto> plans = new ArrayList<>();
-        plans.add(PlanDto.builder()
-                .planId("PREMIUM")
-                .price(new BigDecimal("9.99"))
-                .currency("EUR")
-                .features("Up to 10 trips, AI itineraries, priority support")
-                .billingCycle("monthly")
-                .build());
-        plans.add(PlanDto.builder()
-                .planId("ENTERPRISE")
-                .price(new BigDecimal("29.99"))
-                .currency("EUR")
-                .features("Unlimited trips, advanced AI, team features")
-                .billingCycle("monthly")
-                .build());
-
-        when(paymentService.getAvailablePlans()).thenReturn(plans);
-
-        ResponseEntity<List<PlanDto>> response = paymentController.getPlans();
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(2, response.getBody().size());
-    }
-
-    @Test
-    void testCheckoutSuccess() {
-        CheckoutRequestDto request = CheckoutRequestDto.builder()
-                .planId("PREMIUM")
-                .paymentMethodId("pm_test_123")
-                .build();
-
-        CheckoutResponseDto expectedResponse = CheckoutResponseDto.builder()
-                .transactionId(UUID.randomUUID())
-                .status("COMPLETED")
-                .plan("PREMIUM")
-                .amount(CheckoutResponseDto.AmountDto.builder()
-                        .value(new BigDecimal("9.99"))
+    @DisplayName("GET /payments/plans returns plan list (no auth required)")
+    void getPlansReturnsOk() throws Exception {
+        when(paymentService.getAvailablePlans()).thenReturn(List.of(
+                PlanResponse.builder()
+                        .planId("PREMIUM")
+                        .displayName("Premium Plan")
+                        .price(new BigDecimal("9.99"))
                         .currency("EUR")
-                        .build())
-                .message("Subscription activated successfully")
-                .build();
-
-        when(paymentService.checkout(eq(userId), eq(request)))
-                .thenReturn(expectedResponse);
-
-        ResponseEntity<?> response = paymentController.checkout(request, principal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody() instanceof CheckoutResponseDto);
-
-        CheckoutResponseDto body = (CheckoutResponseDto) response.getBody();
-        assertEquals("COMPLETED", body.getStatus());
-        assertEquals("PREMIUM", body.getPlan());
-        assertEquals(new BigDecimal("9.99"), body.getAmount().getValue());
-    }
-
-    @Test
-    void testCheckoutWithoutPlanId() {
-        CheckoutRequestDto request = CheckoutRequestDto.builder()
-                .planId(null)
-                .paymentMethodId("pm_test_123")
-                .build();
-
-        ResponseEntity<?> response = paymentController.checkout(request, principal);
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertTrue(response.getBody() instanceof PaymentController.ErrorResponse);
-    }
-
-    @Test
-    void testCheckoutWithoutPaymentMethodId() {
-        CheckoutRequestDto request = CheckoutRequestDto.builder()
-                .planId("PREMIUM")
-                .paymentMethodId(null)
-                .build();
-
-        ResponseEntity<?> response = paymentController.checkout(request, principal);
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertTrue(response.getBody() instanceof PaymentController.ErrorResponse);
-    }
-
-    @Test
-    void testCheckoutWithInvalidPlan() {
-        CheckoutRequestDto request = CheckoutRequestDto.builder()
-                .planId("INVALID_PLAN")
-                .paymentMethodId("pm_test_123")
-                .build();
-
-        when(paymentService.checkout(eq(userId), eq(request)))
-                .thenThrow(new IllegalArgumentException("Invalid plan ID: INVALID_PLAN"));
-
-        ResponseEntity<?> response = paymentController.checkout(request, principal);
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertTrue(response.getBody() instanceof PaymentController.ErrorResponse);
-    }
-
-    @Test
-    void testCheckoutWithEnterprisePlan() {
-        CheckoutRequestDto request = CheckoutRequestDto.builder()
-                .planId("ENTERPRISE")
-                .paymentMethodId("pm_test_456")
-                .build();
-
-        CheckoutResponseDto expectedResponse = CheckoutResponseDto.builder()
-                .transactionId(UUID.randomUUID())
-                .status("COMPLETED")
-                .plan("ENTERPRISE")
-                .amount(CheckoutResponseDto.AmountDto.builder()
-                        .value(new BigDecimal("29.99"))
+                        .features(List.of("Up to 10 trips"))
+                        .build(),
+                PlanResponse.builder()
+                        .planId("ENTERPRISE")
+                        .displayName("Enterprise Plan")
+                        .price(new BigDecimal("29.99"))
                         .currency("EUR")
-                        .build())
-                .message("Subscription activated successfully")
+                        .features(List.of("Unlimited trips"))
+                        .build()
+        ));
+
+        mockMvc.perform(get("/payments/plans"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].planId").value("PREMIUM"))
+                .andExpect(jsonPath("$[0].price").value(9.99))
+                .andExpect(jsonPath("$[1].planId").value("ENTERPRISE"))
+                .andExpect(jsonPath("$[1].price").value(29.99));
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("POST /payments/checkout returns transaction on success")
+    void checkoutReturnsOk() throws Exception {
+        UUID txnId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(paymentService.checkout(eq(userId), any(CheckoutRequest.class)))
+                .thenReturn(CheckoutResponse.builder()
+                        .transactionId(txnId)
+                        .status("COMPLETED")
+                        .plan("PREMIUM")
+                        .amount(CheckoutResponse.Amount.builder()
+                                .value(new BigDecimal("9.99"))
+                                .currency("EUR")
+                                .build())
+                        .message("Subscription activated successfully")
+                        .build());
+
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planId("PREMIUM")
+                .paymentMethodId("pm_test_123")
                 .build();
 
-        when(paymentService.checkout(eq(userId), eq(request)))
-                .thenReturn(expectedResponse);
+        mockMvc.perform(post("/payments/checkout")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", userId.toString())
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transactionId").value(txnId.toString()))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.plan").value("PREMIUM"))
+                .andExpect(jsonPath("$.amount.value").value(9.99))
+                .andExpect(jsonPath("$.amount.currency").value("EUR"))
+                .andExpect(jsonPath("$.message").value("Subscription activated successfully"));
+    }
 
-        ResponseEntity<?> response = paymentController.checkout(request, principal);
+    @Test
+    @DisplayName("POST /payments/checkout without auth returns 401")
+    void checkoutWithoutAuthReturns401() throws Exception {
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planId("PREMIUM")
+                .paymentMethodId("pm_test_123")
+                .build();
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        CheckoutResponseDto body = (CheckoutResponseDto) response.getBody();
-        assertEquals("ENTERPRISE", body.getPlan());
-        assertEquals(new BigDecimal("29.99"), body.getAmount().getValue());
+        mockMvc.perform(post("/payments/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("POST /payments/checkout with empty planId returns 400")
+    void checkoutEmptyPlanReturns400() throws Exception {
+        String json = "{\"planId\": \"\", \"paymentMethodId\": \"pm_test_123\"}";
+
+        mockMvc.perform(post("/payments/checkout")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .content(json))
+                .andExpect(status().isBadRequest());
     }
 }
