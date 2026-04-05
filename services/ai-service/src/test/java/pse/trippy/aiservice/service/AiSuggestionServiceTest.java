@@ -16,6 +16,7 @@ import pse.trippy.aiservice.model.enums.RequestType;
 import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,13 +43,16 @@ class AiSuggestionServiceTest {
     @Mock
     private AiRequestLogRepository aiRequestLogRepository;
 
+    @Mock
+    private AiCacheService aiCacheService;
+
     private AiSuggestionService aiSuggestionService;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        aiSuggestionService = new AiSuggestionService(chatClientBuilder, aiRequestLogRepository, objectMapper);
+        aiSuggestionService = new AiSuggestionService(chatClientBuilder, aiRequestLogRepository, objectMapper, aiCacheService);
     }
 
     @Test
@@ -78,6 +82,8 @@ class AiSuggestionServiceTest {
         when(requestSpec.call()).thenReturn(callResponseSpec);
         when(callResponseSpec.content()).thenReturn(aiResponse);
         when(aiRequestLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(aiCacheService.generateHash(any())).thenReturn("testhash");
+        when(aiCacheService.getCachedResponse("suggestion", "testhash")).thenReturn(Optional.empty());
 
         DestinationSuggestionResponse response = aiSuggestionService.getDestinationSuggestions(userId, request);
 
@@ -85,6 +91,7 @@ class AiSuggestionServiceTest {
         assertThat(response.suggestions().get(0).destination()).isEqualTo("Barcelona, Spain");
         assertThat(response.suggestions().get(0).matchScore()).isEqualTo(0.92);
         assertThat(response.generatedAt()).isNotNull();
+        assertThat(response.cached()).isFalse();
 
         ArgumentCaptor<AiRequestLog> logCaptor = ArgumentCaptor.forClass(AiRequestLog.class);
         verify(aiRequestLogRepository).save(logCaptor.capture());
@@ -106,6 +113,8 @@ class AiSuggestionServiceTest {
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenThrow(new RuntimeException("API timeout"));
         when(aiRequestLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(aiCacheService.generateHash(any())).thenReturn("testhash");
+        when(aiCacheService.getCachedResponse("suggestion", "testhash")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> aiSuggestionService.getDestinationSuggestions(userId, request))
                 .isInstanceOf(AiServiceUnavailableException.class)

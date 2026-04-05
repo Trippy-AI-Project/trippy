@@ -14,12 +14,10 @@ import pse.trippy.aiservice.model.enums.RequestStatus;
 import pse.trippy.aiservice.model.enums.RequestType;
 import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -27,11 +25,29 @@ import java.util.UUID;
 @Slf4j
 public class AiSuggestionService {
 
+    private static final Duration CACHE_TTL = Duration.ofHours(1);
+    private static final String CACHE_TYPE = "suggestion";
+
     private final ChatClient.Builder chatClientBuilder;
     private final AiRequestLogRepository aiRequestLogRepository;
     private final ObjectMapper objectMapper;
+    private final AiCacheService aiCacheService;
 
     public DestinationSuggestionResponse getDestinationSuggestions(UUID userId, DestinationSuggestionRequest request) {
+        String requestHash = aiCacheService.generateHash(request);
+
+        Optional<String> cached = aiCacheService.getCachedResponse(CACHE_TYPE, requestHash);
+        if (cached.isPresent()) {
+            try {
+                List<DestinationSuggestion> suggestions = objectMapper.readValue(
+                        cached.get(), new TypeReference<>() {});
+                log.info("Returning cached suggestion response for user {}", userId);
+                return new DestinationSuggestionResponse(suggestions, Instant.now(), true);
+            } catch (Exception ex) {
+                log.warn("Failed to parse cached response, falling through to AI: {}", ex.getMessage());
+            }
+        }
+
         long startTime = System.currentTimeMillis();
         String prompt = buildPrompt(request);
         String promptHash = hashPrompt(prompt);
@@ -50,7 +66,14 @@ public class AiSuggestionService {
 
             logRequest(userId, RequestType.DESTINATION_SUGGESTION, promptHash, responseTimeMs, RequestStatus.SUCCESS);
 
-            return new DestinationSuggestionResponse(suggestions, Instant.now());
+            try {
+                String jsonToCache = objectMapper.writeValueAsString(suggestions);
+                aiCacheService.cacheResponse(CACHE_TYPE, requestHash, jsonToCache, CACHE_TTL);
+            } catch (Exception ex) {
+                log.warn("Failed to cache suggestion response: {}", ex.getMessage());
+            }
+
+            return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
 
         } catch (Exception ex) {
             long responseTimeMs = System.currentTimeMillis() - startTime;
@@ -121,12 +144,6 @@ public class AiSuggestionService {
     }
 
     private String hashPrompt(String prompt) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(prompt.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (NoSuchAlgorithmException ex) {
-            return "unknown";
-        }
+        return aiCacheService.generateHash(prompt);
     }
 }

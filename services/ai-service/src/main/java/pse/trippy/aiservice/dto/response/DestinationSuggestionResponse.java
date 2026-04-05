@@ -5,6 +5,7 @@ import java.util.List;
 
 public record DestinationSuggestionResponse(
         List<DestinationSuggestion> suggestions,
-        Instant generatedAt
+        Instant generatedAt,
+        boolean cached
 ) {
 }
