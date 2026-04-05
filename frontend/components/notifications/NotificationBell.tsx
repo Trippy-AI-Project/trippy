@@ -10,6 +10,7 @@ import {
   MessageSquare,
   CheckCheck,
   Info,
+  Trash2,
 } from "lucide-react";
 import { notificationsApi, type Notification } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -114,6 +115,20 @@ export default function NotificationBell() {
     }
   }
 
+  async function handleDeleteNotification(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    try {
+      await notificationsApi.deleteNotification(id);
+      const removed = notifications.find((n) => n.id === id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      if (removed && !removed.read) {
+        setUnreadCount((c) => Math.max(0, c - 1));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Bell icon with badge */}
@@ -163,7 +178,7 @@ export default function NotificationBell() {
                     key={n.id}
                     onClick={() => handleClickNotification(n)}
                     className={cn(
-                      "flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface transition-colors",
+                      "group flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface transition-colors",
                       !n.read && "bg-trippy-500/5",
                     )}
                   >
@@ -189,6 +204,13 @@ export default function NotificationBell() {
                     {!n.read && (
                       <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-trippy-500" />
                     )}
+                    <button
+                      onClick={(e) => handleDeleteNotification(e, n.id)}
+                      className="mt-1 shrink-0 rounded p-1 text-muted hover:text-danger hover:bg-danger/10 transition-colors opacity-0 group-hover:opacity-100"
+                      aria-label="Delete notification"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </button>
                 );
               })

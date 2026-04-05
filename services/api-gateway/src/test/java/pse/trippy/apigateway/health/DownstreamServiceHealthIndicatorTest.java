@@ -46,8 +46,8 @@ class DownstreamServiceHealthIndicatorTest {
     @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
-        when(webClientBuilder.build()).thenReturn(webClient);
-        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        lenient().when(webClientBuilder.build()).thenReturn(webClient);
+        lenient().when(webClient.get()).thenReturn(requestHeadersUriSpec);
         lenient().when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
         lenient().when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
 

@@ -63,9 +63,9 @@ const PLANS: PlanInfo[] = [
     aiGenerationsLimit: 50,
   },
   {
-    id: "enterprise",
+    id: "pro",
     planId: "enterprise_monthly",
-    name: "Enterprise",
+    name: "Pro",
     price: 29.99,
     interval: "month",
     icon: Building2,
@@ -397,6 +397,42 @@ export default function PaymentPage() {
             </Button>
           )}
         </div>
+      </div>
+      {/* Billing History */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Billing History</h2>
+        {subscription && subscription.status !== "FREE" ? (
+          <GlassCard className="overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted">
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border last:border-0">
+                  <td className="px-4 py-3">
+                    {subscription.currentPeriodStart
+                      ? new Date(subscription.currentPeriodStart).toLocaleDateString()
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3">{subscription.plan} subscription</td>
+                  <td className="px-4 py-3">
+                    €{subscription.priceAmount ?? "0.00"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant="success">Paid</Badge>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </GlassCard>
+        ) : (
+          <p className="text-sm text-muted">No billing history yet.</p>
+        )}
       </div>
     </div>
   );

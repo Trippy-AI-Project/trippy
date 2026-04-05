@@ -44,6 +44,9 @@ class ChatMessageControllerTest {
     @MockBean
     private FileStorageService fileStorageService;
 
+    @MockBean
+    private pse.trippy.chatservice.repository.MessageAttachmentRepository attachmentRepository;
+
     @Test
     @DisplayName("POST /trips/{tripId}/chat/messages returns 201")
     void sendMessageReturnsCreated() throws Exception {

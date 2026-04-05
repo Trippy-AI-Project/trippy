@@ -74,6 +74,10 @@ public class Notification {
     @Builder.Default
     private boolean read = false;
 
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
