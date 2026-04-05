@@ -55,6 +55,12 @@ public class PaymentMethod {
     @Column(name = "brand", length = 20)
     private String brand;
 
+    @Column(name = "expiry_month")
+    private Integer expiryMonth;
+
+    @Column(name = "expiry_year")
+    private Integer expiryYear;
+
     @Column(name = "is_default", nullable = false)
     @Builder.Default
     private boolean isDefault = false;

@@ -1,0 +1,152 @@
+package pse.trippy.paymentservice.service;
+
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pse.trippy.paymentservice.dto.request.CancelSubscriptionRequest;
+import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
+import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
+import pse.trippy.paymentservice.dto.response.SubscriptionResponse;
+import pse.trippy.paymentservice.exception.InvalidPaymentException;
+import pse.trippy.paymentservice.exception.SubscriptionNotFoundException;
+import pse.trippy.paymentservice.model.entity.Subscription;
+import pse.trippy.paymentservice.model.entity.Transaction;
+import pse.trippy.paymentservice.model.enums.SubscriptionPlan;
+import pse.trippy.paymentservice.model.enums.SubscriptionStatus;
+import pse.trippy.paymentservice.model.enums.TransactionStatus;
+import pse.trippy.paymentservice.model.enums.TransactionType;
+import pse.trippy.paymentservice.repository.SubscriptionRepository;
+import pse.trippy.paymentservice.repository.TransactionRepository;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class SubscriptionService {
+
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
+
+    private final SubscriptionRepository subscriptionRepository;
+    private final TransactionRepository transactionRepository;
+
+    private static final Map<String, BigDecimal> PLAN_PRICING = Map.of(
+            "premium_monthly", new BigDecimal("9.99"),
+            "premium_yearly", new BigDecimal("99.99"),
+            "enterprise_monthly", new BigDecimal("29.99"),
+            "enterprise_yearly", new BigDecimal("299.99")
+    );
+
+    @Transactional
+    public PaymentConfirmationResponse confirmPayment(UUID userId, PaymentConfirmationRequest request) {
+        BigDecimal price = PLAN_PRICING.get(request.planId());
+        if (price == null) {
+            throw new InvalidPaymentException("Unknown plan: " + request.planId());
+        }
+
+        SubscriptionPlan plan = resolvePlan(request.planId());
+        boolean isYearly = request.planId().endsWith("_yearly");
+
+        // Create transaction with PENDING status
+        Transaction transaction = Transaction.builder()
+                .userId(userId)
+                .planId(request.planId())
+                .amount(price)
+                .type(TransactionType.SUBSCRIPTION)
+                .status(TransactionStatus.PENDING)
+                .description("Subscription purchase: " + request.planId())
+                .build();
+        transaction = transactionRepository.save(transaction);
+
+        // Dummy verification: always succeeds
+        transaction.setStatus(TransactionStatus.COMPLETED);
+        transaction = transactionRepository.save(transaction);
+
+        // Create or update subscription
+        LocalDate now = LocalDate.now();
+        LocalDate periodEnd = isYearly ? now.plusYears(1) : now.plusMonths(1);
+
+        Subscription subscription = subscriptionRepository.findByUserId(userId)
+                .map(existing -> {
+                    existing.setPlan(plan);
+                    existing.setStatus(SubscriptionStatus.ACTIVE);
+                    existing.setCurrentPeriodStart(now);
+                    existing.setCurrentPeriodEnd(periodEnd);
+                    existing.setCancelAtPeriodEnd(false);
+                    existing.setPriceAmount(price);
+                    return existing;
+                })
+                .orElseGet(() -> Subscription.builder()
+                        .userId(userId)
+                        .plan(plan)
+                        .status(SubscriptionStatus.ACTIVE)
+                        .currentPeriodStart(now)
+                        .currentPeriodEnd(periodEnd)
+                        .priceAmount(price)
+                        .build());
+        subscription = subscriptionRepository.save(subscription);
+
+        log.info("Payment confirmed for user {} - plan: {}, transaction: {}",
+                userId, request.planId(), transaction.getId());
+
+        return new PaymentConfirmationResponse(
+                transaction.getId(),
+                transaction.getStatus().name(),
+                toSubscriptionResponse(subscription),
+                "VRF-" + transaction.getId().toString().substring(0, 8).toUpperCase(),
+                Instant.now()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public SubscriptionResponse getSubscription(UUID userId) {
+        Subscription subscription = subscriptionRepository.findByUserId(userId)
+                .orElseThrow(() -> new SubscriptionNotFoundException(
+                        "No subscription found for user: " + userId));
+        return toSubscriptionResponse(subscription);
+    }
+
+    @Transactional
+    public SubscriptionResponse cancelSubscription(UUID userId, CancelSubscriptionRequest request) {
+        Subscription subscription = subscriptionRepository.findByUserId(userId)
+                .orElseThrow(() -> new SubscriptionNotFoundException(
+                        "No subscription found for user: " + userId));
+
+        if (request.cancelImmediately()) {
+            subscription.setStatus(SubscriptionStatus.CANCELLED);
+            subscription.setCancelAtPeriodEnd(false);
+        } else {
+            subscription.setCancelAtPeriodEnd(true);
+        }
+        subscription = subscriptionRepository.save(subscription);
+
+        log.info("Subscription cancelled for user {} - immediate: {}", userId, request.cancelImmediately());
+
+        return toSubscriptionResponse(subscription);
+    }
+
+    private SubscriptionPlan resolvePlan(String planId) {
+        if (planId.startsWith("enterprise")) {
+            return SubscriptionPlan.ENTERPRISE;
+        }
+        return SubscriptionPlan.PREMIUM;
+    }
+
+    private SubscriptionResponse toSubscriptionResponse(Subscription subscription) {
+        return new SubscriptionResponse(
+                subscription.getId(),
+                subscription.getPlan().name(),
+                subscription.getStatus().name(),
+                subscription.getCurrentPeriodStart(),
+                subscription.getCurrentPeriodEnd(),
+                subscription.isCancelAtPeriodEnd(),
+                subscription.getPriceAmount(),
+                subscription.getCurrency()
+        );
+    }
+}
