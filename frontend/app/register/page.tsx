@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, User, ArrowRight, Loader2 } from "lucide-react";
@@ -8,48 +8,95 @@ import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { GlassCard, Button, Input } from "@/components/ui";
 import { register, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [displayName, setDisplayName] = useState("");
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { addToast } = useToast();
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  // Redirect authenticated users away from register
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  function validate(): boolean {
+    const errs: Record<string, string> = {};
+    if (!firstName.trim()) errs.firstName = "First name is required";
+    if (!lastName.trim()) errs.lastName = "Last name is required";
+    if (!email.trim()) errs.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      errs.email = "Invalid email format";
+    if (!password) errs.password = "Password is required";
+    else if (password.length < 8)
+      errs.password = "Must be at least 8 characters";
+    else if (!/[A-Z]/.test(password))
+      errs.password = "Must contain an uppercase letter";
+    else if (!/\d/.test(password))
+      errs.password = "Must contain a number";
+    if (password !== confirmPassword)
+      errs.confirmPassword = "Passwords do not match";
+    if (!agreed) errs.agreed = "You must accept the Terms of Service";
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  function clearFieldError(field: string) {
+    setFieldErrors((p) => ({ ...p, [field]: "" }));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (!agreed) {
-      setError("You must accept the Terms of Service.");
-      return;
-    }
-
+    if (!validate()) return;
     setLoading(true);
 
     try {
+      const displayName = `${firstName.trim()} ${lastName.trim()}`;
       await register(email, password, displayName);
+      addToast("Account created! Please check your email to verify.", "success");
       router.push("/login?registered=true");
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(
-          typeof err.body?.message === "string"
-            ? err.body.message
-            : "Registration failed. Please try again.",
-        );
+        if (err.status === 409) {
+          setError("An account with this email already exists");
+          setFieldErrors((p) => ({ ...p, email: "Email already registered" }));
+        } else {
+          setError(
+            typeof err.body?.message === "string"
+              ? err.body.message
+              : "Registration failed. Please try again.",
+          );
+        }
+        addToast("Registration failed", "error");
       } else {
         setError("Something went wrong. Please try again.");
+        addToast("Connection error", "error");
       }
     } finally {
       setLoading(false);
     }
+  }
+
+  if (authLoading || isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-trippy-500 border-t-transparent" />
+      </div>
+    );
   }
 
   return (
@@ -81,21 +128,37 @@ export default function RegisterPage() {
               </p>
             )}
 
-            <div className="relative">
-              <User
-                size={16}
-                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-              />
-              <Input
-                id="displayName"
-                placeholder="Display name"
-                className="pl-10"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-                minLength={2}
-                maxLength={50}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="relative">
+                <User
+                  size={16}
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+                />
+                <Input
+                  id="firstName"
+                  placeholder="First name"
+                  className="pl-10"
+                  value={firstName}
+                  onChange={(e) => { setFirstName(e.target.value); clearFieldError("firstName"); }}
+                  error={fieldErrors.firstName}
+                  required
+                />
+              </div>
+              <div className="relative">
+                <User
+                  size={16}
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+                />
+                <Input
+                  id="lastName"
+                  placeholder="Last name"
+                  className="pl-10"
+                  value={lastName}
+                  onChange={(e) => { setLastName(e.target.value); clearFieldError("lastName"); }}
+                  error={fieldErrors.lastName}
+                  required
+                />
+              </div>
             </div>
 
             <div className="relative">
@@ -109,7 +172,8 @@ export default function RegisterPage() {
                 placeholder="Email address"
                 className="pl-10"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
+                error={fieldErrors.email}
                 required
               />
             </div>
@@ -125,7 +189,8 @@ export default function RegisterPage() {
                 placeholder="Create password"
                 className="pl-10"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
+                error={fieldErrors.password}
                 required
                 minLength={8}
               />
@@ -142,10 +207,18 @@ export default function RegisterPage() {
                 placeholder="Confirm password"
                 className="pl-10"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => { setConfirmPassword(e.target.value); clearFieldError("confirmPassword"); }}
+                error={fieldErrors.confirmPassword}
                 required
                 minLength={8}
               />
+            </div>
+
+            {/* Password strength hints */}
+            <div className="space-y-1 text-xs text-muted">
+              <p className={password.length >= 8 ? "text-success" : ""}>• At least 8 characters</p>
+              <p className={/[A-Z]/.test(password) ? "text-success" : ""}>• One uppercase letter</p>
+              <p className={/\d/.test(password) ? "text-success" : ""}>• One number</p>
             </div>
 
             <label className="flex items-start gap-2 text-sm text-muted">
@@ -153,7 +226,7 @@ export default function RegisterPage() {
                 type="checkbox"
                 className="mt-0.5 h-4 w-4 rounded border-border bg-surface accent-trippy-500"
                 checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
+                onChange={(e) => { setAgreed(e.target.checked); clearFieldError("agreed"); }}
               />
               <span>
                 I agree to the{" "}
@@ -166,6 +239,9 @@ export default function RegisterPage() {
                 </span>
               </span>
             </label>
+            {fieldErrors.agreed && (
+              <p className="text-xs text-danger">{fieldErrors.agreed}</p>
+            )}
 
             <Button className="w-full" size="lg" type="submit" disabled={loading}>
               {loading ? (
