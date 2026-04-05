@@ -16,8 +16,10 @@ import pse.trippy.chatservice.model.entity.ChatMessage;
 import pse.trippy.chatservice.model.entity.ChatRoom;
 import pse.trippy.chatservice.model.enums.MessageType;
 import pse.trippy.chatservice.repository.ChatMessageRepository;
+import pse.trippy.chatservice.repository.MessageAttachmentRepository;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,7 +37,13 @@ class ChatMessageServiceTest {
     private ChatMessageRepository chatMessageRepository;
 
     @Mock
+    private MessageAttachmentRepository messageAttachmentRepository;
+
+    @Mock
     private ChatRoomService chatRoomService;
+
+    @Mock
+    private FileStorageService fileStorageService;
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;
@@ -60,6 +68,7 @@ class ChatMessageServiceTest {
             m.prePersist();
             return m;
         });
+        when(messageAttachmentRepository.findByMessageId(any())).thenReturn(Collections.emptyList());
 
         ChatMessageResponse response = chatMessageService.sendMessage(
                 tripId, senderId, "Alice", content, MessageType.TEXT);
@@ -100,6 +109,7 @@ class ChatMessageServiceTest {
             m.prePersist();
             return m;
         });
+        when(messageAttachmentRepository.findByMessageId(any())).thenReturn(Collections.emptyList());
 
         ChatMessageResponse response = chatMessageService.sendMessage(
                 tripId, senderId, "Bob", "secret", MessageType.TEXT);
@@ -127,6 +137,7 @@ class ChatMessageServiceTest {
         PageImpl<ChatMessage> page = new PageImpl<>(List.of(msg1, msg2), PageRequest.of(0, 50), 2);
         when(chatMessageRepository.findByChatRoomIdOrderByCreatedAtDesc(roomId, PageRequest.of(0, 50)))
                 .thenReturn(page);
+        when(messageAttachmentRepository.findByMessageId(any())).thenReturn(Collections.emptyList());
 
         MessageHistoryResponse history = chatMessageService.getMessageHistory(tripId, 0, 50, null);
 
