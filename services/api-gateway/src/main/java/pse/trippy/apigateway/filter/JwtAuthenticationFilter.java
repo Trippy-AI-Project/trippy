@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -38,6 +39,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final String TOKEN_BLACKLIST_PREFIX = "blacklist:token:";
+    private static final String USER_BLACKLIST_PREFIX = "blacklist:user:";
     private static final List<String> PUBLIC_PATHS = List.of(
             "/auth/**",
             "/.well-known/**",
@@ -47,11 +50,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final String jwksUrl;
+    private final ReactiveStringRedisTemplate redisTemplate;
     private final AtomicReference<JWKSet> cachedJwkSet = new AtomicReference<>();
 
     public JwtAuthenticationFilter(
-            @Value("${trippy.gateway.jwks-url:http://localhost:8081/.well-known/jwks.json}") String jwksUrl) {
+            @Value("${trippy.gateway.jwks-url:http://localhost:8081/.well-known/jwks.json}") String jwksUrl,
+            ReactiveStringRedisTemplate redisTemplate) {
         this.jwksUrl = jwksUrl;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -102,15 +108,27 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return unauthorized(exchange);
             }
 
-            // Inject user headers for downstream services
-            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                    .header("X-User-Id", claims.getSubject())
-                    .header("X-User-Email", getClaimAsString(claims, "email"))
-                    .header("X-User-Role", getClaimAsString(claims, "role"))
-                    .header("X-User-Plan", getClaimAsString(claims, "plan"))
-                    .build();
+            String jti = claims.getJWTID();
+            String userId = claims.getSubject();
 
-            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+            // Check Redis blacklist before forwarding
+            return isBlacklisted(jti, userId)
+                    .flatMap(blacklisted -> {
+                        if (Boolean.TRUE.equals(blacklisted)) {
+                            log.debug("Blacklisted token: jti={}", jti);
+                            return unauthorized(exchange);
+                        }
+
+                        // Inject user headers for downstream services
+                        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                                .header("X-User-Id", userId)
+                                .header("X-User-Email", getClaimAsString(claims, "email"))
+                                .header("X-User-Role", getClaimAsString(claims, "role"))
+                                .header("X-User-Plan", getClaimAsString(claims, "plan"))
+                                .build();
+
+                        return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                    });
 
         } catch (Exception ex) {
             log.warn("JWT processing failed: {}", ex.getMessage());
@@ -151,6 +169,31 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         } catch (Exception e) {
             return "";
         }
+    }
+
+    /**
+     * Checks Redis for both token-level and user-level blacklist entries.
+     *
+     * <p><strong>Fail-open policy:</strong> if Redis is unavailable the request is
+     * allowed through. Access tokens are short-lived (default 15 min), so the
+     * risk window is bounded. Operators should monitor Redis health and alert
+     * on connection failures.
+     */
+    private Mono<Boolean> isBlacklisted(String jti, String userId) {
+        return redisTemplate.hasKey(TOKEN_BLACKLIST_PREFIX + jti)
+                .flatMap(tokenBlacklisted -> {
+                    if (Boolean.TRUE.equals(tokenBlacklisted)) {
+                        return Mono.just(true);
+                    }
+                    if (userId != null) {
+                        return redisTemplate.hasKey(USER_BLACKLIST_PREFIX + userId);
+                    }
+                    return Mono.just(false);
+                })
+                .onErrorResume(ex -> {
+                    log.warn("Redis blacklist check failed, allowing request: {}", ex.getMessage());
+                    return Mono.just(false);
+                });
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {

@@ -2,11 +2,14 @@ package pse.trippy.userservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
@@ -55,10 +58,14 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    /** Revokes the given refresh token and logs the user out. */
+    /** Revokes the given refresh token, blacklists the access token, and logs the user out. */
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
-        authService.logout(request.getRefreshToken());
+    public ResponseEntity<Void> logout(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
+            @Valid @RequestBody LogoutRequest request,
+            @RequestParam(defaultValue = "false") boolean allDevices) {
+        String accessToken = authHeader.substring("Bearer ".length());
+        authService.logout(accessToken, request.getRefreshToken(), allDevices);
         return ResponseEntity.noContent().build();
     }
 }

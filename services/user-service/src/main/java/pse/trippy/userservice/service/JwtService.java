@@ -4,12 +4,15 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import pse.trippy.userservice.config.RsaKeyProperties;
+import pse.trippy.userservice.exception.InvalidTokenException;
 import pse.trippy.userservice.model.entity.User;
 
 import java.time.Instant;
@@ -72,6 +75,31 @@ public class JwtService {
         }
 
         return signedJwt.serialize();
+    }
+
+    /**
+     * Parses a serialised JWT, verifies its RS256 signature, and returns the claims.
+     *
+     * <p>Expiry is intentionally <strong>not</strong> checked so that a recently-expired
+     * token can still be blacklisted during logout.
+     *
+     * @param token the serialised JWT string
+     * @return the verified claim set
+     * @throws InvalidTokenException if the token cannot be parsed or the signature is invalid
+     */
+    public JWTClaimsSet parseAndVerifyAccessToken(String token) {
+        try {
+            SignedJWT signedJWT = SignedJWT.parse(token);
+            JWSVerifier verifier = new RSASSAVerifier(rsaKeys.getPublicKey());
+            if (!signedJWT.verify(verifier)) {
+                throw new InvalidTokenException("Invalid access token signature");
+            }
+            return signedJWT.getJWTClaimsSet();
+        } catch (InvalidTokenException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new InvalidTokenException("Invalid access token");
+        }
     }
 
     /** Returns the configured access token expiry in seconds. */
