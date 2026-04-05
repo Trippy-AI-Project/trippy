@@ -1,10 +1,11 @@
 package pse.trippy.apigateway.controller;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pse.trippy.apigateway.health.DownstreamServiceHealthIndicator;
+import reactor.core.publisher.Mono;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -13,14 +14,23 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
+    private final DownstreamServiceHealthIndicator downstreamServiceHealthIndicator;
+
+    public HealthController(DownstreamServiceHealthIndicator downstreamServiceHealthIndicator) {
+        this.downstreamServiceHealthIndicator = downstreamServiceHealthIndicator;
+    }
+
     /**
      * Health check endpoint.
-     * Returns 200 OK with status UP.
-     *
-     * @return response with status UP
+     * Returns status UP/DOWN with downstream service statuses.
      */
     @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> health() {
-        return ResponseEntity.ok(Collections.singletonMap("status", "UP"));
+    public Mono<Map<String, Object>> health() {
+        return downstreamServiceHealthIndicator.health().map(health -> {
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", health.getStatus().getCode());
+            response.put("services", health.getDetails());
+            return response;
+        });
     }
 }

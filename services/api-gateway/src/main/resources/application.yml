@@ -85,10 +85,21 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,metrics,gateway
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
+    gateway:
+      enabled: true
+  health:
+    defaults:
+      enabled: true
+
+info:
+  app:
+    name: Trippy API Gateway
+    version: 0.2.0
+    description: API Gateway for Trippy platform
 
 logging:
   level:
@@ -98,3 +109,10 @@ logging:
 trippy:
   gateway:
     jwks-url: http://localhost:8081/.well-known/jwks.json
+    downstream-services:
+      user-service: http://user-service:8081
+      trip-service: http://trip-service:8082
+      chat-service: http://chat-service:8083
+      ai-service: http://ai-service:8084
+      notification-service: http://notification-service:8085
+      payment-service: http://payment-service:8086
