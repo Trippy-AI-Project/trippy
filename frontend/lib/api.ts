@@ -159,7 +159,239 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Trip API                                                           */
+/* ------------------------------------------------------------------ */
+
+export interface Trip {
+  tripId: string;
+  title: string;
+  description?: string;
+  destination: string;
+  coverImageUrl?: string;
+  startDate?: string;
+  endDate?: string;
+  organizerId: string;
+  status: "DRAFT" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+  visibility: "PRIVATE" | "PUBLIC" | "UNLISTED";
+  participantCount: number;
+  hasItinerary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TripDetail extends Trip {
+  participants: Participant[];
+  itinerary?: Itinerary;
+}
+
+export interface Participant {
+  participantId: string;
+  tripId: string;
+  userId: string;
+  displayName?: string;
+  avatarUrl?: string;
+  role: "OWNER" | "EDITOR" | "VIEWER";
+  status: "PENDING" | "ACCEPTED" | "DECLINED" | "LEFT";
+  invitedAt: string;
+  joinedAt?: string;
+}
+
+export interface Itinerary {
+  itineraryId: string;
+  tripId: string;
+  days: DayPlan[];
+  generatedAt?: string;
+}
+
+export interface DayPlan {
+  dayPlanId: string;
+  dayNumber: number;
+  date?: string;
+  title?: string;
+  activities: Activity[];
+}
+
+export interface Activity {
+  activityId: string;
+  time?: string;
+  title: string;
+  description?: string;
+  location?: string;
+  category?: string;
+  estimatedCost?: string;
+}
+
+export interface TripPage {
+  content: Trip[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export interface CreateTripRequest {
+  title: string;
+  destination: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  visibility?: string;
+}
+
+export const tripsApi = {
+  list: (page = 0, size = 12) =>
+    api.get<TripPage>(`/trips?page=${page}&size=${size}`),
+  search: (q: string, page = 0, size = 12) =>
+    api.get<TripPage>(`/trips?search=${encodeURIComponent(q)}&page=${page}&size=${size}`),
+  get: (id: string) => api.get<TripDetail>(`/trips/${id}`),
+  create: (data: CreateTripRequest) => api.post<Trip>("/trips", data),
+  update: (id: string, data: Partial<CreateTripRequest>) =>
+    api.patch<Trip>(`/trips/${id}`, data),
+  delete: (id: string) => api.delete<void>(`/trips/${id}`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Notification API                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  actionUrl?: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationPage {
+  content: Notification[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export const notificationsApi = {
+  list: (page = 0, size = 10) =>
+    api.get<NotificationPage>(`/notifications?page=${page}&size=${size}`),
+  unreadCount: () => api.get<{ count: number }>("/notifications/unread/count"),
+  markRead: (id: string) => api.put<void>(`/notifications/${id}/read`),
+  markAllRead: () => api.put<void>("/notifications/read-all"),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Payment API                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface SubscriptionInfo {
+  subscriptionId: string;
+  plan: "FREE" | "PREMIUM" | "ENTERPRISE";
+  status: "ACTIVE" | "CANCELLED" | "PAST_DUE" | "TRIALING";
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd: boolean;
+  priceAmount?: number;
+  currency?: string;
+}
+
+export interface PaymentMethod {
+  paymentMethodId: string;
+  brand: string;
+  last4: string;
+  expiryMonth: number;
+  expiryYear: number;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface TransactionRecord {
+  transactionId: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  type: string;
+  status: string;
+  description: string;
+  createdAt: string;
+}
+
+export const paymentsApi = {
+  getSubscription: () => api.get<SubscriptionInfo>("/payments/subscription"),
+  checkout: (planId: string, paymentMethodId: string) =>
+    api.post<{ transactionId: string; status: string }>("/payments/checkout", {
+      planId,
+      paymentMethodId,
+    }),
+  cancelSubscription: (cancelImmediately = false) =>
+    api.post<SubscriptionInfo>("/payments/subscription/cancel", { cancelImmediately }),
+  getMethods: () => api.get<PaymentMethod[]>("/payments/methods"),
+  addMethod: (data: { brand: string; last4: string; expiryMonth: number; expiryYear: number; setAsDefault?: boolean }) =>
+    api.post<PaymentMethod>("/payments/methods", data),
+  deleteMethod: (id: string) => api.delete<void>(`/payments/methods/${id}`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Chat API                                                           */
+/* ------------------------------------------------------------------ */
+
+export interface ChatMessage {
+  messageId: string;
+  tripId: string;
+  senderId: string;
+  senderName?: string;
+  senderAvatarUrl?: string;
+  type: "TEXT" | "IMAGE" | "FILE" | "SYSTEM";
+  content: string;
+  attachment?: {
+    attachmentId: string;
+    fileName: string;
+    fileUrl: string;
+    fileSize: number;
+    contentType: string;
+  };
+  sentAt: string;
+  isEdited: boolean;
+  isDeleted: boolean;
+}
+
+export interface ChatMessagePage {
+  content: ChatMessage[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export const chatApi = {
+  getMessages: (tripId: string, page = 0, size = 50) =>
+    api.get<ChatMessagePage>(`/chats/${tripId}/messages?page=${page}&size=${size}`),
+  sendMessage: (tripId: string, content: string) =>
+    api.post<ChatMessage>(`/chats/${tripId}/messages`, { content }),
+  uploadFile: async (tripId: string, file: File): Promise<ChatMessage> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("senderId", "");
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE_URL}/chats/${tripId}/messages/file`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => ({})));
+    return res.json();
+  },
+  getParticipants: (tripId: string) =>
+    api.get<string[]>(`/chats/${tripId}/participants`),
 };
