@@ -1,31 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Map,
   MessageSquare,
-  Bell,
   Settings,
   LogOut,
   Menu,
   X,
+  CreditCard,
 } from "lucide-react";
 import { useState } from "react";
 import Logo from "@/components/Logo";
 import { Avatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 const navLinks = [
   { href: "/dashboard", label: "My Trips", icon: Map },
   { href: "/dashboard/chat", label: "Chat", icon: MessageSquare },
-  { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
+  { href: "/dashboard/payments", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  async function handleLogout() {
+    await logout();
+    router.push("/login");
+  }
 
   return (
     <nav className="glass-strong sticky top-0 z-50 px-4 lg:px-8">
@@ -58,8 +67,14 @@ export default function Navbar() {
         </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-3">
-          <Avatar name="User" size="sm" />
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <Avatar
+            name={user?.displayName ?? "User"}
+            src={user?.avatarUrl}
+            size="sm"
+            className="cursor-pointer"
+          />
 
           {/* Mobile hamburger */}
           <button
@@ -94,7 +109,17 @@ export default function Navbar() {
               </Link>
             );
           })}
-          <button className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-danger hover:bg-danger/10 w-full transition-all">
+          <Link
+            href="/dashboard/notifications"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface transition-all"
+          >
+            Notifications
+          </Link>
+          <button
+            onClick={() => { setMobileOpen(false); handleLogout(); }}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-danger hover:bg-danger/10 w-full transition-all"
+          >
             <LogOut size={16} />
             Logout
           </button>
