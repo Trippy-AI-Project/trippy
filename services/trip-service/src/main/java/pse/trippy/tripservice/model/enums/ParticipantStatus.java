@@ -8,6 +8,9 @@ public enum ParticipantStatus {
     /** Invitation sent; participant has not yet responded. */
     PENDING,
 
+    /** Participant has been invited and has not yet responded. */
+    INVITED,
+
     /** Participant accepted the invitation and is active. */
     ACCEPTED,
 

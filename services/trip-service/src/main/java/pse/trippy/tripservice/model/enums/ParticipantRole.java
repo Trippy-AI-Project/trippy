@@ -12,5 +12,8 @@ public enum ParticipantRole {
     EDITOR,
 
     /** Read-only access; can view all trip content. */
-    VIEWER
+    VIEWER,
+
+    /** Standard trip member; can view and participate. */
+    MEMBER
 }

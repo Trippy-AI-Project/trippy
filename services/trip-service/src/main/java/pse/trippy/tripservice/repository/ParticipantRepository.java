@@ -7,6 +7,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import pse.trippy.tripservice.model.entity.Participant;
 
+import pse.trippy.tripservice.model.enums.ParticipantStatus;
+
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -60,4 +63,13 @@ public interface ParticipantRepository extends JpaRepository<Participant, UUID> 
     @Modifying
     @Query("DELETE FROM Participant p WHERE p.trip.id = :tripId")
     void deleteAllByTripId(@Param("tripId") UUID tripId);
+
+    /**
+     * Counts participants in a trip whose status is in the given collection.
+     *
+     * @param tripId   the trip's UUID
+     * @param statuses the statuses to include in the count
+     * @return the number of matching participants
+     */
+    long countByTripIdAndStatusIn(UUID tripId, Collection<ParticipantStatus> statuses);
 }
