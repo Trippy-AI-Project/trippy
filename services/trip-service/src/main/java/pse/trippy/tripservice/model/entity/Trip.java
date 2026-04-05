@@ -85,7 +85,7 @@ public class Trip {
     @Max(20)
     @Column(name = "max_participants", nullable = false)
     @Builder.Default
-    private int maxParticipants = 10;
+    private int maxParticipants = 20;
 
     @Column(name = "cover_image_url", length = 2048)
     private String coverImageUrl;

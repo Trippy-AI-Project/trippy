@@ -93,6 +93,8 @@ public class ParticipantService {
         participant.setStatus(ParticipantStatus.DECLINED);
         participant = participantRepository.save(participant);
 
+        publishEvent("trip.participant.declined", tripId, userId);
+
         return new ParticipantActionResponse("Invitation declined successfully", toResponse(participant));
     }
 

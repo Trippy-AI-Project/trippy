@@ -36,6 +36,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import pse.trippy.tripservice.config.RabbitMQConfig;
+import pse.trippy.tripservice.dto.event.ParticipantEvent;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ParticipantService")
@@ -63,7 +65,7 @@ class ParticipantServiceTest {
                 .destination("Barcelona")
                 .startDate(LocalDate.of(2026, 7, 1))
                 .endDate(LocalDate.of(2026, 7, 7))
-                .maxParticipants(10)
+                .maxParticipants(20)
                 .createdBy(OWNER_ID)
                 .build();
         trip.setId(TRIP_ID);
@@ -113,7 +115,7 @@ class ParticipantServiceTest {
         @Test
         @DisplayName("owner can invite a new participant")
         void ownerCanInvite() {
-            InviteParticipantRequest request = new InviteParticipantRequest(INVITEE_ID);
+            InviteParticipantRequest request = new InviteParticipantRequest(INVITEE_ID, null);
 
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
             when(participantRepository.findByTripIdAndUserId(TRIP_ID, OWNER_ID))
@@ -132,7 +134,7 @@ class ParticipantServiceTest {
             assertThat(response.participant().userId()).isEqualTo(INVITEE_ID);
             assertThat(response.participant().role()).isEqualTo("MEMBER");
             assertThat(response.participant().status()).isEqualTo("INVITED");
-            verify(rabbitTemplate).convertAndSend(anyString(), eq("trip.participant.invited"), any());
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE), eq("trip.participant.invited"), any(ParticipantEvent.class));
         }
 
         @Test
@@ -141,7 +143,7 @@ class ParticipantServiceTest {
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID), OWNER_ID))
+                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null), OWNER_ID))
                     .isInstanceOf(TripNotFoundException.class);
         }
 
@@ -153,7 +155,7 @@ class ParticipantServiceTest {
                     .thenReturn(Optional.of(invitedParticipant()));
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(UUID.randomUUID()), INVITEE_ID))
+                    TRIP_ID, new InviteParticipantRequest(UUID.randomUUID(), null), INVITEE_ID))
                     .isInstanceOf(ForbiddenException.class);
         }
 
@@ -166,7 +168,7 @@ class ParticipantServiceTest {
             when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(true);
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID), OWNER_ID))
+                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null), OWNER_ID))
                     .isInstanceOf(InvalidTripDataException.class)
                     .hasMessageContaining("already a participant");
         }
@@ -178,10 +180,10 @@ class ParticipantServiceTest {
             when(participantRepository.findByTripIdAndUserId(TRIP_ID, OWNER_ID))
                     .thenReturn(Optional.of(ownerParticipant()));
             when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(false);
-            when(participantRepository.countByTripIdAndStatusIn(eq(TRIP_ID), any(Collection.class))).thenReturn(10L);
+            when(participantRepository.countByTripIdAndStatusIn(eq(TRIP_ID), any(Collection.class))).thenReturn(20L);
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID), OWNER_ID))
+                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null), OWNER_ID))
                     .isInstanceOf(InvalidTripDataException.class)
                     .hasMessageContaining("maximum");
         }
@@ -210,7 +212,7 @@ class ParticipantServiceTest {
             assertThat(response.message()).isEqualTo("Invitation accepted successfully");
             assertThat(response.participant().status()).isEqualTo("ACCEPTED");
             assertThat(response.participant().joinedAt()).isNotNull();
-            verify(rabbitTemplate).convertAndSend(anyString(), eq("trip.participant.joined"), any());
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE), eq("trip.participant.joined"), any(ParticipantEvent.class));
         }
 
         @Test
@@ -259,6 +261,7 @@ class ParticipantServiceTest {
 
             assertThat(response.message()).isEqualTo("Invitation declined successfully");
             assertThat(response.participant().status()).isEqualTo("DECLINED");
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE), eq("trip.participant.declined"), any(ParticipantEvent.class));
         }
 
         @Test
@@ -291,7 +294,7 @@ class ParticipantServiceTest {
             participantService.leaveTrip(TRIP_ID, INVITEE_ID);
 
             verify(participantRepository).delete(any(Participant.class));
-            verify(rabbitTemplate).convertAndSend(anyString(), eq("trip.participant.left"), any());
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE), eq("trip.participant.left"), any(ParticipantEvent.class));
         }
 
         @Test

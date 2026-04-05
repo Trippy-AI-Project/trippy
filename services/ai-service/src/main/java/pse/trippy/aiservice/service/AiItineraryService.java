@@ -30,7 +30,7 @@ import java.util.UUID;
 @Slf4j
 public class AiItineraryService {
 
-    private static final Duration CACHE_TTL = Duration.ofHours(2);
+    private static final Duration CACHE_TTL = Duration.ofMinutes(30);
     private static final String CACHE_TYPE = "itinerary";
 
     private final ChatClient.Builder chatClientBuilder;

@@ -87,4 +87,28 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build());
     }
+
+    @ExceptionHandler(FileTooLargeException.class)
+    public ResponseEntity<ErrorResponse> handleFileTooLarge(
+            FileTooLargeException ex, HttpServletRequest request) {
+
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ErrorResponse.builder()
+                .error("FILE_TOO_LARGE")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(request.getRequestURI())
+                .build());
+    }
+
+    @ExceptionHandler(UnsupportedFileTypeException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedFileType(
+            UnsupportedFileTypeException ex, HttpServletRequest request) {
+
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(ErrorResponse.builder()
+                .error("UNSUPPORTED_FILE_TYPE")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(request.getRequestURI())
+                .build());
+    }
 }
