@@ -43,13 +43,13 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public Page<NotificationResponse> getNotifications(UUID userId, int page, int size) {
         Page<Notification> notifications = notificationRepository
-                .findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(page, size));
+                .findByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId, PageRequest.of(page, size));
         return notifications.map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
     public long getUnreadCount(UUID userId) {
-        return notificationRepository.countByUserIdAndReadFalse(userId);
+        return notificationRepository.countByUserIdAndReadFalseAndDeletedFalse(userId);
     }
 
     @Transactional
@@ -64,10 +64,21 @@ public class NotificationService {
     @Transactional
     public void markAllAsRead(UUID userId) {
         List<Notification> unread = notificationRepository
-                .findByUserIdAndReadFalseOrderByCreatedAtDesc(userId);
+                .findByUserIdAndReadFalseAndDeletedFalseOrderByCreatedAtDesc(userId);
         unread.forEach(n -> n.setRead(true));
         notificationRepository.saveAll(unread);
         log.info("Marked all notifications as read for user {}", userId);
+    }
+
+    @Transactional
+    public void deleteNotification(UUID notificationId, UUID userId) {
+        notificationRepository.findById(notificationId).ifPresent(n -> {
+            if (n.getUserId().equals(userId)) {
+                n.setDeleted(true);
+                notificationRepository.save(n);
+                log.info("Soft-deleted notification {} for user {}", notificationId, userId);
+            }
+        });
     }
 
     private NotificationResponse toResponse(Notification n) {

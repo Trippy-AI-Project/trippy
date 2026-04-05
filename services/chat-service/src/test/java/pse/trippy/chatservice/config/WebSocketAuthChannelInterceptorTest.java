@@ -47,7 +47,8 @@ class WebSocketAuthChannelInterceptorTest {
     @BeforeEach
     void setUp() {
         interceptor = new WebSocketAuthChannelInterceptor(
-                tripServiceClient, chatPresenceService, chatMessageService);
+                tripServiceClient, chatPresenceService, chatMessageService,
+                new WebSocketDisconnectListener(chatPresenceService, chatMessageService));
     }
 
     @Test

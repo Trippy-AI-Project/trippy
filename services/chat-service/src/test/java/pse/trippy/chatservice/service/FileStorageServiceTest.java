@@ -57,7 +57,7 @@ class FileStorageServiceTest {
                 "file", "malware.exe", "application/x-msdownload", "bad-data".getBytes());
 
         assertThatThrownBy(() -> fileStorageService.storeFile(tripId, file))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(pse.trippy.chatservice.exception.UnsupportedFileTypeException.class)
                 .hasMessageContaining("File type not allowed");
     }
 
@@ -70,7 +70,7 @@ class FileStorageServiceTest {
                 "file", "large.png", "image/png", largeContent);
 
         assertThatThrownBy(() -> fileStorageService.storeFile(tripId, file))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(pse.trippy.chatservice.exception.FileTooLargeException.class)
                 .hasMessageContaining("exceeds maximum allowed size");
     }
 

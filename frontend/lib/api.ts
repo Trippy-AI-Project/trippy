@@ -284,9 +284,10 @@ export interface NotificationPage {
 export const notificationsApi = {
   list: (page = 0, size = 10) =>
     api.get<NotificationPage>(`/notifications?page=${page}&size=${size}`),
-  unreadCount: () => api.get<{ count: number }>("/notifications/unread/count"),
-  markRead: (id: string) => api.put<void>(`/notifications/${id}/read`),
-  markAllRead: () => api.put<void>("/notifications/read-all"),
+  unreadCount: () => api.get<{ count: number }>("/notifications/unread-count"),
+  markRead: (id: string) => api.patch<void>(`/notifications/${id}/read`),
+  markAllRead: () => api.patch<void>("/notifications/read-all"),
+  deleteNotification: (id: string) => api.delete<void>(`/notifications/${id}`),
 };
 
 /* ------------------------------------------------------------------ */

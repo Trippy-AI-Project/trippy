@@ -99,6 +99,20 @@ export default function NotificationsPage() {
     if (n.actionUrl) router.push(n.actionUrl);
   }
 
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    try {
+      await notificationsApi.deleteNotification(id);
+      const removed = notifications.find((n) => n.id === id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      if (removed && !removed.read) {
+        setUnreadCount((c) => Math.max(0, c - 1));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -182,6 +196,13 @@ export default function NotificationsPage() {
                       <p className="text-sm text-muted mt-0.5">{n.message}</p>
                       <p className="text-xs text-muted mt-1">{timeAgo(n.createdAt)}</p>
                     </div>
+                    <button
+                      onClick={(e) => handleDelete(e, n.id)}
+                      className="mt-1 shrink-0 rounded p-1.5 text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                      aria-label="Delete notification"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </GlassCard>
                 </motion.div>
               );

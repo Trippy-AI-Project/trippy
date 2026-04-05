@@ -70,6 +70,7 @@ public class NotificationEventListener {
             String inviteeName = (String) map.get("inviteeName");
             String inviterName = (String) map.get("inviterName");
             String tripTitle = (String) map.get("tripTitle");
+            String inviteeId = (String) map.get("inviteeId");
 
             log.info("Processing trip.invitation.created for {}", inviteeEmail);
             emailService.sendTemplateEmail(
@@ -80,6 +81,15 @@ public class NotificationEventListener {
                             "inviterName", inviterName,
                             "tripTitle", tripTitle,
                             "dashboardUrl", DASHBOARD_URL));
+
+            if (inviteeId != null) {
+                notificationService.createNotification(
+                        UUID.fromString(inviteeId),
+                        NotificationType.TRIP_INVITATION,
+                        "Trip Invitation",
+                        inviterName + " invited you to " + tripTitle,
+                        DASHBOARD_URL);
+            }
         }
     }
 

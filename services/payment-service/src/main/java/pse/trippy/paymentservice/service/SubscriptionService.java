@@ -3,8 +3,10 @@ package pse.trippy.paymentservice.service;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pse.trippy.paymentservice.config.RabbitMQConfig;
 import pse.trippy.paymentservice.dto.request.CancelSubscriptionRequest;
 import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
 import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
@@ -34,6 +36,7 @@ public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final TransactionRepository transactionRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     private static final Map<String, BigDecimal> PLAN_PRICING = Map.of(
             "premium_monthly", new BigDecimal("9.99"),
@@ -94,6 +97,8 @@ public class SubscriptionService {
         log.info("Payment confirmed for user {} - plan: {}, transaction: {}",
                 userId, request.planId(), transaction.getId());
 
+        publishSubscriptionActivatedEvent(userId, subscription);
+
         return new PaymentConfirmationResponse(
                 transaction.getId(),
                 transaction.getStatus().name(),
@@ -148,5 +153,26 @@ public class SubscriptionService {
                 subscription.getPriceAmount(),
                 subscription.getCurrency()
         );
+    }
+
+    private void publishSubscriptionActivatedEvent(UUID userId, Subscription subscription) {
+        try {
+            Map<String, Object> event = Map.of(
+                    "eventType", "payment.subscription.activated",
+                    "userId", userId.toString(),
+                    "plan", subscription.getPlan().name(),
+                    "status", subscription.getStatus().name(),
+                    "periodStart", subscription.getCurrentPeriodStart().toString(),
+                    "periodEnd", subscription.getCurrentPeriodEnd().toString(),
+                    "timestamp", Instant.now().toString()
+            );
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.PAYMENT_EXCHANGE,
+                    "payment.subscription.activated",
+                    event);
+            log.info("Published payment.subscription.activated event for user {}", userId);
+        } catch (Exception e) {
+            log.warn("Failed to publish subscription activated event for user {}: {}", userId, e.getMessage());
+        }
     }
 }
