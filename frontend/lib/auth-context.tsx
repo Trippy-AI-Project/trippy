@@ -1,0 +1,84 @@
+"use client";
+
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
+import {
+  getAccessToken,
+  clearTokens,
+  login as apiLogin,
+  logout as apiLogout,
+  refreshAccessToken,
+  type UserProfile,
+  type LoginResponse,
+} from "@/lib/api";
+
+interface AuthContextType {
+  user: UserProfile | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<LoginResponse>;
+  logout: () => Promise<void>;
+  setUser: (u: UserProfile | null) => void;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // On mount, try to restore session from stored token
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    // Try to refresh to get user profile
+    refreshAccessToken()
+      .then((res) => setUser(res.user))
+      .catch(() => clearTokens())
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = useCallback(
+    async (email: string, password: string, rememberMe = false) => {
+      const res = await apiLogin(email, password, rememberMe);
+      setUser(res.user);
+      return res;
+    },
+    [],
+  );
+
+  const logout = useCallback(async () => {
+    await apiLogout();
+    setUser(null);
+  }, []);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        login,
+        logout,
+        setUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be inside AuthProvider");
+  return ctx;
+}
