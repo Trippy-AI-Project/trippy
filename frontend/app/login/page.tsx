@@ -1,43 +1,86 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { GlassCard, Button, Input } from "@/components/ui";
-import { login, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast";
+import { ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { addToast } = useToast();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  // Redirect authenticated users away from login
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  function validate(): boolean {
+    const errs: Record<string, string> = {};
+    if (!email.trim()) errs.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      errs.email = "Invalid email format";
+    if (!password) errs.password = "Password is required";
+    else if (password.length < 8)
+      errs.password = "Must be at least 8 characters";
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (!validate()) return;
     setLoading(true);
 
     try {
       await login(email, password, rememberMe);
+      addToast("Welcome back!", "success");
       router.push("/dashboard");
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(
-          typeof err.body?.message === "string"
-            ? err.body.message
-            : "Invalid email or password",
-        );
+        if (err.status === 401) {
+          setError("Invalid email or password");
+        } else if (err.status === 403) {
+          setError("Please verify your email before logging in");
+        } else {
+          setError(
+            typeof err.body?.message === "string"
+              ? err.body.message
+              : "Login failed. Please try again.",
+          );
+        }
+        addToast("Login failed", "error");
       } else {
         setError("Something went wrong. Please try again.");
+        addToast("Connection error", "error");
       }
     } finally {
       setLoading(false);
     }
+  }
+
+  if (authLoading || isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-trippy-500 border-t-transparent" />
+      </div>
+    );
   }
 
   return (
@@ -81,7 +124,8 @@ export default function LoginPage() {
                   placeholder="Email address"
                   className="pl-10"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setFieldErrors((p) => ({ ...p, email: "" })); }}
+                  error={fieldErrors.email}
                   required
                 />
               </div>
@@ -97,7 +141,8 @@ export default function LoginPage() {
                   placeholder="Password"
                   className="pl-10"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setFieldErrors((p) => ({ ...p, password: "" })); }}
+                  error={fieldErrors.password}
                   required
                 />
               </div>
