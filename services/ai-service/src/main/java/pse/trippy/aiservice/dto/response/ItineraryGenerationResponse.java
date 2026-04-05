@@ -11,6 +11,7 @@ public record ItineraryGenerationResponse(
         String overview,
         String estimatedTotalCost,
         Instant generatedAt,
-        int tokensUsed
+        int tokensUsed,
+        boolean cached
 ) {
 }

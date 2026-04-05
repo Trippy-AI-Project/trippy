@@ -3,6 +3,7 @@ package pse.trippy.aiservice.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,7 @@ import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.response.AiUsageResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryGenerationResponse;
+import pse.trippy.aiservice.service.AiCacheService;
 import pse.trippy.aiservice.service.AiItineraryService;
 import pse.trippy.aiservice.service.AiSuggestionService;
 import pse.trippy.aiservice.service.AiUsageService;
@@ -29,6 +31,7 @@ public class AiController {
     private final AiSuggestionService aiSuggestionService;
     private final AiItineraryService aiItineraryService;
     private final AiUsageService aiUsageService;
+    private final AiCacheService aiCacheService;
 
     @PostMapping("/destination-suggestions")
     public ResponseEntity<DestinationSuggestionResponse> getDestinationSuggestions(
@@ -52,5 +55,11 @@ public class AiController {
     public ResponseEntity<AiUsageResponse> getUsage(@PathVariable UUID userId) {
         AiUsageResponse usage = aiUsageService.getUsage(userId);
         return ResponseEntity.ok(usage);
+    }
+
+    @DeleteMapping("/cache/{type}")
+    public ResponseEntity<Void> evictCache(@PathVariable String type) {
+        aiCacheService.evictCache(type);
+        return ResponseEntity.noContent().build();
     }
 }
