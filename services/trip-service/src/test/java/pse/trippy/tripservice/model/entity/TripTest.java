@@ -55,10 +55,10 @@ class TripTest {
         }
 
         @Test
-        @DisplayName("maxParticipants defaults to 10 when not set")
-        void maxParticipantsDefaultsTen() {
+        @DisplayName("maxParticipants defaults to 20 when not set")
+        void maxParticipantsDefaultsTwenty() {
             Trip trip = validTripBuilder().build();
-            assertThat(trip.getMaxParticipants()).isEqualTo(10);
+            assertThat(trip.getMaxParticipants()).isEqualTo(20);
         }
 
         @Test

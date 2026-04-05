@@ -17,10 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import pse.trippy.chatservice.dto.request.SendMessageRequest;
 import pse.trippy.chatservice.dto.response.ChatMessageResponse;
+import pse.trippy.chatservice.dto.response.MessageAttachmentResponse;
 import pse.trippy.chatservice.dto.response.MessageHistoryResponse;
 import pse.trippy.chatservice.model.enums.MessageType;
 import pse.trippy.chatservice.service.ChatMessageService;
 import pse.trippy.chatservice.service.FileStorageService;
+import pse.trippy.chatservice.repository.MessageAttachmentRepository;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -36,6 +38,7 @@ public class ChatMessageController {
 
     private final ChatMessageService chatMessageService;
     private final FileStorageService fileStorageService;
+    private final MessageAttachmentRepository attachmentRepository;
 
     @GetMapping("/trips/{tripId}/chat/messages")
     public ResponseEntity<MessageHistoryResponse> getMessageHistory(
@@ -82,6 +85,18 @@ public class ChatMessageController {
                 tripId, senderId, senderDisplayName, file);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/chats/{tripId}/attachments")
+    public ResponseEntity<java.util.List<MessageAttachmentResponse>> listAttachments(
+            @PathVariable UUID tripId) {
+
+        java.util.List<MessageAttachmentResponse> attachments = attachmentRepository.findByTripId(tripId)
+                .stream()
+                .map(a -> new MessageAttachmentResponse(a.getId(), a.getFileName(),
+                        a.getFileUrl(), a.getFileSize(), a.getContentType()))
+                .toList();
+        return ResponseEntity.ok(attachments);
     }
 
     @GetMapping("/chats/files/{tripId}/{filename}")

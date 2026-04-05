@@ -68,13 +68,14 @@ public class FileStorageService {
         }
 
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException(
+            throw new pse.trippy.chatservice.exception.FileTooLargeException(
                     "File size exceeds maximum allowed size of " + (MAX_FILE_SIZE / (1024 * 1024)) + "MB");
         }
 
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new IllegalArgumentException("File type not allowed: " + contentType);
+            throw new pse.trippy.chatservice.exception.UnsupportedFileTypeException(
+                    "File type not allowed: " + contentType);
         }
 
         String extension = getExtension(file.getOriginalFilename());

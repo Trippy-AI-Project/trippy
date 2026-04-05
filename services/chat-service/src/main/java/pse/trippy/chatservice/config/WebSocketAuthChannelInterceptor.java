@@ -33,6 +33,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
     private final TripServiceClient tripServiceClient;
     private final ChatPresenceService chatPresenceService;
     private final ChatMessageService chatMessageService;
+    private final WebSocketDisconnectListener disconnectListener;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -84,6 +85,13 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         boolean newJoin = chatPresenceService.addUser(tripId, userId);
         if (newJoin) {
             String name = (displayName != null && !displayName.isBlank()) ? displayName : "A user";
+
+            // Track subscription for disconnect cleanup
+            String sessionId = accessor.getSessionId();
+            if (sessionId != null) {
+                disconnectListener.trackSubscription(sessionId, tripId, userId, displayName);
+            }
+
             try {
                 chatMessageService.sendMessage(
                         tripId, userId, "System",
