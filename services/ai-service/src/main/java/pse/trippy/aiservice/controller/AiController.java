@@ -11,8 +11,11 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
+import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.response.AiUsageResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
+import pse.trippy.aiservice.dto.response.ItineraryGenerationResponse;
+import pse.trippy.aiservice.service.AiItineraryService;
 import pse.trippy.aiservice.service.AiSuggestionService;
 import pse.trippy.aiservice.service.AiUsageService;
 
@@ -24,6 +27,7 @@ import java.util.UUID;
 public class AiController {
 
     private final AiSuggestionService aiSuggestionService;
+    private final AiItineraryService aiItineraryService;
     private final AiUsageService aiUsageService;
 
     @PostMapping("/destination-suggestions")
@@ -32,6 +36,15 @@ public class AiController {
             @Valid @RequestBody DestinationSuggestionRequest request) {
 
         DestinationSuggestionResponse response = aiSuggestionService.getDestinationSuggestions(userId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/itinerary/generate")
+    public ResponseEntity<ItineraryGenerationResponse> generateItinerary(
+            @RequestHeader("X-User-Id") UUID userId,
+            @Valid @RequestBody GenerateItineraryRequest request) {
+
+        ItineraryGenerationResponse response = aiItineraryService.generateItinerary(userId, request);
         return ResponseEntity.ok(response);
     }
 
