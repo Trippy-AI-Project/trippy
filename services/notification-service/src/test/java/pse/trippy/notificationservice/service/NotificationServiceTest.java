@@ -1,0 +1,135 @@
+package pse.trippy.notificationservice.service;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.test.context.ActiveProfiles;
+import pse.trippy.notificationservice.dto.response.NotificationResponse;
+import pse.trippy.notificationservice.model.entity.Notification;
+import pse.trippy.notificationservice.model.enums.NotificationChannel;
+import pse.trippy.notificationservice.model.enums.NotificationType;
+import pse.trippy.notificationservice.repository.NotificationRepository;
+
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = Replace.NONE)
+@ActiveProfiles("test")
+@Import(NotificationService.class)
+@DisplayName("NotificationService")
+class NotificationServiceTest {
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    private static final UUID USER_ID = UUID.randomUUID();
+
+    @BeforeEach
+    void setUp() {
+        notificationRepository.deleteAll();
+    }
+
+    @Test
+    @DisplayName("createNotification saves and returns notification with correct fields")
+    void createNotificationSavesCorrectly() {
+        Notification result = notificationService.createNotification(
+                USER_ID,
+                NotificationType.WELCOME,
+                "Welcome!",
+                "Welcome to Trippy",
+                "https://trippy.app/dashboard");
+
+        assertThat(result.getId()).isNotNull();
+        assertThat(result.getUserId()).isEqualTo(USER_ID);
+        assertThat(result.getType()).isEqualTo(NotificationType.WELCOME);
+        assertThat(result.getTitle()).isEqualTo("Welcome!");
+        assertThat(result.getMessage()).isEqualTo("Welcome to Trippy");
+        assertThat(result.getActionUrl()).isEqualTo("https://trippy.app/dashboard");
+        assertThat(result.getChannel()).isEqualTo(NotificationChannel.IN_APP);
+        assertThat(result.isRead()).isFalse();
+        assertThat(result.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("getNotifications returns paginated results for user")
+    void getNotificationsReturnsPaginated() {
+        notificationService.createNotification(USER_ID, NotificationType.WELCOME,
+                "Welcome", "msg1", null);
+        notificationService.createNotification(USER_ID, NotificationType.TRIP_UPDATED,
+                "Trip Updated", "msg2", null);
+        notificationService.createNotification(USER_ID, NotificationType.PAYMENT_SUCCESS,
+                "Payment", "msg3", null);
+
+        Page<NotificationResponse> page = notificationService.getNotifications(USER_ID, 0, 2);
+
+        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getTotalPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("getUnreadCount returns count of unread notifications")
+    void getUnreadCountReturnsCorrectCount() {
+        notificationService.createNotification(USER_ID, NotificationType.WELCOME,
+                "Welcome", "msg1", null);
+        notificationService.createNotification(USER_ID, NotificationType.TRIP_UPDATED,
+                "Updated", "msg2", null);
+
+        long count = notificationService.getUnreadCount(USER_ID);
+
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("markAsRead marks a single notification as read")
+    void markAsReadMarksSingle() {
+        Notification n = notificationService.createNotification(USER_ID,
+                NotificationType.WELCOME, "Welcome", "msg", null);
+
+        notificationService.markAsRead(n.getId());
+
+        Notification updated = notificationRepository.findById(n.getId()).orElseThrow();
+        assertThat(updated.isRead()).isTrue();
+        assertThat(notificationService.getUnreadCount(USER_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("markAllAsRead marks all user notifications as read")
+    void markAllAsReadMarksAll() {
+        notificationService.createNotification(USER_ID, NotificationType.WELCOME,
+                "Welcome", "msg1", null);
+        notificationService.createNotification(USER_ID, NotificationType.TRIP_UPDATED,
+                "Updated", "msg2", null);
+        notificationService.createNotification(USER_ID, NotificationType.PAYMENT_SUCCESS,
+                "Payment", "msg3", null);
+
+        assertThat(notificationService.getUnreadCount(USER_ID)).isEqualTo(3);
+
+        notificationService.markAllAsRead(USER_ID);
+
+        assertThat(notificationService.getUnreadCount(USER_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("getNotifications returns empty page for unknown user")
+    void getNotificationsEmptyForUnknownUser() {
+        notificationService.createNotification(USER_ID, NotificationType.WELCOME,
+                "Welcome", "msg", null);
+
+        Page<NotificationResponse> page = notificationService
+                .getNotifications(UUID.randomUUID(), 0, 10);
+
+        assertThat(page.getContent()).isEmpty();
+    }
+}

@@ -66,6 +66,10 @@ public class Notification {
     @Column(name = "channel", nullable = false, length = 10)
     private NotificationChannel channel;
 
+    @Size(max = 500)
+    @Column(name = "action_url", length = 500)
+    private String actionUrl;
+
     @Column(name = "is_read", nullable = false)
     @Builder.Default
     private boolean read = false;

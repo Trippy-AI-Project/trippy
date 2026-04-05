@@ -19,6 +19,10 @@ public class RabbitMQConfig {
 
     public static final String ROUTING_USER_REGISTERED = "user.registered";
     public static final String ROUTING_TRIP_INVITATION = "trip.invitation.created";
+    public static final String ROUTING_INVITATION_ACCEPTED = "trip.invitation.accepted";
+    public static final String ROUTING_TRIP_UPDATED = "trip.updated";
+    public static final String ROUTING_PAYMENT_COMPLETED = "payment.completed";
+    public static final String ROUTING_PAYMENT_FAILED = "payment.failed";
 
     @Bean
     public TopicExchange trippyExchange() {
@@ -50,6 +54,34 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(notificationQueue)
                 .to(trippyExchange)
                 .with(ROUTING_TRIP_INVITATION);
+    }
+
+    @Bean
+    public Binding invitationAcceptedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_INVITATION_ACCEPTED);
+    }
+
+    @Bean
+    public Binding tripUpdatedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_TRIP_UPDATED);
+    }
+
+    @Bean
+    public Binding paymentCompletedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_PAYMENT_COMPLETED);
+    }
+
+    @Bean
+    public Binding paymentFailedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_PAYMENT_FAILED);
     }
 
     @Bean
