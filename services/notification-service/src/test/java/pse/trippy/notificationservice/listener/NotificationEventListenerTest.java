@@ -8,6 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pse.trippy.notificationservice.service.EmailService;
+import pse.trippy.notificationservice.service.NotificationService;
 
 import java.util.Map;
 
@@ -22,6 +23,9 @@ class NotificationEventListenerTest {
 
     @Mock
     private EmailService emailService;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private NotificationEventListener listener;
