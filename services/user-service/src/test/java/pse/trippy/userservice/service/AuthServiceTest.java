@@ -28,13 +28,20 @@ import pse.trippy.userservice.model.enums.UserRole;
 import pse.trippy.userservice.repository.RefreshTokenRepository;
 import pse.trippy.userservice.repository.UserRepository;
 
+import com.nimbusds.jwt.JWTClaimsSet;
+
 import java.time.Instant;
+import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +68,9 @@ class AuthServiceTest {
     private JwtService jwtService;
 
     @Mock
+    private TokenBlacklistService tokenBlacklistService;
+
+    @Mock
     private EmailVerificationService emailVerificationService;
 
     @Mock
@@ -80,6 +90,7 @@ class AuthServiceTest {
                 refreshTokenRepository,
                 passwordEncoder,
                 jwtService,
+                tokenBlacklistService,
                 emailVerificationService,
                 rabbitTemplate,
                 REFRESH_EXPIRY_DAYS,
@@ -253,6 +264,96 @@ class AuthServiceTest {
             assertThat(response.getAccessToken()).isEqualTo(ACCESS_TOKEN);
             verify(refreshTokenRepository).deleteByTokenValue(hashedToken);
             verify(refreshTokenRepository).save(any(RefreshToken.class));
+        }
+    }
+
+    // =========================================================================
+    // logout
+    // =========================================================================
+
+    @Nested
+    @DisplayName("logout")
+    class Logout {
+
+        private final String RAW_REFRESH_TOKEN = UUID.randomUUID().toString();
+
+        private JWTClaimsSet buildClaims(UUID userId, String jti, Date expiry) {
+            return new JWTClaimsSet.Builder()
+                    .subject(userId.toString())
+                    .jwtID(jti)
+                    .expirationTime(expiry)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("revokes refresh token, blacklists access token, and publishes event")
+        void singleDeviceLogout() {
+            User user = buildUser();
+            String jti = UUID.randomUUID().toString();
+            Date futureExpiry = new Date(System.currentTimeMillis() + 600_000);
+            JWTClaimsSet claims = buildClaims(user.getId(), jti, futureExpiry);
+
+            when(jwtService.parseAndVerifyAccessToken("mock-access-jwt")).thenReturn(claims);
+
+            authService.logout("mock-access-jwt", RAW_REFRESH_TOKEN, false);
+
+            // Refresh token revoked
+            String hashedRefresh = AuthService.hashToken(RAW_REFRESH_TOKEN);
+            verify(refreshTokenRepository).deleteByTokenValue(hashedRefresh);
+
+            // Access token blacklisted
+            verify(tokenBlacklistService).blacklistToken(eq(jti), anyLong());
+
+            // No user-level blacklist for single device
+            verify(tokenBlacklistService, never()).blacklistUser(any(UUID.class), anyLong());
+
+            // Event published
+            verify(rabbitTemplate).convertAndSend(
+                    anyString(), eq("user.logged.out"), any(Map.class));
+        }
+
+        @Test
+        @DisplayName("allDevices=true revokes all sessions and creates user-level blacklist")
+        void allDevicesLogout() {
+            User user = buildUser();
+            String jti = UUID.randomUUID().toString();
+            Date futureExpiry = new Date(System.currentTimeMillis() + 600_000);
+            JWTClaimsSet claims = buildClaims(user.getId(), jti, futureExpiry);
+
+            when(jwtService.parseAndVerifyAccessToken("mock-access-jwt")).thenReturn(claims);
+            when(jwtService.getAccessTokenExpirySeconds()).thenReturn(ACCESS_TOKEN_EXPIRY);
+
+            authService.logout("mock-access-jwt", RAW_REFRESH_TOKEN, true);
+
+            // All refresh tokens deleted
+            verify(refreshTokenRepository).deleteAllByUserId(user.getId());
+
+            // User-level blacklist created
+            verify(tokenBlacklistService).blacklistUser(
+                    user.getId(), ACCESS_TOKEN_EXPIRY);
+
+            // Event published
+            verify(rabbitTemplate).convertAndSend(
+                    anyString(), eq("user.logged.out"), any(Map.class));
+        }
+
+        @Test
+        @DisplayName("does not blacklist access token when it is already expired")
+        void skipsBlacklistForExpiredToken() {
+            User user = buildUser();
+            String jti = UUID.randomUUID().toString();
+            Date pastExpiry = new Date(System.currentTimeMillis() - 60_000);
+            JWTClaimsSet claims = buildClaims(user.getId(), jti, pastExpiry);
+
+            when(jwtService.parseAndVerifyAccessToken("expired-jwt")).thenReturn(claims);
+
+            authService.logout("expired-jwt", RAW_REFRESH_TOKEN, false);
+
+            // Token NOT blacklisted (already expired)
+            verify(tokenBlacklistService, never()).blacklistToken(anyString(), anyLong());
+
+            // Refresh token still revoked
+            verify(refreshTokenRepository).deleteByTokenValue(anyString());
         }
     }
 }

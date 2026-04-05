@@ -1,5 +1,6 @@
 package pse.trippy.userservice.service;
 
+import com.nimbusds.jwt.JWTClaimsSet;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,6 +49,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final TokenBlacklistService tokenBlacklistService;
     private final EmailVerificationService emailVerificationService;
     private final RabbitTemplate rabbitTemplate;
     private final int refreshTokenExpiryDays;
@@ -58,6 +60,7 @@ public class AuthService {
             RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
+            TokenBlacklistService tokenBlacklistService,
             EmailVerificationService emailVerificationService,
             RabbitTemplate rabbitTemplate,
             @Value("${trippy.jwt.refresh-token-expiry-days}") int refreshTokenExpiryDays,
@@ -66,6 +69,7 @@ public class AuthService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.tokenBlacklistService = tokenBlacklistService;
         this.emailVerificationService = emailVerificationService;
         this.rabbitTemplate = rabbitTemplate;
         this.refreshTokenExpiryDays = refreshTokenExpiryDays;
@@ -204,18 +208,44 @@ public class AuthService {
     // ------------------------------------------------------------------
 
     /**
-     * Revokes the given refresh token, effectively logging the user out of
-     * the device that holds this token.
+     * Logs the user out by revoking the refresh token, blacklisting the
+     * access token in Redis, and optionally revoking all sessions.
      *
+     * @param accessToken     the raw JWT access token (from Authorization header)
      * @param rawRefreshToken the raw refresh token to revoke
+     * @param allDevices      if {@code true}, all sessions for this user are revoked
      */
     @Transactional
-    public void logout(String rawRefreshToken) {
+    public void logout(String accessToken, String rawRefreshToken, boolean allDevices) {
+        // 1. Revoke the refresh token for the current session
         String hashedToken = hashToken(rawRefreshToken);
         int deleted = refreshTokenRepository.deleteByTokenValue(hashedToken);
         if (deleted > 0) {
             log.info("Refresh token revoked during logout");
         }
+
+        // 2. Parse and verify access token to extract claims
+        JWTClaimsSet claims = jwtService.parseAndVerifyAccessToken(accessToken);
+        String jti = claims.getJWTID();
+        String userId = claims.getSubject();
+
+        // 3. Blacklist the access token in Redis (only if still valid)
+        long remainingSeconds =
+                (claims.getExpirationTime().getTime() - System.currentTimeMillis()) / 1000;
+        if (remainingSeconds > 0) {
+            tokenBlacklistService.blacklistToken(jti, remainingSeconds);
+        }
+
+        // 4. If all-devices logout, revoke every session and add user-level blacklist
+        if (allDevices) {
+            UUID userUuid = UUID.fromString(userId);
+            refreshTokenRepository.deleteAllByUserId(userUuid);
+            tokenBlacklistService.blacklistUser(
+                    userUuid, jwtService.getAccessTokenExpirySeconds());
+        }
+
+        // 5. Publish event to RabbitMQ
+        publishLogoutEvent(userId, allDevices);
     }
 
     // ------------------------------------------------------------------
@@ -241,6 +271,25 @@ public class AuthService {
                 event
         );
         log.info("Published user.registered event for userId={}", user.getId());
+    }
+
+    /**
+     * Publishes a {@code user.logged.out} event to RabbitMQ.
+     */
+    private void publishLogoutEvent(String userId, boolean allDevices) {
+        Map<String, Object> event = Map.of(
+                "eventType", "user.logged.out",
+                "userId", userId,
+                "allDevices", allDevices,
+                "timestamp", Instant.now().toString()
+        );
+
+        rabbitTemplate.convertAndSend(
+                RabbitMqConfig.USER_EVENTS_EXCHANGE,
+                "user.logged.out",
+                event
+        );
+        log.info("Published user.logged.out event for userId={}", userId);
     }
 
     /**
