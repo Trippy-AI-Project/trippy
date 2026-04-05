@@ -1,10 +1,12 @@
 package pse.trippy.userservice.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pse.trippy.userservice.config.RabbitMqConfig;
 import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.AccountNotVerifiedException;
@@ -29,6 +31,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -45,6 +48,8 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final EmailVerificationService emailVerificationService;
+    private final RabbitTemplate rabbitTemplate;
     private final int refreshTokenExpiryDays;
     private final int rememberMeExpiryDays;
 
@@ -53,12 +58,16 @@ public class AuthService {
             RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
+            EmailVerificationService emailVerificationService,
+            RabbitTemplate rabbitTemplate,
             @Value("${trippy.jwt.refresh-token-expiry-days}") int refreshTokenExpiryDays,
             @Value("${trippy.jwt.remember-me-expiry-days}") int rememberMeExpiryDays) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.emailVerificationService = emailVerificationService;
+        this.rabbitTemplate = rabbitTemplate;
         this.refreshTokenExpiryDays = refreshTokenExpiryDays;
         this.rememberMeExpiryDays = rememberMeExpiryDays;
     }
@@ -81,24 +90,27 @@ public class AuthService {
         }
 
         // Create user entity with hashed password
-        // emailVerified defaults to true until email verification flow is implemented
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .displayName(request.getDisplayName())
                 .role(UserRole.USER)
                 .plan(SubscriptionPlan.FREE)
-                .emailVerified(true)
+                .emailVerified(false)
                 .build();
 
         User savedUser = userRepository.save(user);
         log.info("User registered successfully with ID: {}", savedUser.getId());
 
+        // Create verification token and publish registration event
+        String verificationToken = emailVerificationService.createVerificationToken(savedUser);
+        publishUserRegisteredEvent(savedUser, verificationToken);
+
         return RegisterResponse.builder()
                 .userId(savedUser.getId())
                 .email(savedUser.getEmail())
-                .message("Registration successful.")
-                .verificationRequired(false)
+                .message("Registration successful. Please verify your email.")
+                .verificationRequired(true)
                 .build();
     }
 
@@ -209,6 +221,27 @@ public class AuthService {
     // ------------------------------------------------------------------
     // Internal helpers
     // ------------------------------------------------------------------
+
+    /**
+     * Publishes a {@code user.registered} event to RabbitMQ with the verification token.
+     */
+    private void publishUserRegisteredEvent(User user, String verificationToken) {
+        Map<String, Object> event = Map.of(
+                "eventType", "user.registered",
+                "userId", user.getId().toString(),
+                "email", user.getEmail(),
+                "displayName", user.getDisplayName(),
+                "verificationToken", verificationToken,
+                "timestamp", Instant.now().toString()
+        );
+
+        rabbitTemplate.convertAndSend(
+                RabbitMqConfig.USER_EVENTS_EXCHANGE,
+                "user.registered",
+                event
+        );
+        log.info("Published user.registered event for userId={}", user.getId());
+    }
 
     /**
      * Creates a new refresh token, persists its SHA-256 hash, and returns the raw value.

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import pse.trippy.userservice.TestFixtures;
 import pse.trippy.userservice.dto.request.RegisterRequest;
@@ -59,6 +60,12 @@ class AuthServiceTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private EmailVerificationService emailVerificationService;
+
+    @Mock
+    private RabbitTemplate rabbitTemplate;
+
     private AuthService authService;
 
     private static final int REFRESH_EXPIRY_DAYS = 7;
@@ -73,6 +80,8 @@ class AuthServiceTest {
                 refreshTokenRepository,
                 passwordEncoder,
                 jwtService,
+                emailVerificationService,
+                rabbitTemplate,
                 REFRESH_EXPIRY_DAYS,
                 REMEMBER_ME_EXPIRY_DAYS
         );
@@ -114,15 +123,22 @@ class AuthServiceTest {
 
             when(userRepository.existsByEmail(TEST_EMAIL)).thenReturn(false);
             when(passwordEncoder.encode(TEST_PASSWORD)).thenReturn(HASHED_PASSWORD);
-            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+                User u = invocation.getArgument(0);
+                u.setId(UUID.randomUUID());
+                return u;
+            });
+            when(emailVerificationService.createVerificationToken(any(User.class)))
+                    .thenReturn("mock-verification-token");
 
             RegisterResponse response = authService.register(request);
 
             assertThat(response).isNotNull();
             assertThat(response.getEmail()).isEqualTo(TEST_EMAIL);
-            assertThat(response.isVerificationRequired()).isFalse();
+            assertThat(response.isVerificationRequired()).isTrue();
 
             verify(userRepository).save(any(User.class));
+            verify(emailVerificationService).createVerificationToken(any(User.class));
         }
 
         @Test
