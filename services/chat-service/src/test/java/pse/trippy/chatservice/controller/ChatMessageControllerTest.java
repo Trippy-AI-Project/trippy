@@ -13,6 +13,7 @@ import pse.trippy.chatservice.dto.response.ChatMessageResponse;
 import pse.trippy.chatservice.dto.response.MessageHistoryResponse;
 import pse.trippy.chatservice.model.enums.MessageType;
 import pse.trippy.chatservice.service.ChatMessageService;
+import pse.trippy.chatservice.service.FileStorageService;
 
 import java.time.Instant;
 import java.util.List;
@@ -39,6 +40,9 @@ class ChatMessageControllerTest {
 
     @MockBean
     private ChatMessageService chatMessageService;
+
+    @MockBean
+    private FileStorageService fileStorageService;
 
     @Test
     @DisplayName("POST /trips/{tripId}/chat/messages returns 201")

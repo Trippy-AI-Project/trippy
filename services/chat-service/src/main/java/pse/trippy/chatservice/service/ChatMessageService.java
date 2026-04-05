@@ -7,14 +7,21 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import pse.trippy.chatservice.dto.response.ChatMessageResponse;
+import pse.trippy.chatservice.dto.response.FileStorageResult;
+import pse.trippy.chatservice.dto.response.MessageAttachmentResponse;
 import pse.trippy.chatservice.dto.response.MessageHistoryResponse;
 import pse.trippy.chatservice.model.entity.ChatMessage;
 import pse.trippy.chatservice.model.entity.ChatRoom;
+import pse.trippy.chatservice.model.entity.MessageAttachment;
 import pse.trippy.chatservice.model.enums.MessageType;
 import pse.trippy.chatservice.repository.ChatMessageRepository;
+import pse.trippy.chatservice.repository.MessageAttachmentRepository;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -26,7 +33,9 @@ import java.util.UUID;
 public class ChatMessageService {
 
     private final ChatMessageRepository chatMessageRepository;
+    private final MessageAttachmentRepository messageAttachmentRepository;
     private final ChatRoomService chatRoomService;
+    private final FileStorageService fileStorageService;
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
@@ -86,7 +95,68 @@ public class ChatMessageService {
                 .build();
     }
 
+    /**
+     * Stores a file attachment and persists a FILE or IMAGE message.
+     */
+    @Transactional
+    public ChatMessageResponse sendFileMessage(UUID tripId, UUID senderId,
+                                               String senderDisplayName,
+                                               MultipartFile file) throws IOException {
+
+        FileStorageResult stored = fileStorageService.storeFile(tripId, file);
+
+        MessageType type = isImageContentType(stored.contentType())
+                ? MessageType.IMAGE
+                : MessageType.FILE;
+
+        ChatRoom room = chatRoomService.getRoomByTripId(tripId);
+
+        ChatMessage message = chatMessageRepository.save(ChatMessage.builder()
+                .chatRoom(room)
+                .senderId(senderId)
+                .senderDisplayName(senderDisplayName)
+                .content(stored.fileName())
+                .messageType(type)
+                .build());
+
+        MessageAttachment attachment = messageAttachmentRepository.save(MessageAttachment.builder()
+                .messageId(message.getId())
+                .fileName(stored.fileName())
+                .fileUrl(stored.fileUrl())
+                .fileSize(stored.fileSize())
+                .contentType(stored.contentType())
+                .build());
+
+        log.info("File message {} with attachment {} persisted in room {} for trip {}",
+                message.getId(), attachment.getId(), room.getId(), tripId);
+
+        ChatMessageResponse response = toResponse(message, attachment);
+
+        messagingTemplate.convertAndSend(
+                "/topic/trips/" + tripId + "/messages", response);
+
+        return response;
+    }
+
+    private boolean isImageContentType(String contentType) {
+        return contentType != null && contentType.startsWith("image/");
+    }
+
     private ChatMessageResponse toResponse(ChatMessage msg) {
+        List<MessageAttachment> attachments = messageAttachmentRepository.findByMessageId(msg.getId());
+        MessageAttachment attachment = attachments.isEmpty() ? null : attachments.getFirst();
+        return toResponse(msg, attachment);
+    }
+
+    private ChatMessageResponse toResponse(ChatMessage msg, MessageAttachment attachment) {
+        MessageAttachmentResponse attachmentResponse = attachment == null ? null
+                : new MessageAttachmentResponse(
+                        attachment.getId(),
+                        attachment.getFileName(),
+                        attachment.getFileUrl(),
+                        attachment.getFileSize(),
+                        attachment.getContentType());
+
         return ChatMessageResponse.builder()
                 .id(msg.getId())
                 .senderId(msg.getSenderId())
@@ -95,6 +165,7 @@ public class ChatMessageService {
                 .type(msg.getMessageType().name())
                 .createdAt(msg.getCreatedAt())
                 .edited(msg.getEditedAt() != null)
+                .attachment(attachmentResponse)
                 .build();
     }
 }
