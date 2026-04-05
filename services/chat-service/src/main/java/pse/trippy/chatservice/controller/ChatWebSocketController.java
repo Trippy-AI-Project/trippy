@@ -3,6 +3,7 @@ package pse.trippy.chatservice.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Controller;
@@ -26,18 +27,26 @@ public class ChatWebSocketController {
     /**
      * Handles messages sent to /app/trips/{tripId}/send.
      * Persists the message and broadcasts to /topic/trips/{tripId}/messages.
+     * User identity is extracted from STOMP headers set by the API gateway.
      */
     @MessageMapping("/trips/{tripId}/send")
     @SendTo("/topic/trips/{tripId}/messages")
     public ChatMessageResponse sendMessage(
             @DestinationVariable UUID tripId,
+            @Header(value = "X-User-Id", defaultValue = "") String userIdHeader,
+            @Header(value = "X-User-DisplayName", defaultValue = "Anonymous") String displayName,
             SendMessageRequest request) {
 
         log.info("Received STOMP message for trip {}: {}", tripId, request.getContent());
 
-        // Placeholder sender until JWT auth is integrated on WebSocket handshake
-        UUID senderId = UUID.randomUUID();
-        String senderName = "Anonymous";
+        UUID senderId;
+        try {
+            senderId = UUID.fromString(userIdHeader);
+        } catch (IllegalArgumentException e) {
+            senderId = UUID.randomUUID();
+        }
+
+        String senderName = (displayName != null && !displayName.isBlank()) ? displayName : "Anonymous";
 
         MessageType messageType;
         try {
