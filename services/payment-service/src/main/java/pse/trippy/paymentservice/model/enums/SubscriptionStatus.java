@@ -1,9 +1,8 @@
 package pse.trippy.paymentservice.model.enums;
 
 public enum SubscriptionStatus {
-    FREE,
     ACTIVE,
-    CANCELLED,
+    CANCELED,
     PAST_DUE,
-    TRIALING
+    FREE
 }
