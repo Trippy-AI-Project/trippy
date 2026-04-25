@@ -8,12 +8,9 @@ export function useTheme() {
   const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
-    const stored = localStorage.getItem("trippy-theme") as Theme | null;
-    const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
-    const initial = stored ?? preferred;
+    const initial: Theme = "light";
     setThemeState(initial);
+    localStorage.setItem("trippy-theme", initial);
     document.documentElement.setAttribute("data-theme", initial);
   }, []);
 

@@ -40,7 +40,7 @@
   --danger:  #ef4444;
 
   /* Environment — Bright coastal daylight */
-  --background: #fff9ef;
+  --background: #fffdf8;
   --foreground: #1d3a3d;
   --surface: rgba(255, 255, 255, 0.78);
   --surface-hover: rgba(255, 255, 255, 0.94);
@@ -85,7 +85,7 @@
   --warning: #efb94f;
   --danger:  #f87171;
 
-  --background: #0f1719;
+  --background: #10181a;
   --foreground: #e6f6f4;
   --surface: rgba(18, 31, 34, 0.84);
   --surface-hover: rgba(24, 42, 45, 0.96);
@@ -130,10 +130,10 @@
 
 body {
   background:
-    radial-gradient(circle at top left, var(--shore-100) 0%, transparent 28%),
-    radial-gradient(circle at top right, var(--lagoon-100) 0%, transparent 24%),
-    radial-gradient(circle at bottom left, var(--leaf-100) 0%, transparent 26%),
-    linear-gradient(180deg, #fffdf8 0%, var(--background) 34%, #f8fff9 100%);
+    radial-gradient(circle at top left, rgba(241, 227, 185, 0.38) 0%, transparent 26%),
+    radial-gradient(circle at top right, rgba(217, 244, 255, 0.28) 0%, transparent 22%),
+    radial-gradient(circle at bottom left, rgba(229, 245, 223, 0.22) 0%, transparent 22%),
+    linear-gradient(180deg, #fffefb 0%, var(--background) 42%, #fcfff9 100%);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
   background-attachment: fixed;
