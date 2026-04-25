@@ -8,13 +8,13 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-trippy-500 text-white shadow-lg shadow-trippy-500/25 hover:shadow-trippy-500/40 hover:scale-[1.02]",
+    "bg-trippy-gradient text-white shadow-lg shadow-trippy-600/20 hover:shadow-accent-400/25 hover:brightness-[1.03] hover:scale-[1.02]",
   secondary:
-    "glass text-foreground hover:bg-surface-hover",
+    "glass text-foreground border border-white/40 hover:bg-surface-hover hover:border-trippy-300/45",
   ghost:
-    "bg-transparent text-foreground hover:bg-surface",
+    "bg-transparent text-foreground hover:bg-white/45",
   danger:
-    "bg-danger text-white hover:bg-red-600",
+    "bg-danger text-white shadow-md shadow-danger/20 hover:bg-red-600",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

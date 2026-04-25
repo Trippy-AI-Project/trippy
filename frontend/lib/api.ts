@@ -41,6 +41,17 @@ export class ApiError extends Error {
   }
 }
 
+export interface ApiFieldError {
+  field: string;
+  message: string;
+}
+
+export interface ApiErrorBody {
+  error?: string;
+  message?: string;
+  details?: ApiFieldError[];
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -126,6 +137,20 @@ export async function register(
   });
 }
 
+export async function verifyEmail(token: string): Promise<{ message: string }> {
+  return request<{ message: string }>("/users/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function resendVerification(email: string): Promise<{ message: string }> {
+  return request<{ message: string }>("/users/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
 export async function logout(): Promise<void> {
   const refreshToken = getRefreshToken();
   if (refreshToken) {
@@ -200,7 +225,7 @@ export interface Participant {
   avatarUrl?: string;
   role: "OWNER" | "EDITOR" | "VIEWER";
   status: "PENDING" | "ACCEPTED" | "DECLINED" | "LEFT";
-  invitedAt: string;
+  invitedAt?: string;
   joinedAt?: string;
 }
 
@@ -237,6 +262,95 @@ export interface TripPage {
   size: number;
 }
 
+interface RawTrip {
+  id: string;
+  title: string;
+  description?: string;
+  destination: string;
+  coverImageUrl?: string;
+  startDate?: string;
+  endDate?: string;
+  createdBy: string;
+  status: "DRAFT" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+  visibility: "PRIVATE" | "PUBLIC" | "UNLISTED";
+  maxParticipants?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RawParticipant {
+  id: string;
+  userId: string;
+  role: "OWNER" | "EDITOR" | "VIEWER";
+  status: "PENDING" | "ACCEPTED" | "DECLINED" | "LEFT";
+  joinedAt?: string;
+}
+
+interface RawTripDetail extends RawTrip {
+  participants?: RawParticipant[];
+}
+
+interface RawTripPage {
+  trips?: RawTrip[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+function normalizeTrip(raw: RawTrip, participantCount = 0): Trip {
+  return {
+    tripId: raw.id,
+    title: raw.title,
+    description: raw.description,
+    destination: raw.destination,
+    coverImageUrl: raw.coverImageUrl,
+    startDate: raw.startDate,
+    endDate: raw.endDate,
+    organizerId: raw.createdBy,
+    status: raw.status,
+    visibility: raw.visibility,
+    participantCount,
+    hasItinerary: false,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+function normalizeParticipant(raw: RawParticipant, tripId: string): Participant {
+  return {
+    participantId: raw.id,
+    tripId,
+    userId: raw.userId,
+    role: raw.role,
+    status: raw.status,
+    invitedAt: undefined,
+    joinedAt: raw.joinedAt,
+  };
+}
+
+function normalizeTripPage(raw: RawTripPage): TripPage {
+  const trips = Array.isArray(raw.trips) ? raw.trips : [];
+  return {
+    content: trips.map((trip) => normalizeTrip(trip)),
+    number: raw.page,
+    size: raw.size,
+    totalElements: raw.totalElements,
+    totalPages: raw.totalPages,
+  };
+}
+
+function normalizeTripDetail(raw: RawTripDetail): TripDetail {
+  const participants = Array.isArray(raw.participants)
+    ? raw.participants.map((participant) => normalizeParticipant(participant, raw.id))
+    : [];
+
+  return {
+    ...normalizeTrip(raw, participants.length),
+    participants,
+  };
+}
+
 export interface CreateTripRequest {
   title: string;
   destination: string;
@@ -247,14 +361,16 @@ export interface CreateTripRequest {
 }
 
 export const tripsApi = {
-  list: (page = 0, size = 12) =>
-    api.get<TripPage>(`/trips?page=${page}&size=${size}`),
-  search: (q: string, page = 0, size = 12) =>
-    api.get<TripPage>(`/trips?search=${encodeURIComponent(q)}&page=${page}&size=${size}`),
-  get: (id: string) => api.get<TripDetail>(`/trips/${id}`),
-  create: (data: CreateTripRequest) => api.post<Trip>("/trips", data),
+  list: async (page = 0, size = 12) =>
+    normalizeTripPage(await api.get<RawTripPage>(`/trips?page=${page}&size=${size}`)),
+  search: async (q: string, page = 0, size = 12) =>
+    normalizeTripPage(
+      await api.get<RawTripPage>(`/trips?search=${encodeURIComponent(q)}&page=${page}&size=${size}`),
+    ),
+  get: async (id: string) => normalizeTripDetail(await api.get<RawTripDetail>(`/trips/${id}`)),
+  create: async (data: CreateTripRequest) => normalizeTrip(await api.post<RawTrip>("/trips", data), 1),
   update: (id: string, data: Partial<CreateTripRequest>) =>
-    api.patch<Trip>(`/trips/${id}`, data),
+    api.patch<RawTrip>(`/trips/${id}`, data).then((trip) => normalizeTrip(trip)),
   delete: (id: string) => api.delete<void>(`/trips/${id}`),
 };
 

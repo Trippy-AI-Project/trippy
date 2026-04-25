@@ -66,8 +66,8 @@ class AuthControllerTest {
             RegisterResponse response = RegisterResponse.builder()
                     .userId(userId)
                     .email("john@example.com")
-                    .message("Registration successful. Please verify your email.")
-                    .verificationRequired(true)
+                    .message("Registration successful. You can sign in now.")
+                    .verificationRequired(false)
                     .build();
 
             when(authService.register(any(RegisterRequest.class))).thenReturn(response);
@@ -80,7 +80,7 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.userId").value(userId.toString()))
                     .andExpect(jsonPath("$.email").value("john@example.com"))
                     .andExpect(jsonPath("$.message").exists())
-                    .andExpect(jsonPath("$.verificationRequired").value(true));
+                    .andExpect(jsonPath("$.verificationRequired").value(false));
         }
 
         @Test

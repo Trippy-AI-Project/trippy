@@ -2,6 +2,7 @@ package pse.trippy.userservice.service;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -93,28 +94,25 @@ public class AuthService {
             throw new EmailAlreadyExistsException(request.getEmail());
         }
 
-        // Create user entity with hashed password
+        // Create user entity with hashed password.
+        // Email verification is currently bypassed in local dev.
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .displayName(request.getDisplayName())
                 .role(UserRole.USER)
                 .plan(SubscriptionPlan.FREE)
-                .emailVerified(false)
+                .emailVerified(true)
                 .build();
 
         User savedUser = userRepository.save(user);
         log.info("User registered successfully with ID: {}", savedUser.getId());
 
-        // Create verification token and publish registration event
-        String verificationToken = emailVerificationService.createVerificationToken(savedUser);
-        publishUserRegisteredEvent(savedUser, verificationToken);
-
         return RegisterResponse.builder()
                 .userId(savedUser.getId())
                 .email(savedUser.getEmail())
-                .message("Registration successful. Please verify your email.")
-                .verificationRequired(true)
+                .message("Registration successful. You can sign in now.")
+                .verificationRequired(false)
                 .build();
     }
 
@@ -133,10 +131,6 @@ public class AuthService {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("Invalid email or password");
-        }
-
-        if (!user.isEmailVerified()) {
-            throw new AccountNotVerifiedException("Account not verified. Please verify your email.");
         }
 
         String accessToken = jwtService.generateAccessToken(user);
@@ -265,12 +259,16 @@ public class AuthService {
                 "timestamp", Instant.now().toString()
         );
 
-        rabbitTemplate.convertAndSend(
-                RabbitMqConfig.USER_EVENTS_EXCHANGE,
-                "user.registered",
-                event
-        );
-        log.info("Published user.registered event for userId={}", user.getId());
+        try {
+            rabbitTemplate.convertAndSend(
+                    RabbitMqConfig.USER_EVENTS_EXCHANGE,
+                    "user.registered",
+                    event
+            );
+            log.info("Published user.registered event for userId={}", user.getId());
+        } catch (AmqpException ex) {
+            log.error("Failed to publish user.registered event for userId={}", user.getId(), ex);
+        }
     }
 
     /**
@@ -284,12 +282,16 @@ public class AuthService {
                 "timestamp", Instant.now().toString()
         );
 
-        rabbitTemplate.convertAndSend(
-                RabbitMqConfig.USER_EVENTS_EXCHANGE,
-                "user.logged.out",
-                event
-        );
-        log.info("Published user.logged.out event for userId={}", userId);
+        try {
+            rabbitTemplate.convertAndSend(
+                    RabbitMqConfig.USER_EVENTS_EXCHANGE,
+                    "user.logged.out",
+                    event
+            );
+            log.info("Published user.logged.out event for userId={}", userId);
+        } catch (AmqpException ex) {
+            log.error("Failed to publish user.logged.out event for userId={}", userId, ex);
+        }
     }
 
     /**

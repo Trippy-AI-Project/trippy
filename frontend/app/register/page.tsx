@@ -7,7 +7,7 @@ import { Mail, Lock, User, ArrowRight, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { GlassCard, Button, Input } from "@/components/ui";
-import { register, ApiError } from "@/lib/api";
+import { register, ApiError, type ApiErrorBody } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast";
 
@@ -43,10 +43,14 @@ export default function RegisterPage() {
     if (!password) errs.password = "Password is required";
     else if (password.length < 8)
       errs.password = "Must be at least 8 characters";
+    else if (!/[a-z]/.test(password))
+      errs.password = "Must contain a lowercase letter";
     else if (!/[A-Z]/.test(password))
       errs.password = "Must contain an uppercase letter";
     else if (!/\d/.test(password))
       errs.password = "Must contain a number";
+    else if (!/[^A-Za-z0-9]/.test(password))
+      errs.password = "Must contain a special character";
     if (password !== confirmPassword)
       errs.confirmPassword = "Passwords do not match";
     if (!agreed) errs.agreed = "You must accept the Terms of Service";
@@ -66,18 +70,27 @@ export default function RegisterPage() {
 
     try {
       const displayName = `${firstName.trim()} ${lastName.trim()}`;
-      await register(email, password, displayName);
-      addToast("Account created! Please check your email to verify.", "success");
-      router.push("/login?registered=true");
+      await register(email.trim(), password, displayName);
+      addToast("Account created. You can sign in now.", "success");
+      router.push(`/login?registered=true&email=${encodeURIComponent(email.trim())}`);
     } catch (err) {
       if (err instanceof ApiError) {
+        const body = err.body as ApiErrorBody;
+        if (Array.isArray(body.details)) {
+          const nextFieldErrors = body.details.reduce<Record<string, string>>((acc, detail) => {
+            acc[detail.field] = detail.message;
+            return acc;
+          }, {});
+          setFieldErrors((prev) => ({ ...prev, ...nextFieldErrors }));
+        }
+
         if (err.status === 409) {
           setError("An account with this email already exists");
           setFieldErrors((p) => ({ ...p, email: "Email already registered" }));
         } else {
           setError(
-            typeof err.body?.message === "string"
-              ? err.body.message
+            typeof body.message === "string"
+              ? body.message
               : "Registration failed. Please try again.",
           );
         }
@@ -217,8 +230,10 @@ export default function RegisterPage() {
             {/* Password strength hints */}
             <div className="space-y-1 text-xs text-muted">
               <p className={password.length >= 8 ? "text-success" : ""}>• At least 8 characters</p>
+              <p className={/[a-z]/.test(password) ? "text-success" : ""}>• One lowercase letter</p>
               <p className={/[A-Z]/.test(password) ? "text-success" : ""}>• One uppercase letter</p>
               <p className={/\d/.test(password) ? "text-success" : ""}>• One number</p>
+              <p className={/[^A-Za-z0-9]/.test(password) ? "text-success" : ""}>• One special character</p>
             </div>
 
             <label className="flex items-start gap-2 text-sm text-muted">

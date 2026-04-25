@@ -1,6 +1,7 @@
 package pse.trippy.userservice.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -146,15 +147,20 @@ public class EmailVerificationService {
                 "eventType", "user.email.verified",
                 "userId", user.getId().toString(),
                 "email", user.getEmail(),
+                "displayName", user.getDisplayName(),
                 "timestamp", Instant.now().toString()
         );
 
-        rabbitTemplate.convertAndSend(
-                RabbitMqConfig.USER_EVENTS_EXCHANGE,
-                "user.email.verified",
-                event
-        );
-        log.info("Published user.email.verified event for userId={}", user.getId());
+        try {
+            rabbitTemplate.convertAndSend(
+                    RabbitMqConfig.USER_EVENTS_EXCHANGE,
+                    "user.email.verified",
+                    event
+            );
+            log.info("Published user.email.verified event for userId={}", user.getId());
+        } catch (AmqpException ex) {
+            log.error("Failed to publish user.email.verified event for userId={}", user.getId(), ex);
+        }
     }
 
     private void publishResendVerificationEvent(User user, String token) {
@@ -167,11 +173,15 @@ public class EmailVerificationService {
                 "timestamp", Instant.now().toString()
         );
 
-        rabbitTemplate.convertAndSend(
-                RabbitMqConfig.USER_EVENTS_EXCHANGE,
-                "user.registered",
-                event
-        );
-        log.info("Published user.registered event (resend) for userId={}", user.getId());
+        try {
+            rabbitTemplate.convertAndSend(
+                    RabbitMqConfig.USER_EVENTS_EXCHANGE,
+                    "user.registered",
+                    event
+            );
+            log.info("Published user.registered event (resend) for userId={}", user.getId());
+        } catch (AmqpException ex) {
+            log.error("Failed to publish resend verification event for userId={}", user.getId(), ex);
+        }
     }
 }

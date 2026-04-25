@@ -31,23 +31,42 @@ class NotificationEventListenerTest {
     private NotificationEventListener listener;
 
     @Test
-    @DisplayName("user.registered event triggers welcome email")
-    void userRegisteredTriggersWelcome() {
+    @DisplayName("user.registered event triggers verification email")
+    void userRegisteredTriggersVerification() {
         Map<String, Object> payload = Map.of(
                 "userId", "123e4567-e89b-12d3-a456-426614174000",
                 "email", "alice@test.com",
-                "displayName", "Alice");
+                "displayName", "Alice",
+                "verificationToken", "123456");
 
         listener.handleUserRegistered(payload);
 
         ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
         verify(emailService).sendTemplateEmail(
                 eq("alice@test.com"),
-                eq("Welcome to Trippy!"),
-                eq("welcome"),
+                eq("Verify your Trippy account"),
+                eq("email-verification"),
                 varsCaptor.capture());
 
         assertThat(varsCaptor.getValue()).containsEntry("userName", "Alice");
+        assertThat(varsCaptor.getValue()).containsEntry("verificationCode", "123456");
+    }
+
+    @Test
+    @DisplayName("user.email.verified event triggers welcome email")
+    void userEmailVerifiedTriggersWelcome() {
+        Map<String, Object> payload = Map.of(
+                "userId", "123e4567-e89b-12d3-a456-426614174000",
+                "email", "alice@test.com",
+                "displayName", "Alice");
+
+        listener.handleUserEmailVerified(payload);
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Welcome to Trippy!"),
+                eq("welcome"),
+                any());
     }
 
     @Test
@@ -81,14 +100,15 @@ class NotificationEventListenerTest {
     void handleEventDispatches() {
         Map<String, Object> payload = Map.of(
                 "email", "user@test.com",
-                "displayName", "User");
+                "displayName", "User",
+                "verificationToken", "654321");
 
         listener.handleEvent(payload, "user.registered");
 
         verify(emailService).sendTemplateEmail(
                 eq("user@test.com"),
-                eq("Welcome to Trippy!"),
-                eq("welcome"),
+                eq("Verify your Trippy account"),
+                eq("email-verification"),
                 any());
     }
 }

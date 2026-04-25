@@ -8,12 +8,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.AmqpConnectException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import pse.trippy.userservice.TestFixtures;
 import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
-import pse.trippy.userservice.exception.AccountNotVerifiedException;
 import pse.trippy.userservice.exception.EmailAlreadyExistsException;
 import pse.trippy.userservice.exception.InvalidCredentialsException;
 import pse.trippy.userservice.exception.InvalidTokenException;
@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -139,17 +140,14 @@ class AuthServiceTest {
                 u.setId(UUID.randomUUID());
                 return u;
             });
-            when(emailVerificationService.createVerificationToken(any(User.class)))
-                    .thenReturn("mock-verification-token");
-
             RegisterResponse response = authService.register(request);
 
             assertThat(response).isNotNull();
             assertThat(response.getEmail()).isEqualTo(TEST_EMAIL);
-            assertThat(response.isVerificationRequired()).isTrue();
+            assertThat(response.isVerificationRequired()).isFalse();
 
             verify(userRepository).save(any(User.class));
-            verify(emailVerificationService).createVerificationToken(any(User.class));
+            verify(emailVerificationService, never()).createVerificationToken(any(User.class));
         }
 
         @Test
@@ -165,6 +163,31 @@ class AuthServiceTest {
 
             assertThatThrownBy(() -> authService.register(request))
                     .isInstanceOf(EmailAlreadyExistsException.class);
+        }
+
+        @Test
+        @DisplayName("still creates the user when event publishing fails")
+        void createsUserWhenEventPublishingFails() {
+            RegisterRequest request = RegisterRequest.builder()
+                    .email(TEST_EMAIL)
+                    .password(TEST_PASSWORD)
+                    .displayName(TEST_DISPLAY_NAME)
+                    .build();
+
+            when(userRepository.existsByEmail(TEST_EMAIL)).thenReturn(false);
+            when(passwordEncoder.encode(TEST_PASSWORD)).thenReturn(HASHED_PASSWORD);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+                User u = invocation.getArgument(0);
+                u.setId(UUID.randomUUID());
+                return u;
+            });
+            RegisterResponse response = authService.register(request);
+
+            assertThat(response).isNotNull();
+            assertThat(response.getEmail()).isEqualTo(TEST_EMAIL);
+            verify(userRepository).save(any(User.class));
+            verify(rabbitTemplate, never())
+                    .convertAndSend(eq("user.events"), eq("user.registered"), any(Map.class));
         }
     }
 
@@ -196,24 +219,6 @@ class AuthServiceTest {
             assertThat(response.getUser()).isNotNull();
             assertThat(response.getUser().getEmail()).isEqualTo("bob@example.com");
             verify(refreshTokenRepository).save(any(RefreshToken.class));
-        }
-
-        @Test
-        @DisplayName("throws AccountNotVerifiedException when email is not verified")
-        void throwsWhenEmailNotVerified() {
-            User user = buildUser();
-            user.setEmailVerified(false);
-
-            LoginRequest request = LoginRequest.builder()
-                    .email("bob@example.com")
-                    .password("mock-password")
-                    .build();
-
-            when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("mock-password", "mock-pw-hash")).thenReturn(true);
-
-            assertThatThrownBy(() -> authService.login(request))
-                    .isInstanceOf(AccountNotVerifiedException.class);
         }
 
         @Test

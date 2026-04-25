@@ -30,6 +30,7 @@ public class NotificationEventListener {
 
         switch (routingKey) {
             case "user.registered" -> handleUserRegistered(payload);
+            case "user.email.verified" -> handleUserEmailVerified(payload);
             case "trip.invitation.created" -> handleTripInvitation(payload);
             case "trip.invitation.accepted" -> handleInvitationAccepted(payload);
             case "trip.updated" -> handleTripUpdated(payload);
@@ -44,13 +45,41 @@ public class NotificationEventListener {
             String email = (String) map.get("email");
             String displayName = (String) map.get("displayName");
             String userId = (String) map.get("userId");
+            String verificationToken = (String) map.get("verificationToken");
 
             log.info("Processing user.registered for {}", email);
             emailService.sendTemplateEmail(
                     email,
+                    "Verify your Trippy account",
+                    "email-verification",
+                    Map.of("userName", displayName,
+                            "verificationCode", verificationToken));
+
+            if (userId != null && verificationToken != null) {
+                notificationService.createNotification(
+                        UUID.fromString(userId),
+                        NotificationType.EMAIL_VERIFICATION,
+                        "Verify your email",
+                        "Use the verification code we emailed to activate your Trippy account.",
+                        "/verify-email");
+            }
+        }
+    }
+
+    void handleUserEmailVerified(Object payload) {
+        if (payload instanceof Map<?, ?> map) {
+            String email = (String) map.get("email");
+            String displayName = (String) map.get("displayName");
+            String userId = (String) map.get("userId");
+            String resolvedDisplayName =
+                    (displayName != null && !displayName.isBlank()) ? displayName : "Traveler";
+
+            log.info("Processing user.email.verified for {}", email);
+            emailService.sendTemplateEmail(
+                    email,
                     "Welcome to Trippy!",
                     "welcome",
-                    Map.of("userName", displayName,
+                    Map.of("userName", resolvedDisplayName,
                             "dashboardUrl", DASHBOARD_URL));
 
             if (userId != null) {
@@ -58,7 +87,7 @@ public class NotificationEventListener {
                         UUID.fromString(userId),
                         NotificationType.WELCOME,
                         "Welcome to Trippy!",
-                        "We're thrilled to have you on board, " + displayName + "!",
+                        "Your email is verified and your account is ready.",
                         DASHBOARD_URL);
             }
         }

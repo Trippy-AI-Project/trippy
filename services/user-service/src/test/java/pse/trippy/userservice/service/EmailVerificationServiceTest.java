@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.AmqpConnectException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import pse.trippy.userservice.exception.EmailAlreadyVerifiedException;
 import pse.trippy.userservice.exception.InvalidTokenException;
@@ -33,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -182,6 +184,28 @@ class EmailVerificationServiceTest {
         }
 
         @Test
+        @DisplayName("verifies email even when event publishing fails")
+        void verifiesEmailWhenPublishFails() {
+            User user = buildUser(false);
+            String rawToken = UUID.randomUUID().toString();
+            EmailVerificationToken token = EmailVerificationToken.builder()
+                    .token(rawToken)
+                    .user(user)
+                    .expiresAt(Instant.now().plus(1, ChronoUnit.HOURS))
+                    .build();
+
+            when(tokenRepository.findByToken(rawToken)).thenReturn(Optional.of(token));
+            doThrow(new AmqpConnectException(new RuntimeException("rabbit down")))
+                    .when(rabbitTemplate)
+                    .convertAndSend(eq("user.events"), eq("user.email.verified"), any(Map.class));
+
+            emailVerificationService.verifyEmail(rawToken);
+
+            assertThat(user.isEmailVerified()).isTrue();
+            verify(userRepository).save(user);
+        }
+
+        @Test
         @DisplayName("throws InvalidTokenException when token not found")
         void throwsWhenTokenNotFound() {
             when(tokenRepository.findByToken("nonexistent")).thenReturn(Optional.empty());
@@ -255,6 +279,23 @@ class EmailVerificationServiceTest {
                     eq("user.registered"),
                     any(Map.class)
             );
+        }
+
+        @Test
+        @DisplayName("resend still returns a token when event publishing fails")
+        void resendStillReturnsTokenWhenPublishFails() {
+            User user = buildUser(false);
+            when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+            when(tokenRepository.findByUserId(user.getId())).thenReturn(Optional.empty());
+            when(tokenRepository.save(any(EmailVerificationToken.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+            doThrow(new AmqpConnectException(new RuntimeException("rabbit down")))
+                    .when(rabbitTemplate)
+                    .convertAndSend(eq("user.events"), eq("user.registered"), any(Map.class));
+
+            String rawToken = emailVerificationService.resendVerification("alice@example.com");
+
+            assertThat(rawToken).isNotBlank();
         }
 
         @Test

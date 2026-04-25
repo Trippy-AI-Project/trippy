@@ -24,7 +24,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.username:trippy_mq}")
     private String rabbitUser;
 
-    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.password:change_me_rabbitmq}")
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.password:CHANGE_ME_RABBITMQ_PASSWORD_789!}")
     private String rabbitPass;
 
     @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.virtual-host:trippy}")

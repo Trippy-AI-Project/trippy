@@ -1,15 +1,7 @@
 {
   "rabbit_version": "3.13.0",
   "rabbitmq_version": "3.13.0",
-  "users": [
-    {
-      "name": "trippy_mq",
-      "password_hash": "",
-      "hashing_algorithm": "rabbit_password_hashing_sha256",
-      "tags": ["administrator"],
-      "limits": {}
-    }
-  ],
+  "users": [],
   "vhosts": [
     {
       "name": "trippy"

@@ -22,6 +22,22 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [verified, setVerified] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isRegistered = params.get("registered") === "true";
+    const isVerified = params.get("verified") === "true";
+    const queryEmail = params.get("email");
+
+    setRegistered(isRegistered);
+    setVerified(isVerified);
+
+    if ((isRegistered || isVerified) && queryEmail) {
+      setEmail(queryEmail);
+    }
+  }, []);
 
   // Redirect authenticated users away from login
   useEffect(() => {
@@ -56,8 +72,6 @@ export default function LoginPage() {
       if (err instanceof ApiError) {
         if (err.status === 401) {
           setError("Invalid email or password");
-        } else if (err.status === 403) {
-          setError("Please verify your email before logging in");
         } else {
           setError(
             typeof err.body?.message === "string"
@@ -106,6 +120,16 @@ export default function LoginPage() {
 
         <GlassCard variant="strong" className="space-y-5">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {registered && (
+              <p className="rounded-lg bg-trippy-500/10 px-3 py-2 text-sm text-trippy-200">
+                Your account was created. Sign in with your new credentials.
+              </p>
+            )}
+            {verified && (
+              <p className="rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300">
+                Email verified. You can sign in now.
+              </p>
+            )}
             {error && (
               <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
                 {error}
