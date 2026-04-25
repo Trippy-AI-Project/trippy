@@ -18,13 +18,28 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthChannelInterceptor authChannelInterceptor;
 
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.host:localhost}")
+    private String rabbitHost;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.username:trippy_mq}")
+    private String rabbitUser;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.password:change_me_rabbitmq}")
+    private String rabbitPass;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.virtual-host:trippy}")
+    private String rabbitVhost;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableStompBrokerRelay("/topic", "/queue")
-                .setRelayHost("localhost")
+                .setRelayHost(rabbitHost)
                 .setRelayPort(61613)
-                .setClientLogin("guest")
-                .setClientPasscode("guest");
+                .setClientLogin(rabbitUser)
+                .setClientPasscode(rabbitPass)
+                .setSystemLogin(rabbitUser)
+                .setSystemPasscode(rabbitPass)
+                .setVirtualHost(rabbitVhost);
 
         config.setApplicationDestinationPrefixes("/app");
     }

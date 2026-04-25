@@ -401,7 +401,7 @@ export default function PaymentPage() {
       {/* Billing History */}
       <div>
         <h2 className="text-lg font-semibold mb-4">Billing History</h2>
-        {subscription && subscription.status !== "FREE" ? (
+        {subscription && subscription.plan !== "FREE" ? (
           <GlassCard className="overflow-hidden">
             <table className="w-full text-sm">
               <thead>

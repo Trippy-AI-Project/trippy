@@ -23,7 +23,6 @@ import java.util.regex.Pattern;
  * to chat topics and broadcasts system join messages.
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 
@@ -34,6 +33,17 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
     private final ChatPresenceService chatPresenceService;
     private final ChatMessageService chatMessageService;
     private final WebSocketDisconnectListener disconnectListener;
+
+    public WebSocketAuthChannelInterceptor(
+            TripServiceClient tripServiceClient,
+            ChatPresenceService chatPresenceService,
+            @org.springframework.context.annotation.Lazy ChatMessageService chatMessageService,
+            @org.springframework.context.annotation.Lazy WebSocketDisconnectListener disconnectListener) {
+        this.tripServiceClient = tripServiceClient;
+        this.chatPresenceService = chatPresenceService;
+        this.chatMessageService = chatMessageService;
+        this.disconnectListener = disconnectListener;
+    }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
