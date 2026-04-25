@@ -6,6 +6,9 @@ server:
 spring:
   application:
     name: api-gateway
+  devtools:
+    livereload:
+      enabled: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -94,8 +97,8 @@ info:
 
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
-    pse.trippy.apigateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+    pse.trippy.apigateway: INFO
 
 trippy:
   gateway:
