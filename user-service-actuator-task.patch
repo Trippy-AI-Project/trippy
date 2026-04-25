@@ -1,0 +1,116 @@
+*** Begin Patch
+*** Add File: services/user-service/src/main/java/pse/trippy/userservice/health/DatabaseHealthIndicator.java
++package pse.trippy.userservice.health;
++
++import org.springframework.boot.actuate.health.Health;
++import org.springframework.boot.actuate.health.HealthIndicator;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.stereotype.Component;
++
++@Component
++public class DatabaseHealthIndicator implements HealthIndicator {
++    private final JdbcTemplate jdbcTemplate;
++
++    public DatabaseHealthIndicator(JdbcTemplate jdbcTemplate) {
++        this.jdbcTemplate = jdbcTemplate;
++    }
++
++    @Override
++    public Health health() {
++        try {
++            jdbcTemplate.queryForObject("SELECT 1", Integer.class);
++            return Health.up().withDetail("database", "PostgreSQL is up").build();
++        } catch (Exception ex) {
++            return Health.down(ex).withDetail("database", "PostgreSQL is down").build();
++        }
++    }
++}
+*** Add File: services/user-service/src/main/java/pse/trippy/userservice/health/RedisHealthIndicator.java
++package pse.trippy.userservice.health;
++
++import org.springframework.boot.actuate.health.Health;
++import org.springframework.boot.actuate.health.HealthIndicator;
++import org.springframework.data.redis.core.StringRedisTemplate;
++import org.springframework.stereotype.Component;
++
++@Component
++public class RedisHealthIndicator implements HealthIndicator {
++    private final StringRedisTemplate redisTemplate;
++
++    public RedisHealthIndicator(StringRedisTemplate redisTemplate) {
++        this.redisTemplate = redisTemplate;
++    }
++
++    @Override
++    public Health health() {
++        try {
++            String pong = redisTemplate.getConnectionFactory().getConnection().ping();
++            if ("PONG".equalsIgnoreCase(pong)) {
++                return Health.up().withDetail("redis", "Redis is up").build();
++            } else {
++                return Health.down().withDetail("redis", "Redis ping failed").build();
++            }
++        } catch (Exception ex) {
++            return Health.down(ex).withDetail("redis", "Redis is down").build();
++        }
++    }
++}
+*** Add File: services/user-service/src/main/java/pse/trippy/userservice/health/RabbitMQHealthIndicator.java
++package pse.trippy.userservice.health;
++
++import org.springframework.amqp.rabbit.connection.ConnectionFactory;
++import org.springframework.boot.actuate.health.Health;
++import org.springframework.boot.actuate.health.HealthIndicator;
++import org.springframework.stereotype.Component;
++
++@Component
++public class RabbitMQHealthIndicator implements HealthIndicator {
++    private final ConnectionFactory connectionFactory;
++
++    public RabbitMQHealthIndicator(ConnectionFactory connectionFactory) {
++        this.connectionFactory = connectionFactory;
++    }
++
++    @Override
++    public Health health() {
++        try {
++            connectionFactory.createConnection().close();
++            return Health.up().withDetail("rabbitmq", "RabbitMQ is up").build();
++        } catch (Exception ex) {
++            return Health.down(ex).withDetail("rabbitmq", "RabbitMQ is down").build();
++        }
++    }
++}
+*** Add File: services/user-service/src/main/java/pse/trippy/userservice/config/InfoConfig.java
++package pse.trippy.userservice.config;
++
++import org.springframework.boot.info.BuildProperties;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.boot.actuate.info.InfoContributor;
++import org.springframework.boot.actuate.info.Info;
++
++@Configuration
++public class InfoConfig {
++    @Bean
++    public InfoContributor customInfoContributor(BuildProperties buildProperties) {
++        return (Info.Builder builder) -> builder
++            .withDetail("service", "user-service")
++            .withDetail("version", buildProperties.getVersion())
++            .withDetail("git", buildProperties.get("git.commit.id"));
++    }
++}
+*** Add File: services/user-service/k8s-probes.yaml
++livenessProbe:
++  httpGet:
++    path: /actuator/health/liveness
++    port: 8081
++  initialDelaySeconds: 10
++  periodSeconds: 10
++readinessProbe:
++  httpGet:
++    path: /actuator/health/readiness
++    port: 8081
++  initialDelaySeconds: 10
++  periodSeconds: 10
+*** End Patch
