@@ -80,6 +80,7 @@ export default function TripFullScreenView({
   trip, userPrompt, userDates, onBack, onClose, onSave, saved, onRegenerate, onEditSearch,
 }: TripFullScreenViewProps) {
   const [draftTrip, setDraftTrip] = useState<GeneratedTrip>(trip);
+  const [itineraryVersion, setItineraryVersion] = useState(0);
   const [itineraryLoading, setItineraryLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -274,6 +275,8 @@ export default function TripFullScreenView({
       if (data.hasModification && data.updatedItinerary) {
         setPrevItinerary(draftTrip.aiItinerary || null);
         setDraftTrip(prev => ({ ...prev, aiItinerary: data.updatedItinerary }));
+        setItineraryVersion(v => v + 1);
+        setExpandedDays(new Set([1]));
       }
     } catch {
       setChatMessages([...updated, { role: "assistant", content: "Something went wrong. Try again." }]);
@@ -299,7 +302,7 @@ export default function TripFullScreenView({
 
       {/* ── LEFT: Chat Panel ──────────────────────────────────────── */}
       <motion.div
-        className="relative z-10 w-[380px] min-w-[340px] max-w-[420px] flex flex-col border-r border-border/60 bg-white"
+        className="relative z-10 w-[460px] min-w-[400px] max-w-[500px] flex flex-col border-r border-border/60 bg-white"
         initial={{ x: -40, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -458,7 +461,7 @@ export default function TripFullScreenView({
             <div className="flex justify-start">
               <div className="bg-[#f4f4f0] px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin text-trippy-500" />
-                <span className="text-xs text-muted">Modifying your trip…</span>
+                <span className="text-xs text-muted">Updating your trip with AI…</span>
               </div>
             </div>
           )}
@@ -558,7 +561,24 @@ export default function TripFullScreenView({
               <span className="text-sm text-muted">Generating your itinerary…</span>
             </div>
           ) : draftTrip.aiItinerary && draftTrip.aiItinerary.length > 0 ? (
-            <div>
+            <div className="relative">
+              {/* Loading overlay while chat is regenerating */}
+              <AnimatePresence>
+                {chatLoading && (
+                  <motion.div
+                    key="itinerary-overlay"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/80 backdrop-blur-[3px]"
+                  >
+                    <Loader2 size={32} className="animate-spin text-trippy-500 mb-3" />
+                    <p className="text-sm font-semibold text-foreground">Updating with AI…</p>
+                    <p className="text-xs text-muted mt-1">Regenerating your itinerary</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <h2 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3">
                 <Sparkles size={14} className="text-trippy-500" />
                 Your Itinerary
@@ -573,7 +593,13 @@ export default function TripFullScreenView({
                   : "";
 
                 return (
-                  <div key={day.dayNumber} className="mb-3">
+                  <motion.div
+                    key={`${itineraryVersion}-day-${day.dayNumber}`}
+                    className="mb-3"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: dayIdx * 0.06, duration: 0.3, ease: "easeOut" }}
+                  >
                     <div className="rounded-xl border border-border/60 overflow-hidden bg-white shadow-sm">
                       {/* Day header */}
                       <div className="flex items-center gap-3 px-4 py-3 hover:bg-trippy-500/[0.02] transition-colors">
@@ -778,7 +804,7 @@ export default function TripFullScreenView({
                         )}
                       </AnimatePresence>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
