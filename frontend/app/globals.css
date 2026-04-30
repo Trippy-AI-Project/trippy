@@ -39,6 +39,41 @@
   --text-muted: #587066;
 }
 
+/* ─── Dark Mode ───────────────────────────────────────────────────────── */
+
+[data-theme="dark"] {
+  --trippy-50:  #0d1f17;
+  --trippy-100: #132b20;
+  --trippy-200: #1d4030;
+  --trippy-300: #265640;
+  --trippy-400: #3e9b7e;
+  --trippy-500: #5cc4a3;
+  --trippy-600: #7ed4b8;
+  --trippy-700: #a3e4cd;
+  --trippy-800: #c8f0e1;
+  --trippy-900: #e6f9f1;
+
+  --accent-50:  #1f1409;
+  --accent-100: #2e1e0e;
+  --accent-200: #4a2f14;
+  --accent-300: #6e451d;
+  --accent-400: #c46a2c;
+  --accent-500: #fc7a36;
+  --accent-600: #ff9a62;
+  --accent-700: #ffbf96;
+
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger:  #f87171;
+
+  --background: #0c1410;
+  --foreground: #e6f0eb;
+  --surface:    rgba(22, 38, 30, 0.85);
+  --surface-hover: rgba(30, 52, 42, 0.95);
+  --border:     rgba(92, 196, 163, 0.15);
+  --text-muted: #8faa9e;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -76,6 +111,27 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* ─── Typography Scale ────────────────────────────────────────────────── */
+
+@layer base {
+  h1 { font-size: 2.25rem; line-height: 2.5rem;  font-weight: 700; letter-spacing: -0.025em; }
+  h2 { font-size: 1.875rem; line-height: 2.25rem; font-weight: 700; letter-spacing: -0.02em; }
+  h3 { font-size: 1.5rem;  line-height: 2rem;     font-weight: 600; }
+  h4 { font-size: 1.25rem; line-height: 1.75rem;  font-weight: 600; }
+  h5 { font-size: 1.125rem; line-height: 1.5rem;  font-weight: 500; }
+  h6 { font-size: 1rem;    line-height: 1.5rem;   font-weight: 500; }
+
+  @media (min-width: 768px) {
+    h1 { font-size: 3rem;    line-height: 3.25rem; }
+    h2 { font-size: 2.25rem; line-height: 2.5rem; }
+    h3 { font-size: 1.875rem; line-height: 2.25rem; }
+  }
+
+  .text-caption { font-size: 0.75rem; line-height: 1rem;  color: var(--text-muted); }
+  .text-body    { font-size: 1rem;    line-height: 1.625rem; }
+  .text-body-sm { font-size: 0.875rem; line-height: 1.375rem; }
 }
 
 /* ─── Glassmorphism Utilities ─────────────────────────────────────────── */

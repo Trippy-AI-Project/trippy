@@ -1,21 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trippy Frontend
+
+Next.js 16 · React 19 · Tailwind CSS 4 · Framer Motion
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3000
+npm run build        # Production build
+npm run lint         # ESLint check
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Structure
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+frontend/
+├── app/                 # Next.js App Router pages
+│   ├── layout.tsx       # Root layout (fonts, theme flash-prevention)
+│   ├── page.tsx         # Landing / homepage
+│   ├── globals.css      # Design tokens, dark mode, typography scale
+│   ├── login/           # Login page
+│   ├── register/        # Registration page
+│   └── dashboard/       # Authenticated dashboard
+├── components/
+│   ├── ui/              # Reusable primitives (Button, Input, GlassCard, Badge, Avatar, ThemeToggle)
+│   ├── layout/          # Navbar, Footer
+│   ├── trips/           # Trip-specific components (TripCard, CreateTripModal)
+│   └── ai/              # AI feature components
+├── lib/
+│   ├── api.ts           # API client (auth, request helpers, token management)
+│   ├── useTheme.ts      # Theme hook (light/dark via CSS variables + localStorage)
+│   └── utils.ts         # cn() class-name merge helper
+└── public/              # Static assets
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How to Extend the Frontend
+
+### Adding a New Page
+
+1. Create a folder under `app/`, e.g. `app/trips/[tripId]/page.tsx`
+2. Use the shared layout — `app/layout.tsx` provides fonts and theme globals
+3. For authenticated pages, create under `app/dashboard/` to inherit the dashboard layout
+
+### Using UI Primitives
+
+Import from the barrel export:
+
+```tsx
+import { Button, Input, GlassCard, Badge, Avatar, ThemeToggle } from "@/components/ui";
+```
+
+### Theme & Dark Mode
+
+- CSS custom properties are defined in `globals.css` under `:root` (light) and `[data-theme="dark"]`
+- Use `useTheme()` from `@/lib/useTheme` to read/toggle the theme
+- All colour utilities (`bg-trippy-500`, `text-accent-600`, etc.) auto-switch with the theme
+- Flash of wrong theme is prevented by an inline script in `layout.tsx`
+
+### Design Tokens
+
+| Token | Light | Usage |
+|-------|-------|-------|
+| `--trippy-500` | `#3e9b7e` | Primary brand |
+| `--accent-500` | `#fc7a36` | CTA / vibrancy |
+| `--background` | `#fdfcf9` | Page background |
+| `--foreground` | `#1c2a24` | Body text |
+| `--surface` | `rgba(255,255,255,0.75)` | Glass cards |
+
+### Typography
+
+Headings (`h1`–`h6`) and body text utilities (`.text-body`, `.text-body-sm`, `.text-caption`) are
+defined in `globals.css` via `@layer base` with responsive breakpoints.
+
+### API Integration
+
+Use the typed API client in `lib/api.ts`:
+
+```tsx
+import { api } from "@/lib/api";
+
+const trips = await api.get<Trip[]>("/trips");
+await api.post("/trips", { title: "My Trip", ... });
+```

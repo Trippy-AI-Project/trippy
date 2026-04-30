@@ -1,0 +1,90 @@
+package pse.trippy.notificationservice.listener;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import pse.trippy.notificationservice.service.EmailService;
+
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("NotificationEventListener")
+class NotificationEventListenerTest {
+
+    @Mock
+    private EmailService emailService;
+
+    @InjectMocks
+    private NotificationEventListener listener;
+
+    @Test
+    @DisplayName("user.registered event triggers welcome email")
+    void userRegisteredTriggersWelcome() {
+        Map<String, Object> payload = Map.of(
+                "userId", "123e4567-e89b-12d3-a456-426614174000",
+                "email", "alice@test.com",
+                "displayName", "Alice");
+
+        listener.handleUserRegistered(payload);
+
+        ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Welcome to Trippy!"),
+                eq("welcome"),
+                varsCaptor.capture());
+
+        assertThat(varsCaptor.getValue()).containsEntry("userName", "Alice");
+    }
+
+    @Test
+    @DisplayName("trip.invitation.created event triggers invitation email")
+    void tripInvitationTriggersEmail() {
+        Map<String, Object> payload = Map.of(
+                "tripId", "trip-uuid",
+                "tripTitle", "Summer in Barcelona",
+                "inviterId", "inviter-uuid",
+                "inviterName", "Jane",
+                "inviteeEmail", "bob@test.com",
+                "inviteeName", "Bob");
+
+        listener.handleTripInvitation(payload);
+
+        ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(emailService).sendTemplateEmail(
+                eq("bob@test.com"),
+                eq("Jane invited you to Summer in Barcelona"),
+                eq("trip-invitation"),
+                varsCaptor.capture());
+
+        Map<String, Object> vars = varsCaptor.getValue();
+        assertThat(vars).containsEntry("inviteeName", "Bob");
+        assertThat(vars).containsEntry("inviterName", "Jane");
+        assertThat(vars).containsEntry("tripTitle", "Summer in Barcelona");
+    }
+
+    @Test
+    @DisplayName("handleEvent dispatches based on routing key")
+    void handleEventDispatches() {
+        Map<String, Object> payload = Map.of(
+                "email", "user@test.com",
+                "displayName", "User");
+
+        listener.handleEvent(payload, "user.registered");
+
+        verify(emailService).sendTemplateEmail(
+                eq("user@test.com"),
+                eq("Welcome to Trippy!"),
+                eq("welcome"),
+                any());
+    }
+}

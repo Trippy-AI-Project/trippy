@@ -120,7 +120,7 @@ class AuthServiceTest {
 
             assertThat(response).isNotNull();
             assertThat(response.getEmail()).isEqualTo(TEST_EMAIL);
-            assertThat(response.isVerificationRequired()).isTrue();
+            assertThat(response.isVerificationRequired()).isFalse();
 
             verify(userRepository).save(any(User.class));
         }

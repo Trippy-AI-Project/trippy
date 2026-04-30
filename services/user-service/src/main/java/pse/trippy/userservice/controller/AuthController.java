@@ -12,6 +12,7 @@ import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.model.dto.LoginRequest;
 import pse.trippy.userservice.model.dto.LoginResponse;
+import pse.trippy.userservice.model.dto.LogoutRequest;
 import pse.trippy.userservice.model.dto.RefreshTokenRequest;
 import pse.trippy.userservice.model.dto.TokenResponse;
 import pse.trippy.userservice.service.AuthService;
@@ -52,5 +53,12 @@ public class AuthController {
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         TokenResponse response = authService.refreshToken(request);
         return ResponseEntity.ok(response);
+    }
+
+    /** Revokes the given refresh token and logs the user out. */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
+        authService.logout(request.getRefreshToken());
+        return ResponseEntity.noContent().build();
     }
 }

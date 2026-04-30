@@ -34,4 +34,7 @@ build/
 
 ### Environment variables — never commit secrets ###
 .env
+.env.*
 !.env.example
+!.env.template
+!.env.sample

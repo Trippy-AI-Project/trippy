@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Welcome to Trippy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 28px; }
+        .body { padding: 32px; color: #374151; line-height: 1.6; }
+        .body h2 { color: #1f2937; }
+        .btn { display: inline-block; padding: 12px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; }
+        .footer { padding: 20px 32px; background: #f9fafb; text-align: center; color: #9ca3af; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Welcome to Trippy!</h1>
+    </div>
+    <div class="body">
+        <h2>Hello, <span th:text="${userName}">User</span>!</h2>
+        <p>We're thrilled to have you on board. Trippy makes planning group trips effortless — from itineraries and budgets to real-time chat.</p>
+        <p>Here's how to get started:</p>
+        <ul>
+            <li>Create your first trip</li>
+            <li>Invite your friends</li>
+            <li>Build your itinerary together</li>
+        </ul>
+        <a th:href="${dashboardUrl}" class="btn">Go to Dashboard</a>
+    </div>
+    <div class="footer">
+        <p>&copy; 2026 Trippy. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

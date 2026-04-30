@@ -1,12 +1,57 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Mail, Lock, User, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, User, ArrowRight, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { GlassCard, Button, Input } from "@/components/ui";
+import { register, ApiError } from "@/lib/api";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (!agreed) {
+      setError("You must accept the Terms of Service.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await register(email, password, displayName);
+      router.push("/login?registered=true");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(
+          typeof err.body?.message === "string"
+            ? err.body.message
+            : "Registration failed. Please try again.",
+        );
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
       {/* Ambient gradients */}
@@ -29,90 +74,109 @@ export default function RegisterPage() {
         </div>
 
         <GlassCard variant="strong" className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                {error}
+              </p>
+            )}
+
             <div className="relative">
               <User
                 size={16}
                 className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
               />
               <Input
-                id="firstName"
-                placeholder="First name"
+                id="displayName"
+                placeholder="Display name"
                 className="pl-10"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                required
+                minLength={2}
+                maxLength={50}
               />
             </div>
+
             <div className="relative">
-              <User
+              <Mail
                 size={16}
                 className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
               />
               <Input
-                id="lastName"
-                placeholder="Last name"
+                id="email"
+                type="email"
+                placeholder="Email address"
                 className="pl-10"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </div>
-          </div>
 
-          <div className="relative">
-            <Mail
-              size={16}
-              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-            />
-            <Input
-              id="email"
-              type="email"
-              placeholder="Email address"
-              className="pl-10"
-            />
-          </div>
+            <div className="relative">
+              <Lock
+                size={16}
+                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+              />
+              <Input
+                id="password"
+                type="password"
+                placeholder="Create password"
+                className="pl-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
 
-          <div className="relative">
-            <Lock
-              size={16}
-              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-            />
-            <Input
-              id="password"
-              type="password"
-              placeholder="Create password"
-              className="pl-10"
-            />
-          </div>
+            <div className="relative">
+              <Lock
+                size={16}
+                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
+              />
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Confirm password"
+                className="pl-10"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
 
-          <div className="relative">
-            <Lock
-              size={16}
-              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-            />
-            <Input
-              id="confirmPassword"
-              type="password"
-              placeholder="Confirm password"
-              className="pl-10"
-            />
-          </div>
-
-          <label className="flex items-start gap-2 text-sm text-muted">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 rounded border-border bg-surface accent-trippy-500"
-            />
-            <span>
-              I agree to the{" "}
-              <span className="text-trippy-400 cursor-pointer hover:text-trippy-300">
-                Terms of Service
-              </span>{" "}
-              and{" "}
-              <span className="text-trippy-400 cursor-pointer hover:text-trippy-300">
-                Privacy Policy
+            <label className="flex items-start gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-border bg-surface accent-trippy-500"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+              />
+              <span>
+                I agree to the{" "}
+                <span className="text-trippy-400 cursor-pointer hover:text-trippy-300">
+                  Terms of Service
+                </span>{" "}
+                and{" "}
+                <span className="text-trippy-400 cursor-pointer hover:text-trippy-300">
+                  Privacy Policy
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
 
-          <Button className="w-full" size="lg">
-            Create account <ArrowRight size={16} />
-          </Button>
+            <Button className="w-full" size="lg" type="submit" disabled={loading}>
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <>
+                  Create account <ArrowRight size={16} />
+                </>
+              )}
+            </Button>
+          </form>
 
           <p className="text-center text-sm text-muted">
             Already have an account?{" "}

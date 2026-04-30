@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Verify Your Email</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 28px; }
+        .body { padding: 32px; color: #374151; line-height: 1.6; }
+        .code { display: block; text-align: center; font-size: 36px; letter-spacing: 8px; font-weight: 700; color: #6366f1; background: #f0f0ff; padding: 20px; border-radius: 8px; margin: 24px 0; }
+        .footer { padding: 20px 32px; background: #f9fafb; text-align: center; color: #9ca3af; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Email Verification</h1>
+    </div>
+    <div class="body">
+        <p>Hello, <span th:text="${userName}">User</span>!</p>
+        <p>Please use the following verification code to confirm your email address:</p>
+        <span class="code" th:text="${verificationCode}">123456</span>
+        <p>This code is valid for <strong>15 minutes</strong>.</p>
+        <p>If you didn't create a Trippy account, you can safely ignore this email.</p>
+    </div>
+    <div class="footer">
+        <p>&copy; 2026 Trippy. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>
