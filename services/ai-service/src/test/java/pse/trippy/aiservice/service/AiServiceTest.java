@@ -62,34 +62,29 @@ class AiServiceTest {
         @DisplayName("returns parsed suggestions for a valid Groq JSON response")
         void returnsValidSuggestions() {
             String groqJson = """
-                    {
-                      "suggestions": [
-                        {
-                          "city": "Lisbon",
-                          "country": "Portugal",
-                          "estimatedDailyCost": "€80-120",
-                          "bestTimeToVisit": "May to September",
-                          "highlights": ["Historic trams", "Belem Tower"],
-                          "reason": "Affordable and warm in August",
-                          "matchScore": 0.92
-                        }
-                      ]
-                    }
+                    [
+                      {
+                        "destination": "Lisbon, Portugal",
+                        "country": "Portugal",
+                        "description": "Affordable and warm in August with beautiful coastline.",
+                        "estimatedDailyCost": 100,
+                        "bestTimeToVisit": "May to September",
+                        "highlights": ["Historic trams", "Belem Tower", "Alfama district"],
+                        "matchScore": 0.92
+                      }
+                    ]
                     """;
             when(callSpec.content()).thenReturn(groqJson);
 
-            DestinationSuggestionRequest request = new DestinationSuggestionRequest();
-            request.setPrompt("Cheap beach destinations in Europe for August");
-            request.setBudget("LOW");
-            request.setDurationDays(7);
+            DestinationSuggestionRequest request = new DestinationSuggestionRequest(
+                    List.of("beach", "culture"), "LOW", null, 7, "Europe", "August");
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
-            assertThat(response.getSuggestions()).hasSize(1);
-            assertThat(response.getSuggestions().get(0).getCity()).isEqualTo("Lisbon");
-            assertThat(response.getSuggestions().get(0).getMatchScore()).isEqualTo(0.92);
-            assertThat(response.isCached()).isFalse();
-            assertThat(response.getGeneratedAt()).isNotNull();
+            assertThat(response.suggestions()).hasSize(1);
+            assertThat(response.suggestions().get(0).destination()).isEqualTo("Lisbon, Portugal");
+            assertThat(response.suggestions().get(0).matchScore()).isEqualTo(0.92);
+            assertThat(response.generatedAt()).isNotNull();
         }
 
         @Test
@@ -97,27 +92,27 @@ class AiServiceTest {
         void returnsFallbackOnBadJson() {
             when(callSpec.content()).thenReturn("Sorry, I cannot help with that.");
 
-            DestinationSuggestionRequest request = new DestinationSuggestionRequest();
-            request.setPrompt("some prompt");
+            DestinationSuggestionRequest request = new DestinationSuggestionRequest(
+                    List.of("history"), "MODERATE", null, 5, null, null);
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
-            assertThat(response.getSuggestions()).isEmpty();
-            assertThat(response.getGeneratedAt()).isNotNull();
+            assertThat(response.suggestions()).isEmpty();
+            assertThat(response.generatedAt()).isNotNull();
         }
 
         @Test
         @DisplayName("strips markdown code fences from Groq response before parsing")
         void stripsMarkdownCodeFences() {
-            String wrapped = "```json\n{\"suggestions\":[]}\n```";
+            String wrapped = "```json\n[]\n```";
             when(callSpec.content()).thenReturn(wrapped);
 
-            DestinationSuggestionRequest request = new DestinationSuggestionRequest();
-            request.setPrompt("any prompt");
+            DestinationSuggestionRequest request = new DestinationSuggestionRequest(
+                    List.of("adventure"), "HIGH", null, 10, null, null);
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
-            assertThat(response.getSuggestions()).isEmpty();
+            assertThat(response.suggestions()).isEmpty();
         }
     }
 

@@ -11,11 +11,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
+import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.service.AiService;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -45,42 +47,28 @@ class AiControllerTest {
     @Test
     @DisplayName("POST /ai/destination-suggestions → 200 with suggestions")
     void destinationSuggestions_returns200() throws Exception {
-        DestinationSuggestionResponse stubResponse = DestinationSuggestionResponse.builder()
-                .suggestions(List.of(
-                        DestinationSuggestionResponse.DestinationSuggestion.builder()
-                                .city("Lisbon")
-                                .country("Portugal")
-                                .reason("Affordable and sunny")
-                                .matchScore(0.92)
-                                .build()))
-                .generatedAt(Instant.now())
-                .cached(false)
-                .build();
+        DestinationSuggestionResponse stubResponse = new DestinationSuggestionResponse(
+                List.of(new DestinationSuggestion(
+                        "Lisbon, Portugal",
+                        "Portugal",
+                        "Affordable and sunny with beautiful coastline.",
+                        List.of("Belem Tower", "Trams", "Alfama"),
+                        BigDecimal.valueOf(100),
+                        "May to September",
+                        0.92)),
+                Instant.now());
 
         when(aiService.suggestDestinations(any())).thenReturn(stubResponse);
 
-        DestinationSuggestionRequest request = new DestinationSuggestionRequest();
-        request.setPrompt("Cheap beach destination in Europe for August");
+        DestinationSuggestionRequest request = new DestinationSuggestionRequest(
+                List.of("beach", "culture"), "LOW", null, 7, "Europe", "August");
 
         mockMvc.perform(post("/ai/destination-suggestions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.suggestions[0].city").value("Lisbon"))
-                .andExpect(jsonPath("$.suggestions[0].matchScore").value(0.92))
-                .andExpect(jsonPath("$.cached").value(false));
-    }
-
-    @Test
-    @DisplayName("POST /ai/destination-suggestions → 400 when prompt is blank")
-    void destinationSuggestions_returns400OnBlankPrompt() throws Exception {
-        DestinationSuggestionRequest request = new DestinationSuggestionRequest();
-        request.setPrompt(""); // blank — @NotBlank should fail
-
-        mockMvc.perform(post("/ai/destination-suggestions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
+                .andExpect(jsonPath("$.suggestions[0].destination").value("Lisbon, Portugal"))
+                .andExpect(jsonPath("$.suggestions[0].matchScore").value(0.92));
     }
 
     // =========================================================================

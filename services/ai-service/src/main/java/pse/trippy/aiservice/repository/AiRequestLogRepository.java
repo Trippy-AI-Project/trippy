@@ -8,6 +8,7 @@ import pse.trippy.aiservice.model.entity.AiRequestLog;
 import pse.trippy.aiservice.model.enums.RequestType;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -20,8 +21,7 @@ public interface AiRequestLogRepository extends JpaRepository<AiRequestLog, UUID
     @Query("SELECT COALESCE(SUM(a.inputTokens + a.outputTokens), 0) FROM AiRequestLog a WHERE a.userId = :userId")
     long sumTokensByUserId(@Param("userId") UUID userId);
 
-    @Query("SELECT a FROM AiRequestLog a WHERE a.userId = :userId ORDER BY a.createdAt DESC LIMIT 1")
-    AiRequestLog findLatestByUserId(@Param("userId") UUID userId);
+    Optional<AiRequestLog> findTopByUserIdOrderByCreatedAtDesc(UUID userId);
 
     List<AiRequestLog> findByUserIdOrderByCreatedAtDesc(UUID userId);
 }

@@ -34,9 +34,9 @@ public interface TripRepository extends JpaRepository<Trip, UUID> {
             SELECT t FROM Trip t
             WHERE t.id IN (
                 SELECT p.trip.id FROM Participant p
-                WHERE p.userId = :userId AND p.status = 'ACCEPTED'
+                WHERE p.userId = :userId AND p.status = pse.trippy.tripservice.model.enums.ParticipantStatus.ACCEPTED
             )
-            AND t.status <> 'CANCELLED'
+            AND t.status <> pse.trippy.tripservice.model.enums.TripStatus.CANCELLED
             """)
     Page<Trip> findTripsByParticipantUserId(@Param("userId") UUID userId, Pageable pageable);
 }

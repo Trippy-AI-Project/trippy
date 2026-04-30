@@ -94,7 +94,3 @@ logging:
   level:
     org.springframework.cloud.gateway: DEBUG
     pse.trippy.apigateway: DEBUG
-
-trippy:
-  gateway:
-    jwks-url: http://localhost:8081/.well-known/jwks.json

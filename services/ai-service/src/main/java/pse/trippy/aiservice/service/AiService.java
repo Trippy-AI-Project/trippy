@@ -1,6 +1,7 @@
 package pse.trippy.aiservice.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
+import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
@@ -20,8 +22,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -44,7 +46,7 @@ public class AiService {
 
     public DestinationSuggestionResponse suggestDestinations(DestinationSuggestionRequest request) {
         String prompt = buildDestinationPrompt(request);
-        log.info("Requesting destination suggestions for prompt: {}", request.getPrompt());
+        log.info("Requesting destination suggestions");
 
         String rawJson;
         try {
@@ -60,22 +62,24 @@ public class AiService {
         try {
             String cleanJson = extractJson(rawJson);
             log.debug("Extracted JSON (first 500 chars): {}", cleanJson.length() > 500 ? cleanJson.substring(0, 500) : cleanJson);
-            DestinationSuggestionResponse response = objectMapper.readValue(
-                    cleanJson, DestinationSuggestionResponse.class);
-            response.setGeneratedAt(Instant.now());
-            response.setCached(false);
-            if (response.getSuggestions() == null || response.getSuggestions().isEmpty()) {
-                log.warn("AI returned valid JSON but with empty suggestions list");
+
+            List<DestinationSuggestion> suggestions;
+            if (cleanJson.strip().startsWith("[")) {
+                suggestions = objectMapper.readValue(cleanJson, new TypeReference<>() {});
+            } else {
+                JsonNode root = objectMapper.readTree(cleanJson);
+                suggestions = objectMapper.convertValue(root.path("suggestions"), new TypeReference<>() {});
             }
-            return response;
-        } catch (JsonProcessingException e) {
+
+            if (suggestions == null || suggestions.isEmpty()) {
+                log.warn("AI returned valid JSON but with empty suggestions list");
+                suggestions = List.of();
+            }
+            return new DestinationSuggestionResponse(suggestions, Instant.now());
+        } catch (Exception e) {
             log.error("Failed to parse destination suggestions. Raw response (first 1000 chars): {}",
                     rawJson != null && rawJson.length() > 1000 ? rawJson.substring(0, 1000) : rawJson, e);
-            return DestinationSuggestionResponse.builder()
-                    .suggestions(List.of())
-                    .generatedAt(Instant.now())
-                    .cached(false)
-                    .build();
+            return new DestinationSuggestionResponse(List.of(), Instant.now());
         }
     }
 
@@ -141,33 +145,27 @@ public class AiService {
 
     private String buildDestinationPrompt(DestinationSuggestionRequest req) {
         StringBuilder sb = new StringBuilder();
-        sb.append("You are a travel expert. Suggest travel destinations based on the user's request.\n\n");
-        sb.append("User request: ").append(req.getPrompt()).append("\n");
+        sb.append("You are a travel expert. Suggest 3-5 travel destinations based on these preferences:\n\n");
 
-        if (req.getBudget() != null) sb.append("Budget level: ").append(req.getBudget()).append("\n");
-        if (req.getDurationDays() != null) sb.append("Trip duration: ").append(req.getDurationDays()).append(" days\n");
-        if (req.getTravelMonth() != null) sb.append("Travel month: ").append(req.getTravelMonth()).append("\n");
-        if (req.getInterests() != null && !req.getInterests().isEmpty())
-            sb.append("Interests: ").append(String.join(", ", req.getInterests())).append("\n");
-        if (req.getExcludeCountries() != null && !req.getExcludeCountries().isEmpty())
-            sb.append("Exclude countries: ").append(String.join(", ", req.getExcludeCountries())).append("\n");
+        if (req.interests() != null && !req.interests().isEmpty())
+            sb.append("Interests: ").append(String.join(", ", req.interests())).append("\n");
+        if (req.budget() != null) sb.append("Budget: ").append(req.budget()).append("\n");
+        if (req.travelStyle() != null) sb.append("Travel Style: ").append(req.travelStyle()).append("\n");
+        sb.append("Duration: ").append(req.duration()).append(" days\n");
+        if (req.region() != null) sb.append("Region: ").append(req.region()).append("\n");
+        if (req.month() != null) sb.append("Travel month: ").append(req.month()).append("\n");
 
         sb.append("""
                 
-                Respond ONLY with a valid JSON object matching this exact structure (no markdown, no extra text):
-                {
-                  "suggestions": [
-                    {
-                      "city": "string",
-                      "country": "string",
-                      "estimatedDailyCost": "string",
-                      "bestTimeToVisit": "string",
-                      "highlights": ["string"],
-                      "reason": "string",
-                      "matchScore": 0.0
-                    }
-                  ]
-                }
+                Return ONLY a JSON array (no markdown, no code fences) with objects containing:
+                - "destination": full destination name (city, country)
+                - "country": country name
+                - "description": 1-2 sentence description
+                - "highlights": array of 3 top highlights/attractions
+                - "estimatedDailyCost": estimated daily cost in EUR as a number
+                - "bestTimeToVisit": best months to visit
+                - "matchScore": how well this matches the preferences (0.0 to 1.0)
+                
                 Return 3 to 5 destination suggestions.
                 """);
         return sb.toString();
@@ -256,6 +254,7 @@ public class AiService {
 
     /**
      * Strips markdown code fences if the model wraps its JSON in ```json ... ```
+     * Handles both JSON objects {@code {...}} and arrays {@code [...]}.
      */
     private String extractJson(String raw) {
         if (raw == null || raw.isBlank()) return "{}";
@@ -268,11 +267,15 @@ public class AiService {
                 trimmed = trimmed.substring(start, end).strip();
             }
         }
-        // Some models prefix with text before the JSON object — find the first {
-        int braceStart = trimmed.indexOf('{');
-        int braceEnd = trimmed.lastIndexOf('}');
-        if (braceStart >= 0 && braceEnd > braceStart) {
-            return trimmed.substring(braceStart, braceEnd + 1);
+        // Handle JSON arrays [...] as well as objects {...}
+        int objStart = trimmed.indexOf('{');
+        int arrStart = trimmed.indexOf('[');
+        if (objStart >= 0 && (arrStart < 0 || objStart < arrStart)) {
+            int objEnd = trimmed.lastIndexOf('}');
+            if (objEnd > objStart) return trimmed.substring(objStart, objEnd + 1);
+        } else if (arrStart >= 0) {
+            int arrEnd = trimmed.lastIndexOf(']');
+            if (arrEnd > arrStart) return trimmed.substring(arrStart, arrEnd + 1);
         }
         return trimmed;
     }
