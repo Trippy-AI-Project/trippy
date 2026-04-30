@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callGroqWithRetry } from "@/lib/groq-client";
+import { callGroqWithRetry, extractJson } from "@/lib/groq-client";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -41,24 +41,26 @@ function parseModificationIntent(msg: string): {
   const dayTarget = dayMatch ? parseInt(dayMatch[1]) : undefined;
   const keywords = m.split(/\s+/).filter(w => w.length > 2);
 
+  // Specific themes checked FIRST — before generic verbs like "add"/"change"
   if (m.includes("vegetarian") || m.includes("vegan") || m.includes("veg ")) return { action: "vegetarian", dayTarget, keywords };
-  if (m.includes("swap") || m.includes("replace") || m.includes("change") || m.includes("instead")) return { action: "swap", dayTarget, keywords };
+  if (m.includes("budget") || m.includes("cheap") || m.includes("save") || m.includes("affordable")) return { action: "budget", dayTarget, keywords };
+  if (m.includes("relax") || m.includes("chill") || m.includes("slow") || m.includes("easy pace")) return { action: "relax", dayTarget, keywords };
+  if (m.includes("adventure") || m.includes("exciting") || m.includes("thrill")) return { action: "adventure", dayTarget, keywords };
+  if (m.includes("night") || m.includes("bar") || m.includes("club") || m.includes("party") || m.includes("nightlife")) return { action: "nightlife", dayTarget, keywords };
+
+  // Generic verbs after specific themes
+  if (m.includes("swap") || m.includes("replace") || m.includes("instead")) return { action: "swap", dayTarget, keywords };
   if (m.includes("add") || m.includes("include") || m.includes("insert")) return { action: "add", dayTarget, keywords };
-  // "remove day 7" → removes entire day; "remove lunch" → removes activity
+  if (m.includes("change")) return { action: "swap", dayTarget, keywords };
   if (m.includes("remove") || m.includes("delete") || m.includes("skip") || m.includes("drop")) {
-    // Check if user wants to remove an entire day (e.g. "remove day 7", "delete last day", "remove day 3")
     if (dayTarget && (m.includes("remove day") || m.includes("delete day") || m.includes("drop day") || m.includes("skip day"))) {
       return { action: "removeDay", dayTarget, keywords };
     }
     if (m.includes("last day") || m.includes("final day")) {
-      return { action: "removeDay", dayTarget: -1, keywords }; // -1 = last day
+      return { action: "removeDay", dayTarget: -1, keywords };
     }
     return { action: "remove", dayTarget, keywords };
   }
-  if (m.includes("budget") || m.includes("cheap") || m.includes("save") || m.includes("affordable")) return { action: "budget", dayTarget, keywords };
-  if (m.includes("relax") || m.includes("chill") || m.includes("slow") || m.includes("easy")) return { action: "relax", dayTarget, keywords };
-  if (m.includes("adventure") || m.includes("exciting") || m.includes("thrill")) return { action: "adventure", dayTarget, keywords };
-  if (m.includes("night") || m.includes("bar") || m.includes("club") || m.includes("party")) return { action: "nightlife", dayTarget, keywords };
   return { action: "general", dayTarget, keywords };
 }
 
@@ -186,11 +188,8 @@ function applyModification(
     }
 
     case "add": {
-      const day = targetDays[0];
-      const newAct: Activity = { time: "16:00", title: "Custom Activity", description: intent.keywords.slice(0, 6).join(" "), location: "To be determined", category: "SIGHTSEEING", estimatedCost: "€15", duration: 60 };
-      day.activities.push(newAct);
-      day.activities.sort((a, b) => (a.time || "").localeCompare(b.time || ""));
-      changes.push({ type: "add", dayNumber: day.dayNumber, added: newAct.title, summary: `Added new activity to Day ${day.dayNumber}` });
+      // Don't add a blank placeholder — inform the user that Groq is needed for this
+      changes.push({ type: "info", summary: "I need a moment to add that — please try again." });
       break;
     }
 
@@ -234,18 +233,8 @@ function applyModification(
     }
 
     case "swap": {
-      const day = targetDays[0];
-      const matchIdx = day.activities.findIndex(a =>
-        intent.keywords.some(kw => a.title.toLowerCase().includes(kw))
-      );
-      if (matchIdx >= 0) {
-        const old = day.activities[matchIdx];
-        const newAct: Activity = { ...old, title: "Updated: " + old.title, description: "Modified based on your preference." };
-        day.activities[matchIdx] = newAct;
-        changes.push({ type: "swap", dayNumber: day.dayNumber, removed: old.title, added: newAct.title, summary: `Updated "${old.title}" in Day ${day.dayNumber}` });
-      } else {
-        changes.push({ type: "info", summary: "Couldn't find a matching activity to swap. Try being more specific (e.g., 'swap lunch on Day 1')." });
-      }
+      // Without Groq we can't make a meaningful swap — inform user
+      changes.push({ type: "info", summary: "I need a moment to make that swap — please try again." });
       break;
     }
 
@@ -280,27 +269,43 @@ export async function POST(request: Request) {
   const lastMessage = body.messages[body.messages.length - 1]?.content || "";
   const intent = parseModificationIntent(lastMessage);
 
-  // If we have a current itinerary, apply modifications
-  if (body.currentItinerary?.length && intent.action !== "general") {
-    const { updatedItinerary, changes } = applyModification(body.currentItinerary, intent);
-
-    const replyParts = ["✨ **Trip Updated!**\n"];
-    for (const c of changes) {
-      if (c.type === "swap") replyParts.push(`🔄 **Day ${c.dayNumber}**: ${c.summary}`);
-      else if (c.type === "add") replyParts.push(`➕ **Day ${c.dayNumber}**: ${c.summary}`);
-      else if (c.type === "remove") replyParts.push(`🗑️ **Day ${c.dayNumber}**: ${c.summary}`);
-      else replyParts.push(`💡 ${c.summary}`);
+  // When an itinerary exists, always try Groq first for an intelligent update
+  if (body.currentItinerary?.length) {
+    const updatedItinerary = await tryGroqItineraryUpdate(
+      body.currentItinerary,
+      lastMessage,
+      body.destination,
+      body.tripContext,
+    );
+    if (updatedItinerary) {
+      return NextResponse.json({
+        reply: "✨ **Trip Updated!**\n\nYour itinerary has been updated based on your request.",
+        updatedItinerary,
+        changes: [{ type: "info", summary: "Itinerary updated based on your request." }],
+        hasModification: true,
+      });
     }
 
-    return NextResponse.json({
-      reply: replyParts.join("\n"),
-      updatedItinerary,
-      changes,
-      hasModification: true,
-    });
+    // Groq failed — fall back to local keyword-based modifications
+    if (intent.action !== "general") {
+      const { updatedItinerary: localUpdated, changes } = applyModification(body.currentItinerary, intent);
+      const replyParts = ["✨ **Trip Updated!**\n"];
+      for (const c of changes) {
+        if (c.type === "swap") replyParts.push(`🔄 **Day ${c.dayNumber}**: ${c.summary}`);
+        else if (c.type === "add") replyParts.push(`➕ **Day ${c.dayNumber}**: ${c.summary}`);
+        else if (c.type === "remove") replyParts.push(`🗑️ **Day ${c.dayNumber}**: ${c.summary}`);
+        else replyParts.push(`💡 ${c.summary}`);
+      }
+      return NextResponse.json({
+        reply: replyParts.join("\n"),
+        updatedItinerary: localUpdated,
+        changes,
+        hasModification: true,
+      });
+    }
   }
 
-  // General chat — try Groq, fallback to smart local
+  // Fallback: general Groq chat
   try {
     const groqReply = await tryGroqChat(body);
     if (groqReply) return NextResponse.json({ reply: groqReply, hasModification: false });
@@ -309,6 +314,54 @@ export async function POST(request: Request) {
   // Smart local response
   const reply = getSmartReply(lastMessage, body.destination);
   return NextResponse.json({ reply, hasModification: false });
+}
+
+async function tryGroqItineraryUpdate(
+  currentItinerary: DayPlan[],
+  userRequest: string,
+  destination?: string,
+  tripContext?: string,
+): Promise<DayPlan[] | null> {
+  try {
+    const lines = [
+      `You are Trippy AI, an expert travel planner.`,
+      tripContext ? `Trip context: ${tripContext}` : "",
+      destination ? `Destination: ${destination}` : "",
+      ``,
+      `The user wants to modify their existing trip itinerary.`,
+      `USER REQUEST: "${userRequest}"`,
+      ``,
+      `CURRENT ITINERARY (JSON):`,
+      JSON.stringify(currentItinerary, null, 2),
+      ``,
+      `Return an UPDATED version of the itinerary that fulfills the user's request.`,
+      `Keep the same number of days and overall JSON structure unless the user explicitly asked to change them.`,
+      `Use REAL place names and addresses for ${destination || "the destination"}.`,
+      ``,
+      `Return ONLY valid JSON — no markdown fences, no explanation — in exactly this shape:`,
+      `{"dailyPlan":[{"dayNumber":1,"date":"YYYY-MM-DD","title":"Day title","activities":[{"time":"09:00","title":"Activity","description":"Desc","location":"Venue, Address","category":"FOOD|SIGHTSEEING|TRANSPORT|SHOPPING|CULTURE|NIGHTLIFE|NATURE|WELLNESS","estimatedCost":"€15","duration":60}]}]}`,
+    ];
+
+    const result = await callGroqWithRetry(
+      [
+        {
+          role: "system",
+          content: "You are Trippy AI, an expert travel planner. Return ONLY valid JSON with no markdown fences and no extra text.",
+        },
+        { role: "user", content: lines.filter(Boolean).join("\n") },
+      ],
+      { maxTokens: 8192, timeoutMs: 45_000 },
+    );
+
+    const json = extractJson(result.content);
+    const parsed = JSON.parse(json) as { dailyPlan?: DayPlan[] };
+    if (Array.isArray(parsed.dailyPlan) && parsed.dailyPlan.length > 0) {
+      return parsed.dailyPlan;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function getSmartReply(msg: string, destination?: string): string {
