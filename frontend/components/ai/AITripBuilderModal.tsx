@@ -414,13 +414,15 @@ function DateRangePicker({
         <Calendar size={14} className="text-trippy-500 shrink-0" />
         <span className="flex-1 truncate">{displayLabel}</span>
         {(startDate || endDate) && (
-          <button
-            type="button"
+          <span
+            role="button"
+            tabIndex={0}
             onClick={(e) => { e.stopPropagation(); onChange("", ""); }}
-            className="text-muted hover:text-foreground transition-colors shrink-0"
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onChange("", ""); } }}
+            className="text-muted hover:text-foreground transition-colors shrink-0 cursor-pointer"
           >
             <X size={12} />
-          </button>
+          </span>
         )}
       </button>
 
@@ -732,7 +734,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
           trip={fullScreenTrip}
           userPrompt={promptPreview}
           userDates={{ start: startDate, end: endDate }}
-          onBack={() => setFullScreenTrip(null)}
+          onBack={() => onClose()}
           onClose={onClose}
           onSave={() => handleSave(fullScreenTrip.title)}
           saved={savedTrips.has(fullScreenTrip.title)}

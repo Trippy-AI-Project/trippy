@@ -30,9 +30,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("trippy-theme")||
-              (matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");
-              document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem("trippy-theme")||"light";document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`,
           }}
         />
       </head>
