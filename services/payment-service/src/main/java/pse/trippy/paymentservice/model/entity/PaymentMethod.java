@@ -1,69 +1,58 @@
 package pse.trippy.paymentservice.model.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * PaymentMethod entity representing a payment method.
+ * Maps to the 'payment_methods' table in the payment_schema.
+ */
 @Entity
 @Table(
-        name = "payment_methods",
-        schema = "payment_schema",
-        indexes = @Index(name = "idx_payment_methods_user_id", columnList = "user_id")
+    name = "payment_methods",
+    schema = "payment_schema",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"userId", "isDefault"})
 )
-@Getter
-@Setter
-@Builder
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class PaymentMethod {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @NotNull
-    @Column(name = "user_id", nullable = false)
+    @Column(nullable = false)
     private UUID userId;
 
-    @NotBlank
-    @Size(max = 20)
-    @Column(name = "type", nullable = false, length = 20)
+    @Column(nullable = false, length = 50)
     private String type;
 
-    @Size(max = 4)
-    @Column(name = "last4", length = 4)
+    @Column(nullable = false, length = 4)
     private String last4;
 
-    @Size(max = 20)
-    @Column(name = "brand", length = 20)
+    @Column(nullable = false, length = 50)
     private String brand;
 
-    @Column(name = "is_default", nullable = false)
+    @Column(nullable = false)
     @Builder.Default
     private boolean isDefault = false;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    @Column(nullable = false, updatable = false)
+    @Builder.Default
+    private Instant createdAt = Instant.now();
 
     @PrePersist
     public void prePersist() {
-        this.createdAt = Instant.now();
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
     }
 }

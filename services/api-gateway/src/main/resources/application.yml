@@ -77,6 +77,10 @@ spring:
           filters:
             - StripPrefix=1
 
+trippy:
+  gateway:
+    jwks-uri: http://user-service:8081/.well-known/jwks.json
+
 management:
   endpoints:
     web:

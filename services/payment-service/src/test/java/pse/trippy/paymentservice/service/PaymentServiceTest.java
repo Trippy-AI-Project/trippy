@@ -1,0 +1,145 @@
+package pse.trippy.paymentservice.service;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import pse.trippy.paymentservice.dto.request.CheckoutRequest;
+import pse.trippy.paymentservice.dto.response.CheckoutResponse;
+import pse.trippy.paymentservice.dto.response.PlanResponse;
+import pse.trippy.paymentservice.exception.InvalidPlanException;
+import pse.trippy.paymentservice.model.entity.Transaction;
+import pse.trippy.paymentservice.model.enums.PlanType;
+import pse.trippy.paymentservice.model.enums.TransactionStatus;
+import pse.trippy.paymentservice.repository.TransactionRepository;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("PaymentService")
+class PaymentServiceTest {
+
+    @Mock
+    private TransactionRepository transactionRepository;
+
+    @InjectMocks
+    private PaymentService paymentService;
+
+    @Test
+    @DisplayName("getAvailablePlans returns PREMIUM and ENTERPRISE")
+    void getAvailablePlansReturnsBothPlans() {
+        List<PlanResponse> plans = paymentService.getAvailablePlans();
+
+        assertThat(plans).hasSize(2);
+        assertThat(plans.get(0).getPlanId()).isEqualTo("PREMIUM");
+        assertThat(plans.get(0).getPrice()).isEqualByComparingTo(new BigDecimal("9.99"));
+        assertThat(plans.get(0).getCurrency()).isEqualTo("EUR");
+        assertThat(plans.get(0).getFeatures()).contains("Up to 10 trips", "AI itineraries", "Priority support");
+        assertThat(plans.get(1).getPlanId()).isEqualTo("ENTERPRISE");
+        assertThat(plans.get(1).getPrice()).isEqualByComparingTo(new BigDecimal("29.99"));
+    }
+
+    @Test
+    @DisplayName("checkout with PREMIUM plan records transaction and returns success")
+    void checkoutPremiumSucceeds() {
+        UUID userId = UUID.randomUUID();
+        UUID txnId = UUID.randomUUID();
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planId("PREMIUM")
+                .paymentMethodId("pm_test_123")
+                .build();
+
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> {
+            Transaction t = inv.getArgument(0);
+            t.setId(txnId);
+            t.prePersist();
+            return t;
+        });
+
+        CheckoutResponse response = paymentService.checkout(userId, request);
+
+        assertThat(response.getTransactionId()).isEqualTo(txnId);
+        assertThat(response.getStatus()).isEqualTo("COMPLETED");
+        assertThat(response.getPlan()).isEqualTo("PREMIUM");
+        assertThat(response.getAmount().getValue()).isEqualByComparingTo(new BigDecimal("9.99"));
+        assertThat(response.getAmount().getCurrency()).isEqualTo("EUR");
+        assertThat(response.getMessage()).isEqualTo("Subscription activated successfully");
+
+        // Verify the saved entity
+        ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
+        verify(transactionRepository).save(captor.capture());
+        Transaction saved = captor.getValue();
+        assertThat(saved.getUserId()).isEqualTo(userId);
+        assertThat(saved.getPlanId()).isEqualTo(PlanType.PREMIUM);
+        assertThat(saved.getAmount()).isEqualByComparingTo(new BigDecimal("9.99"));
+        assertThat(saved.getStatus()).isEqualTo(TransactionStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("checkout with ENTERPRISE plan records correct amount")
+    void checkoutEnterpriseSucceeds() {
+        UUID userId = UUID.randomUUID();
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planId("ENTERPRISE")
+                .paymentMethodId("pm_test_456")
+                .build();
+
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> {
+            Transaction t = inv.getArgument(0);
+            t.setId(UUID.randomUUID());
+            t.prePersist();
+            return t;
+        });
+
+        CheckoutResponse response = paymentService.checkout(userId, request);
+
+        assertThat(response.getPlan()).isEqualTo("ENTERPRISE");
+        assertThat(response.getAmount().getValue()).isEqualByComparingTo(new BigDecimal("29.99"));
+    }
+
+    @Test
+    @DisplayName("checkout with case-insensitive plan ID succeeds")
+    void checkoutCaseInsensitive() {
+        UUID userId = UUID.randomUUID();
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planId("premium")
+                .paymentMethodId("pm_test_789")
+                .build();
+
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> {
+            Transaction t = inv.getArgument(0);
+            t.setId(UUID.randomUUID());
+            t.prePersist();
+            return t;
+        });
+
+        CheckoutResponse response = paymentService.checkout(userId, request);
+
+        assertThat(response.getPlan()).isEqualTo("PREMIUM");
+    }
+
+    @Test
+    @DisplayName("checkout with invalid planId throws InvalidPlanException")
+    void checkoutInvalidPlanThrows() {
+        UUID userId = UUID.randomUUID();
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planId("INVALID_PLAN")
+                .paymentMethodId("pm_test_000")
+                .build();
+
+        assertThatThrownBy(() -> paymentService.checkout(userId, request))
+                .isInstanceOf(InvalidPlanException.class)
+                .hasMessageContaining("INVALID_PLAN");
+    }
+}

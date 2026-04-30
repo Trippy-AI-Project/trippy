@@ -20,15 +20,16 @@ import {
   Plane,
   Heart,
   Zap,
-  
+  DollarSign,
   ChevronRight,
   Shield,
   Clock,
   TrendingUp,
   Play,
   Waves,
+  ChevronDown,
 } from "lucide-react";
-import AITripBuilderModal from "@/components/ai/AITripBuilderModal";
+import AITripBuilderModal, { type AIBuilderRequest } from "@/components/ai/AITripBuilderModal";
 import MiniCalendar from "@/components/ui/MiniCalendar";
 import Logo from "@/components/Logo";
 import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
@@ -295,11 +296,40 @@ export default function LandingPage() {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [showAIBuilder, setShowAIBuilder] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
+  const [travelGroup, setTravelGroup] = useState("");
+  const [heroBudget, setHeroBudget] = useState("");
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [calendarSelecting, setCalendarSelecting] = useState<"start" | "end">("start");
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [aiBuilderRequest, setAiBuilderRequest] = useState<AIBuilderRequest | undefined>(undefined);
 
-  const isSearchActive = isSearchFocused || searchQuery.length > 0 || activeFilters.length > 0 || (startDate !== null || endDate !== null);
+  const formatDateShort = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400000);
+  const toggleDropdown = (name: string) => setActiveDropdown((p) => (p === name ? null : name));
+
+  const isSearchActive =
+    isSearchFocused ||
+    searchQuery.length > 0 ||
+    activeFilters.length > 0 ||
+    startDate !== null ||
+    endDate !== null ||
+    travelGroup !== "" ||
+    heroBudget !== "";
+
+  const openAIBuilder = (autoGenerate = false) => {
+    setAiBuilderRequest({
+      requestId: Date.now(),
+      city: searchQuery.trim() || undefined,
+      startDate: startDate ? startDate.toISOString().slice(0, 10) : undefined,
+      endDate: endDate ? endDate.toISOString().slice(0, 10) : undefined,
+      people: travelGroup === "Solo" ? 1 : travelGroup === "Couple" ? 2 : travelGroup === "Family" ? 4 : travelGroup === "Friends" ? 4 : travelGroup === "Group" ? 8 : 2,
+      filters: activeFilters,
+      autoGenerate,
+    });
+    setShowAIBuilder(true);
+  };
 
   // Auto-cycle AI steps
   useEffect(() => {
@@ -442,92 +472,299 @@ export default function LandingPage() {
 
         {/* ── Hero Search Bar ─────────────────────────────── */}
         <motion.div
-          className={`mt-10 w-full transition-all duration-500 ${isSearchFocused ? "max-w-4xl scale-[1.01]" : "max-w-3xl hover:scale-[1.005]"}`}
+          className={`mt-10 w-full transition-all duration-500 ${isSearchFocused ? "max-w-3xl scale-[1.01]" : "max-w-2xl hover:scale-[1.005]"}`}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
         >
-          <div className={`glass-strong p-2 flex flex-col sm:flex-row items-stretch gap-2 transition-all duration-500 rounded-2xl ${isSearchFocused ? "ring-4 ring-trippy-500/30 shadow-[0_0_60px_-15px_rgba(62,155,126,0.4)] bg-white/95" : "hover:ring-2 hover:ring-trippy-500/20 hover:shadow-xl"}`}>
-            <div className="relative flex-1 flex items-center">
-              <Search size={18} className="absolute left-4 text-muted" />
+          {/* Main search input */}
+          <div className={`glass-strong rounded-2xl transition-all duration-500 ${isSearchFocused ? "ring-4 ring-trippy-500/30 shadow-[0_0_60px_-15px_rgba(62,155,126,0.4)] bg-white/95" : "hover:ring-2 hover:ring-trippy-500/20 hover:shadow-xl"}`}>
+            <div className="flex items-center">
+              <Search size={18} className="ml-5 text-muted shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setIsSearchFocused(false)}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={searchQuery ? "" : `Search trips — ${typedDestination}|`}
-                className="w-full bg-transparent py-3.5 pl-12 pr-28 text-sm text-foreground placeholder:text-muted/70 outline-none"
+                onKeyDown={(e) => { if (e.key === "Enter" && searchQuery.trim()) openAIBuilder(true); }}
+                placeholder={searchQuery ? "" : typedDestination}
+                className="flex-1 bg-transparent py-4 px-4 text-base text-foreground placeholder:text-muted/50 outline-none"
               />
-              <div className="absolute right-3 flex items-center gap-1 cursor-default pointer-events-none opacity-70">
-                <Sparkles size={12} className="text-trippy-500" />
-                <span className="text-[10px] font-medium text-trippy-500 uppercase tracking-widest hidden sm:inline">AI Powered</span>
-              </div>
+              <button
+                onClick={() => openAIBuilder(true)}
+                className="mr-2 flex items-center gap-2 bg-trippy-500 hover:bg-trippy-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer group"
+              >
+                <Sparkles size={15} className="group-hover:rotate-12 transition-transform" />
+                <span className="hidden sm:inline">Plan Trip</span>
+                <span className="sm:hidden">Go</span>
+              </button>
             </div>
-            
-            <Button variant="secondary" onClick={() => setShowAIBuilder(true)} className="sm:w-auto h-full shrink-0 group border border-trippy-500/20 hover:border-trippy-500/40">
-              <Sparkles size={16} className="text-trippy-600 group-hover:text-trippy-500 transition-colors" />
-              AI Trip
-            </Button>
           </div>
 
-          {/* Quick filter pills */}
-          <div className="mt-4 flex flex-wrap justify-center gap-2 relative">
-            {["Beach", "Mountains", "City Break", "Adventure", "Wellness", "Road Trip"].map(
-              (tag) => {
-                // Map filter labels to trip tag names where different
-                const tagMap: Record<string, string> = { "City Break": "City", "Mountains": "Nature" };
-                const mappedTag = tagMap[tag] ?? tag;
-                const isActive = activeFilters.includes(mappedTag);
-                return (
-                  <button
-                    key={tag}
-                    onClick={() => toggleFilter(mappedTag)}
-                    className={`glass-sm px-3 py-1.5 text-xs font-medium cursor-pointer transition-all ${
-                      isActive
-                        ? "!bg-trippy-500/15 !border-trippy-500/30 text-foreground"
-                        : "text-muted hover:text-foreground hover:bg-surface-hover"
-                    }`}
-                  >
-                    {tag}
-                    {isActive && <span className="ml-1.5">✕</span>}
-                  </button>
-                );
-              }
-            )}
+          {/* Filter chips below search */}
+          <div className="mt-3 flex flex-wrap justify-center items-center gap-2">
 
-            {/* Dates Filter */}
-            <button
-              onClick={() => setShowDatePicker(!showDatePicker)}
-              className={`glass-sm px-3 py-1.5 text-xs font-medium cursor-pointer transition-all ${
-                startDate || endDate ? "!bg-trippy-500/15 !border-trippy-500/30 text-foreground" : "text-muted hover:text-foreground hover:bg-surface-hover"
-              }`}
-            >
-              <Calendar size={12} className="inline mr-1.5 mb-0.5" />
-              {startDate && endDate ? `${startDate.toLocaleDateString(undefined, {month:'short', day:'numeric'})} - ${endDate.toLocaleDateString(undefined, {month:'short', day:'numeric'})}` : "Add dates"}
-            </button>
-            
-            <AnimatePresence>
-              {showDatePicker && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowDatePicker(false); }} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute top-10 left-1/2 -translate-x-1/2 z-50 p-4 glass-strong rounded-2xl shadow-2xl border border-trippy-500/20 w-full max-w-lg flex flex-col sm:flex-row gap-4"
-                  >
-                    <MiniCalendar title="Start Date" date={startDate} setDate={setStartDate} />
-                    <MiniCalendar title="End Date" date={endDate} setDate={setEndDate} />
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-
-            {(activeFilters.length > 0 || searchQuery || startDate || endDate) && (
+            {/* ── Duration ── */}
+            <div className="relative">
               <button
-                onClick={() => { setActiveFilters([]); setSearchQuery(""); setStartDate(null); setEndDate(null); }}
-                className="px-3 py-1.5 text-xs font-medium text-danger cursor-pointer hover:underline"
+                onClick={() => toggleDropdown("duration")}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
+                  startDate
+                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
+                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
+                }`}
+              >
+                <Calendar size={13} />
+                {startDate && endDate
+                  ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)} (${daysBetween(startDate, endDate)} days)`
+                  : "Duration"}
+                {startDate && (
+                  <span onClick={(e) => { e.stopPropagation(); setStartDate(null); setEndDate(null); setCalendarSelecting("start"); }} className="ml-0.5 hover:text-danger">✕</span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {activeDropdown === "duration" && (() => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const cm = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+                  const nm = new Date(cm.getFullYear(), cm.getMonth() + 1, 1);
+                  const renderMonth = (monthStart: Date) => {
+                    const year = monthStart.getFullYear();
+                    const month = monthStart.getMonth();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    const firstDay = monthStart.getDay();
+                    const cells: (number | null)[] = Array(firstDay).fill(null);
+                    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                    return (
+                      <div className="w-[224px]">
+                        <p className="text-xs font-semibold text-center mb-2">{monthStart.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</p>
+                        <div className="grid grid-cols-7 place-items-center">
+                          {["Su","Mo","Tu","We","Th","Fr","Sa"].map((d) => <div key={d} className="w-8 h-6 flex items-center justify-center text-[10px] text-muted font-medium">{d}</div>)}
+                          {cells.map((day, i) => {
+                            if (!day) return <div key={`e-${i}`} className="w-8 h-8" />;
+                            const date = new Date(year, month, day);
+                            const isPast = date < today;
+                            const isStart = startDate && date.getTime() === startDate.getTime();
+                            const isEnd = endDate && date.getTime() === endDate.getTime();
+                            const inRange = startDate && endDate && date > startDate && date < endDate;
+                            return (
+                              <button
+                                key={day}
+                                disabled={isPast}
+                                onClick={() => {
+                                  if (calendarSelecting === "start" || (startDate && date < startDate)) {
+                                    setStartDate(date); setEndDate(null); setCalendarSelecting("end");
+                                  } else {
+                                    setEndDate(date); setCalendarSelecting("start"); setActiveDropdown(null);
+                                  }
+                                }}
+                                className={`w-8 h-8 rounded-full text-[11px] flex items-center justify-center transition-all ${
+                                  isPast ? "text-muted/30 cursor-not-allowed" :
+                                  isStart || isEnd ? "bg-trippy-500 text-white font-bold cursor-pointer" :
+                                  inRange ? "bg-trippy-500/15 text-trippy-600 cursor-pointer" :
+                                  "hover:bg-trippy-500/10 text-foreground cursor-pointer"
+                                }`}
+                              >
+                                {day}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  };
+                  return (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 6 }}
+                        className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 p-5 bg-white rounded-xl shadow-2xl border border-border/50"
+                      >
+                        <div className="flex items-center justify-between mb-3 px-1">
+                          <button onClick={() => setCalendarMonth(new Date(cm.getFullYear(), cm.getMonth() - 1, 1))} className="w-7 h-7 rounded-full hover:bg-surface flex items-center justify-center text-muted cursor-pointer text-sm">‹</button>
+                          <p className="text-[10px] text-muted font-medium">{calendarSelecting === "start" ? "Select start date" : "Select end date"}</p>
+                          <button onClick={() => setCalendarMonth(new Date(cm.getFullYear(), cm.getMonth() + 1, 1))} className="w-7 h-7 rounded-full hover:bg-surface flex items-center justify-center text-muted cursor-pointer text-sm">›</button>
+                        </div>
+                        <div className="flex gap-8">
+                          {renderMonth(cm)}
+                          {renderMonth(nm)}
+                        </div>
+                      </motion.div>
+                    </>
+                  );
+                })()}
+              </AnimatePresence>
+            </div>
+
+            {/* ── Travel Group ── */}
+            <div className="relative">
+              <button
+                onClick={() => toggleDropdown("group")}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
+                  travelGroup
+                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
+                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
+                }`}
+              >
+                <Users size={13} />
+                {travelGroup || "Who's going"}
+                {travelGroup && (
+                  <span onClick={(e) => { e.stopPropagation(); setTravelGroup(""); }} className="ml-0.5 hover:text-danger">✕</span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {activeDropdown === "group" && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 bg-white rounded-xl shadow-2xl border border-border/50 overflow-hidden min-w-[160px]"
+                    >
+                      {[
+                        { label: "Solo", emoji: "🧑" },
+                        { label: "Couple", emoji: "💑" },
+                        { label: "Friends", emoji: "👯" },
+                        { label: "Family", emoji: "👨‍👩‍👧‍👦" },
+                        { label: "Group", emoji: "🎉" },
+                      ].map(({ label, emoji }) => (
+                        <button
+                          key={label}
+                          onClick={() => { setTravelGroup(label); setActiveDropdown(null); }}
+                          className={`w-full text-left px-4 py-2.5 text-xs hover:bg-trippy-500/5 transition-colors cursor-pointer flex items-center gap-2.5 ${
+                            travelGroup === label ? "text-trippy-600 font-medium bg-trippy-500/5" : "text-foreground"
+                          }`}
+                        >
+                          <span className="text-sm">{emoji}</span>
+                          {label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* ── Budget ── */}
+            <div className="relative">
+              <button
+                onClick={() => toggleDropdown("budget")}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
+                  heroBudget
+                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
+                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
+                }`}
+              >
+                <DollarSign size={13} />
+                {heroBudget || "Budget"}
+                {heroBudget && (
+                  <span onClick={(e) => { e.stopPropagation(); setHeroBudget(""); }} className="ml-0.5 hover:text-danger">✕</span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {activeDropdown === "budget" && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 bg-white rounded-xl shadow-2xl border border-border/50 overflow-hidden min-w-[150px]"
+                    >
+                      {[
+                        { label: "Budget", icon: "💰" },
+                        { label: "Moderate", icon: "💵" },
+                        { label: "Premium", icon: "💎" },
+                        { label: "Luxury", icon: "👑" },
+                      ].map(({ label, icon }) => (
+                        <button
+                          key={label}
+                          onClick={() => { setHeroBudget(label); setActiveDropdown(null); }}
+                          className={`w-full text-left px-4 py-2.5 text-xs hover:bg-trippy-500/5 transition-colors cursor-pointer flex items-center gap-2.5 ${
+                            heroBudget === label ? "text-trippy-600 font-medium bg-trippy-500/5" : "text-foreground"
+                          }`}
+                        >
+                          <span className="text-sm">{icon}</span>
+                          {label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* ── Experience Type (multi-select) ── */}
+            <div className="relative">
+              <button
+                onClick={() => toggleDropdown("experience")}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
+                  activeFilters.length > 0
+                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
+                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
+                }`}
+              >
+                <Compass size={13} />
+                {activeFilters.length > 0 ? `${activeFilters.length} selected` : "Experience"}
+                {activeFilters.length > 0 && (
+                  <span onClick={(e) => { e.stopPropagation(); setActiveFilters([]); }} className="ml-0.5 hover:text-danger">✕</span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {activeDropdown === "experience" && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 bg-white rounded-xl shadow-2xl border border-border/50 overflow-hidden min-w-[180px]"
+                    >
+                      {[
+                        { label: "Beach", tag: "Beach", emoji: "🏖️" },
+                        { label: "Mountains", tag: "Nature", emoji: "⛰️" },
+                        { label: "City Break", tag: "City", emoji: "🏙️" },
+                        { label: "Adventure", tag: "Adventure", emoji: "🧗" },
+                        { label: "Wellness", tag: "Wellness", emoji: "🧘" },
+                        { label: "Road Trip", tag: "Road Trip", emoji: "🚗" },
+                        { label: "Cultural", tag: "Cultural", emoji: "🏛️" },
+                        { label: "Nightlife", tag: "Nightlife", emoji: "🌃" },
+                        { label: "Food & Wine", tag: "Food", emoji: "🍷" },
+                      ].map(({ label, tag, emoji }) => {
+                        const active = activeFilters.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => toggleFilter(tag)}
+                            className={`w-full text-left px-4 py-2.5 text-xs hover:bg-trippy-500/5 transition-colors cursor-pointer flex items-center gap-2.5 ${
+                              active ? "text-trippy-600 font-medium bg-trippy-500/5" : "text-foreground"
+                            }`}
+                          >
+                            <span className="text-sm">{emoji}</span>
+                            <span className="flex-1">{label}</span>
+                            {active && <span className="text-trippy-500 text-xs">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Clear all */}
+            {(activeFilters.length > 0 || startDate || endDate || travelGroup || heroBudget) && (
+              <button
+                onClick={() => { setActiveFilters([]); setSearchQuery(""); setStartDate(null); setEndDate(null); setTravelGroup(""); setHeroBudget(""); setCalendarSelecting("start"); }}
+                className="text-xs text-danger/70 hover:text-danger cursor-pointer hover:underline ml-1"
               >
                 Clear all
               </button>
@@ -731,21 +968,24 @@ export default function LandingPage() {
               className="text-center py-16"
             >
               <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-trippy-500/10 flex items-center justify-center">
-                <Search size={28} className="text-trippy-600" />
+                <Sparkles size={28} className="text-trippy-600" />
               </div>
-              <h3 className="text-lg font-semibold">No trips found</h3>
+              <h3 className="text-lg font-semibold">
+                {searchQuery
+                  ? `No curated trips for "${searchQuery}"`
+                  : "No trips match your filters"}
+              </h3>
               <p className="mt-2 text-muted max-w-md mx-auto">
-                No trips match &ldquo;{searchQuery || activeFilters.join(", ")}&rdquo;. Try a different search or{" "}
-                <button onClick={() => setShowAIBuilder(true)} className="text-trippy-600 font-medium hover:underline cursor-pointer">
-                  let AI create one for you
-                </button>.
+                {searchQuery
+                  ? "Let our AI create a personalized trip plan for this destination instantly!"
+                  : `No trips match "${activeFilters.join(", ")}". Try different filters or let AI help.`}
               </p>
-              <div className="mt-4 flex justify-center gap-3">
+              <div className="mt-5 flex justify-center gap-3">
                 <Button variant="secondary" size="sm" onClick={() => { setSearchQuery(""); setActiveFilters([]); }}>
                   Clear filters
                 </Button>
-                <Button size="sm" onClick={() => setShowAIBuilder(true)}>
-                  <Sparkles size={14} /> AI Trip Builder
+                <Button size="sm" onClick={() => openAIBuilder(true)}>
+                  <Sparkles size={14} /> {searchQuery ? `AI Trip to ${searchQuery}` : "AI Trip Builder"}
                 </Button>
               </div>
             </motion.div>
@@ -847,7 +1087,7 @@ export default function LandingPage() {
 
                   {/* CTA */}
                   <div className="pt-2 flex gap-3">
-                    <Button className="w-full flex-1" size="sm" onClick={() => setShowAIBuilder(true)}>
+                    <Button className="w-full flex-1" size="sm" onClick={() => openAIBuilder(false)}>
                         <Sparkles size={14} /> Generate my trip
                     </Button>
                     <Button variant="secondary" size="sm">Customize</Button>
@@ -900,7 +1140,7 @@ export default function LandingPage() {
                 })}
               </div>
 
-              <Button size="lg" className="mt-4 bg-trippy-600 hover:shadow-trippy-500/25" onClick={() => setShowAIBuilder(true)}>
+                <Button size="lg" className="mt-4 bg-trippy-600 hover:shadow-trippy-500/25" onClick={() => openAIBuilder(false)}>
                   <Sparkles size={16} /> Try AI Trip Builder <ArrowRight size={16} />
               </Button>
             </motion.div>
@@ -1196,7 +1436,7 @@ export default function LandingPage() {
                   Start for free <ArrowRight size={16} />
                 </Button>
               </Link>
-              <Button variant="secondary" size="lg" onClick={() => setShowAIBuilder(true)}>
+                <Button variant="secondary" size="lg" onClick={() => openAIBuilder(false)}>
                   <Sparkles size={16} /> Try AI Trip Builder
               </Button>
             </div>
@@ -1254,7 +1494,11 @@ export default function LandingPage() {
       </footer>
 
       {/* AI Trip Builder Modal */}
-      <AITripBuilderModal open={showAIBuilder} onClose={() => setShowAIBuilder(false)} />
+      <AITripBuilderModal
+        open={showAIBuilder}
+        onClose={() => setShowAIBuilder(false)}
+        initialRequest={aiBuilderRequest}
+      />
     </div>
   );
 }
