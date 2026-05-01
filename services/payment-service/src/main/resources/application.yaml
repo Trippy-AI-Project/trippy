@@ -4,6 +4,8 @@ spring:
   application:
     name: payment-service
   devtools:
+    restart:
+      enabled: false
     livereload:
       enabled: false
   datasource:

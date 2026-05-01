@@ -2,8 +2,6 @@ package pse.trippy.paymentservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,17 +12,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import pse.trippy.paymentservice.dto.request.CheckoutRequest;
-import pse.trippy.paymentservice.dto.response.CheckoutResponse;
-import pse.trippy.paymentservice.dto.response.PlanResponse;
-import pse.trippy.paymentservice.service.PaymentService;
 import pse.trippy.paymentservice.dto.request.AddPaymentMethodRequest;
 import pse.trippy.paymentservice.dto.request.CancelSubscriptionRequest;
 import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
 import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
 import pse.trippy.paymentservice.dto.response.PaymentMethodResponse;
+import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.dto.response.SubscriptionResponse;
 import pse.trippy.paymentservice.service.PaymentMethodService;
+import pse.trippy.paymentservice.service.PaymentService;
 import pse.trippy.paymentservice.service.SubscriptionService;
 
 import java.util.List;
@@ -36,24 +32,13 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final SubscriptionService subscriptionService;
+    private final PaymentMethodService paymentMethodService;
 
     @GetMapping("/plans")
     public ResponseEntity<List<PlanResponse>> getPlans() {
         return ResponseEntity.ok(paymentService.getAvailablePlans());
     }
-
-    @PostMapping("/checkout")
-    public ResponseEntity<CheckoutResponse> checkout(
-            @RequestBody @Valid CheckoutRequest request,
-            @RequestHeader(value = "X-User-Id") String userId) {
-
-        CheckoutResponse response = paymentService.checkout(
-                UUID.fromString(userId), request);
-
-        return ResponseEntity.ok(response);
-    }
-    private final SubscriptionService subscriptionService;
-    private final PaymentMethodService paymentMethodService;
 
     @PostMapping("/checkout")
     public ResponseEntity<PaymentConfirmationResponse> confirmPayment(
