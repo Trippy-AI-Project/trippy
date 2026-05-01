@@ -48,4 +48,10 @@ public class AiController {
             @Valid @RequestBody GenerateItineraryRequest request) {
         return ResponseEntity.ok(aiService.generateItinerary(request));
     }
+
+    @DeleteMapping("/cache/{type}")
+    public ResponseEntity<Void> evictCache(@PathVariable String type) {
+        aiCacheService.evictCache(type);
+        return ResponseEntity.noContent().build();
+    }
 }

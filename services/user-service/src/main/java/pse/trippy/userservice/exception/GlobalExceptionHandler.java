@@ -91,6 +91,48 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
+    @ExceptionHandler(VerificationTokenExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleVerificationTokenExpired(
+            VerificationTokenExpiredException ex, WebRequest request) {
+
+        log.warn("Verification token expired: {}", ex.getMessage());
+        ErrorResponse response = ErrorResponse.builder()
+                .error("TOKEN_EXPIRED")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(extractPath(request))
+                .build();
+        return ResponseEntity.status(HttpStatus.GONE).body(response);
+    }
+
+    @ExceptionHandler(EmailAlreadyVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailAlreadyVerified(
+            EmailAlreadyVerifiedException ex, WebRequest request) {
+
+        log.warn("Email already verified: {}", ex.getMessage());
+        ErrorResponse response = ErrorResponse.builder()
+                .error("EMAIL_ALREADY_VERIFIED")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(extractPath(request))
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimitExceeded(
+            RateLimitExceededException ex, WebRequest request) {
+
+        log.warn("Rate limit exceeded: {}", ex.getMessage());
+        ErrorResponse response = ErrorResponse.builder()
+                .error("RATE_LIMIT_EXCEEDED")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(extractPath(request))
+                .build();
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
+    }
+
     /**
      * Handles validation errors (400 Bad Request).
      */

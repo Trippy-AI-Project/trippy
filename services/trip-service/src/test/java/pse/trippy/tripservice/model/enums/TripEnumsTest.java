@@ -67,10 +67,11 @@ class TripEnumsTest {
     // =========================================================================
 
     @Test
-    @DisplayName("ParticipantRole has exactly three values")
-    void participantRoleHasThreeValues() {
+    @DisplayName("ParticipantRole has exactly four values")
+    void participantRoleHasFourValues() {
         assertThat(ParticipantRole.values()).containsExactlyInAnyOrder(
-                ParticipantRole.OWNER, ParticipantRole.EDITOR, ParticipantRole.VIEWER);
+                ParticipantRole.OWNER, ParticipantRole.EDITOR, ParticipantRole.VIEWER,
+                ParticipantRole.MEMBER);
     }
 
     @Test
@@ -79,6 +80,7 @@ class TripEnumsTest {
         assertThat(ParticipantRole.valueOf("OWNER")).isEqualTo(ParticipantRole.OWNER);
         assertThat(ParticipantRole.valueOf("EDITOR")).isEqualTo(ParticipantRole.EDITOR);
         assertThat(ParticipantRole.valueOf("VIEWER")).isEqualTo(ParticipantRole.VIEWER);
+        assertThat(ParticipantRole.valueOf("MEMBER")).isEqualTo(ParticipantRole.MEMBER);
     }
 
     // =========================================================================
@@ -86,17 +88,19 @@ class TripEnumsTest {
     // =========================================================================
 
     @Test
-    @DisplayName("ParticipantStatus has exactly four values")
-    void participantStatusHasFourValues() {
+    @DisplayName("ParticipantStatus has exactly five values")
+    void participantStatusHasFiveValues() {
         assertThat(ParticipantStatus.values()).containsExactlyInAnyOrder(
-                ParticipantStatus.PENDING, ParticipantStatus.ACCEPTED,
-                ParticipantStatus.DECLINED, ParticipantStatus.LEFT);
+                ParticipantStatus.PENDING, ParticipantStatus.INVITED,
+                ParticipantStatus.ACCEPTED, ParticipantStatus.DECLINED,
+                ParticipantStatus.LEFT);
     }
 
     @Test
     @DisplayName("ParticipantStatus.valueOf returns correct constants")
     void participantStatusValueOf() {
         assertThat(ParticipantStatus.valueOf("PENDING")).isEqualTo(ParticipantStatus.PENDING);
+        assertThat(ParticipantStatus.valueOf("INVITED")).isEqualTo(ParticipantStatus.INVITED);
         assertThat(ParticipantStatus.valueOf("ACCEPTED")).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(ParticipantStatus.valueOf("DECLINED")).isEqualTo(ParticipantStatus.DECLINED);
         assertThat(ParticipantStatus.valueOf("LEFT")).isEqualTo(ParticipantStatus.LEFT);

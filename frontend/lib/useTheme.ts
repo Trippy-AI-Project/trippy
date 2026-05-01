@@ -11,6 +11,7 @@ export function useTheme() {
     const stored = localStorage.getItem("trippy-theme") as Theme | null;
     const initial = stored ?? "light";
     setThemeState(initial);
+    localStorage.setItem("trippy-theme", initial);
     document.documentElement.setAttribute("data-theme", initial);
   }, []);
 

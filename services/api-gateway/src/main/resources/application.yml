@@ -6,76 +6,74 @@ server:
 spring:
   application:
     name: api-gateway
+  devtools:
+    livereload:
+      enabled: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:change_me_redis}
   cloud:
     gateway:
       routes:
         # User Service Routes
         - id: auth-route
-          uri: http://user-service:8081
+          uri: http://localhost:8081
           predicates:
             - Path=/auth/**
-          filters:
-            - StripPrefix=1
 
         - id: users-route
-          uri: http://user-service:8081
+          uri: http://localhost:8081
           predicates:
             - Path=/users/**
-          filters:
-            - StripPrefix=1
 
         - id: wellknown-route
-          uri: http://user-service:8081
+          uri: http://localhost:8081
           predicates:
             - Path=/.well-known/**
 
         # Trip Service Routes
         - id: trips-route
-          uri: http://trip-service:8082
+          uri: http://localhost:8082
           predicates:
             - Path=/trips/**
-          filters:
-            - StripPrefix=1
 
-        # Chat Service Routes (REST)
+        # Chat Service Routes (REST) - /trips/{tripId}/chat/**
         - id: trips-chat-route
-          uri: http://chat-service:8083
+          uri: http://localhost:8083
           predicates:
-            - Path=/trips/**/chat/**
-          filters:
-            - StripPrefix=3
+            - Path=/trips/{tripId}/chat/**
+
+        # Chat Service Routes (REST) - /chats/**
+        - id: chats-route
+          uri: http://localhost:8083
+          predicates:
+            - Path=/chats/**
 
         # WebSocket Route
         - id: websocket-route
-          uri: ws://chat-service:8083
+          uri: ws://localhost:8083
           predicates:
             - Path=/ws/**
-          filters:
-            - StripPrefix=1
 
         # AI Service Routes
         - id: ai-route
-          uri: http://ai-service:8084
+          uri: http://localhost:8084
           predicates:
             - Path=/ai/**
-          filters:
-            - StripPrefix=1
 
         # Notification Service Routes
         - id: notification-route
-          uri: http://notification-service:8085
+          uri: http://localhost:8085
           predicates:
             - Path=/notifications/**
-          filters:
-            - StripPrefix=1
 
         # Payment Service Routes
         - id: payment-route
-          uri: http://payment-service:8086
+          uri: http://localhost:8086
           predicates:
             - Path=/payments/**
-          filters:
-            - StripPrefix=1
 
 trippy:
   gateway:
@@ -85,10 +83,21 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,metrics,gateway
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
+    gateway:
+      enabled: true
+  health:
+    defaults:
+      enabled: true
+
+info:
+  app:
+    name: Trippy API Gateway
+    version: 0.2.0
+    description: API Gateway for Trippy platform
 
 logging:
   level:

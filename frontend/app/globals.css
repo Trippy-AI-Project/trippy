@@ -1,77 +1,98 @@
 @import "tailwindcss";
 
-/* ─── Trippy Design Tokens — Wanderlust Light (Nature-Driven) ────────── */
+/* ─── Trippy Design Tokens — Coastline Light (Beach + Nature) ────────── */
 
 :root {
-  /* Core palette — Botanical Greens (Sage/Matcha/Emerald) */
-  --trippy-50:  #f2f9f5;
-  --trippy-100: #e1f2e8;
-  --trippy-200: #c3e3d4;
-  --trippy-300: #96ceb9;
-  --trippy-400: #61b299;
-  --trippy-500: #3e9b7e; /* Primary Brand Color */
-  --trippy-600: #2d7d64; /* Hover states, emphasis */
-  --trippy-700: #256451;
-  --trippy-800: #205041;
-  --trippy-900: #1b4237;
+  /* Core palette — Sea Glass / Lagoon */
+  --trippy-50:  #effbf9;
+  --trippy-100: #d8f4ef;
+  --trippy-200: #afe7dd;
+  --trippy-300: #80d7ca;
+  --trippy-400: #4ec1b5;
+  --trippy-500: #239da0;
+  --trippy-600: #1d7f87;
+  --trippy-700: #1c666e;
+  --trippy-800: #1b5157;
+  --trippy-900: #183f44;
 
-  /* Accent — Golden Hour (Sand/Peach/Sunstone) */
-  --accent-50:  #fff9f2;
-  --accent-100: #fff0e0;
-  --accent-200: #ffdfc2;
-  --accent-300: #ffc699;
-  --accent-400: #ffa166;
-  --accent-500: #fc7a36; /* Vibrancy & Calls to Action */
-  --accent-600: #ec5d1c;
-  --accent-700: #c44211;
+  /* Accent — Sun Coral / Tropical Bloom */
+  --accent-50:  #fff7f1;
+  --accent-100: #ffe9dc;
+  --accent-200: #ffd0b4;
+  --accent-300: #ffb288;
+  --accent-400: #ff8f63;
+  --accent-500: #ff6f4d;
+  --accent-600: #ea5530;
+  --accent-700: #c83d1f;
+
+  /* Supporting sea + leaf tones */
+  --shore-50: #fffdf7;
+  --shore-100: #f9f2dd;
+  --shore-200: #f1e3b9;
+  --lagoon-100: #d9f4ff;
+  --lagoon-200: #b7e8fb;
+  --leaf-100: #e5f5df;
+  --leaf-200: #ccebbe;
 
   /* Semantic */
-  --success: #10b981;
-  --warning: #f59e0b;
+  --success: #2f9d62;
+  --warning: #d89b27;
   --danger:  #ef4444;
 
-  /* Environment — Ultra Light & Airy */
-  --background: #fdfcf9; /* Pearl/Cloud white with warm undertone */
-  --foreground: #1c2a24; /* Deep Pine for crisp, soft readability */
-  --surface:    rgba(255, 255, 255, 0.75);
-  --surface-hover: rgba(255, 255, 255, 0.95);
-  --border:     rgba(62, 155, 126, 0.15); /* Soft sage borders */
-  --text-muted: #587066;
+  /* Environment — Bright coastal daylight */
+  --background: #fffdf8;
+  --foreground: #1d3a3d;
+  --surface: rgba(255, 255, 255, 0.78);
+  --surface-hover: rgba(255, 255, 255, 0.94);
+  --border: rgba(35, 157, 160, 0.16);
+  --text-muted: #5d7c7b;
+  --shadow-soft: rgba(31, 84, 88, 0.09);
+  --shadow-warm: rgba(255, 143, 99, 0.18);
 }
 
 /* ─── Dark Mode ───────────────────────────────────────────────────────── */
 
 [data-theme="dark"] {
-  --trippy-50:  #0d1f17;
-  --trippy-100: #132b20;
-  --trippy-200: #1d4030;
-  --trippy-300: #265640;
-  --trippy-400: #3e9b7e;
-  --trippy-500: #5cc4a3;
-  --trippy-600: #7ed4b8;
-  --trippy-700: #a3e4cd;
-  --trippy-800: #c8f0e1;
-  --trippy-900: #e6f9f1;
+  --trippy-50:  #0d2023;
+  --trippy-100: #133036;
+  --trippy-200: #18474d;
+  --trippy-300: #1d626a;
+  --trippy-400: #239da0;
+  --trippy-500: #3cc2c4;
+  --trippy-600: #69d9d7;
+  --trippy-700: #95e8e2;
+  --trippy-800: #c6f4f0;
+  --trippy-900: #ebfcf9;
 
-  --accent-50:  #1f1409;
-  --accent-100: #2e1e0e;
-  --accent-200: #4a2f14;
-  --accent-300: #6e451d;
-  --accent-400: #c46a2c;
-  --accent-500: #fc7a36;
-  --accent-600: #ff9a62;
-  --accent-700: #ffbf96;
+  --accent-50:  #2c120d;
+  --accent-100: #431b15;
+  --accent-200: #6a2a1f;
+  --accent-300: #943a28;
+  --accent-400: #d85f3c;
+  --accent-500: #ff7b57;
+  --accent-600: #ff9a78;
+  --accent-700: #ffc0ad;
 
-  --success: #34d399;
-  --warning: #fbbf24;
+  --shore-50: #171410;
+  --shore-100: #2a241d;
+  --shore-200: #40362a;
+  --lagoon-100: #18313d;
+  --lagoon-200: #224857;
+  --leaf-100: #1c3121;
+  --leaf-200: #294a31;
+
+  --success: #45c777;
+  --warning: #efb94f;
   --danger:  #f87171;
 
-  --background: #0c1410;
-  --foreground: #e6f0eb;
-  --surface:    rgba(22, 38, 30, 0.85);
-  --surface-hover: rgba(30, 52, 42, 0.95);
-  --border:     rgba(92, 196, 163, 0.15);
-  --text-muted: #8faa9e;
+  --background: #10181a;
+  --foreground: #e6f6f4;
+  --surface: rgba(18, 31, 34, 0.84);
+  --surface-hover: rgba(24, 42, 45, 0.96);
+  --border: rgba(88, 204, 205, 0.16);
+  --text-muted: #94b7b4;
+  --shadow-soft: rgba(0, 0, 0, 0.24);
+  --shadow-warm: rgba(255, 123, 87, 0.16);
 }
 
 @theme inline {
@@ -108,9 +129,14 @@
 /* ─── Base ────────────────────────────────────────────────────────────── */
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(241, 227, 185, 0.38) 0%, transparent 26%),
+    radial-gradient(circle at top right, rgba(217, 244, 255, 0.28) 0%, transparent 22%),
+    radial-gradient(circle at bottom left, rgba(229, 245, 223, 0.22) 0%, transparent 22%),
+    linear-gradient(180deg, #fffefb 0%, var(--background) 42%, #fcfff9 100%);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  background-attachment: fixed;
 }
 
 /* ─── Typography Scale ────────────────────────────────────────────────── */
@@ -142,7 +168,9 @@ body {
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   border: 1px solid var(--border);
   border-radius: 1rem;
-  box-shadow: 0 4px 24px -2px rgba(32, 80, 65, 0.04);
+  box-shadow:
+    0 18px 40px -28px var(--shadow-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .glass-sm {
@@ -151,30 +179,36 @@ body {
   -webkit-backdrop-filter: blur(8px) saturate(150%);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
-  box-shadow: 0 2px 12px -2px rgba(32, 80, 65, 0.03);
+  box-shadow:
+    0 12px 28px -24px var(--shadow-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .glass-strong {
   background: var(--surface-hover);
   backdrop-filter: blur(24px) saturate(200%);
   -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid rgba(62, 155, 126, 0.25);
+  border: 1px solid rgba(35, 157, 160, 0.24);
   border-radius: 1rem;
-  box-shadow: 0 12px 40px -4px rgba(32, 80, 65, 0.08);
+  box-shadow:
+    0 28px 60px -34px var(--shadow-soft),
+    0 10px 22px -18px var(--shadow-warm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 /* ─── Niche UI Accents: Organic Gradients ─────────────────────────────── */
 
 .bg-trippy-gradient {
-  background-color: var(--trippy-500);
+  background-image: linear-gradient(135deg, var(--trippy-500) 0%, var(--trippy-400) 42%, #57c7dd 100%);
 }
 
 .bg-trippy-mesh {
   background-image:
-    radial-gradient(circle at 10% 10%, var(--trippy-100) 0%, transparent 60%),
-    radial-gradient(circle at 90% 80%, var(--accent-100) 0%, transparent 60%),
-    radial-gradient(circle at 50% 50%, var(--trippy-200) 0%, transparent 60%);
-  opacity: 0.8;
+    radial-gradient(circle at 12% 14%, var(--shore-100) 0%, transparent 42%),
+    radial-gradient(circle at 84% 18%, var(--lagoon-100) 0%, transparent 38%),
+    radial-gradient(circle at 70% 78%, var(--leaf-100) 0%, transparent 34%),
+    radial-gradient(circle at 38% 58%, var(--accent-100) 0%, transparent 44%);
+  opacity: 0.95;
 }
 
 /* ─── Smooth Scrollbar ────────────────────────────────────────────────── */

@@ -24,4 +24,5 @@ public class ChatMessageResponse {
     private String type;
     private Instant createdAt;
     private boolean edited;
+    private MessageAttachmentResponse attachment;
 }

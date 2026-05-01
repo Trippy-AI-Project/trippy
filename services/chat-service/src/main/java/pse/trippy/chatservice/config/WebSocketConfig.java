@@ -1,6 +1,8 @@
 package pse.trippy.chatservice.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -11,15 +13,33 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  */
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final WebSocketAuthChannelInterceptor authChannelInterceptor;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.host:localhost}")
+    private String rabbitHost;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.username:trippy_mq}")
+    private String rabbitUser;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.password:CHANGE_ME_RABBITMQ_PASSWORD_789!}")
+    private String rabbitPass;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.rabbitmq.virtual-host:trippy}")
+    private String rabbitVhost;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableStompBrokerRelay("/topic", "/queue")
-                .setRelayHost("localhost")
+                .setRelayHost(rabbitHost)
                 .setRelayPort(61613)
-                .setClientLogin("guest")
-                .setClientPasscode("guest");
+                .setClientLogin(rabbitUser)
+                .setClientPasscode(rabbitPass)
+                .setSystemLogin(rabbitUser)
+                .setSystemPasscode(rabbitPass)
+                .setVirtualHost(rabbitVhost);
 
         config.setApplicationDestinationPrefixes("/app");
     }
@@ -29,5 +49,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/ws")
                 .setAllowedOrigins("http://localhost:3000")
                 .withSockJS();
+    }
+
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(authChannelInterceptor);
     }
 }

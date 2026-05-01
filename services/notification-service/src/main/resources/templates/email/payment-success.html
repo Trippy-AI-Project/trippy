@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Payment Successful</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #10b981, #059669); padding: 32px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 28px; }
+        .body { padding: 32px; color: #374151; line-height: 1.6; }
+        .payment-card { background: #ecfdf5; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .payment-card h3 { color: #059669; margin-top: 0; }
+        .amount { font-size: 24px; font-weight: 700; color: #059669; }
+        .btn { display: inline-block; padding: 12px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; }
+        .footer { padding: 20px 32px; background: #f9fafb; text-align: center; color: #9ca3af; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Payment Successful</h1>
+    </div>
+    <div class="body">
+        <p>Hello, <span th:text="${userName}">User</span>!</p>
+        <p>Your payment has been processed successfully.</p>
+        <div class="payment-card">
+            <h3>Payment Details</h3>
+            <p>Amount: <span class="amount" th:text="${amount}">0.00</span> EUR</p>
+            <p>Plan: <span th:text="${planName}">Plan</span></p>
+        </div>
+        <p>Thank you for your payment. You can view your receipt and payment history in your dashboard.</p>
+        <a th:href="${dashboardUrl}" class="btn">View Dashboard</a>
+    </div>
+    <div class="footer">
+        <p>&copy; 2026 Trippy. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Invitation Accepted</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 28px; }
+        .body { padding: 32px; color: #374151; line-height: 1.6; }
+        .trip-card { background: #f0f0ff; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .trip-card h3 { color: #6366f1; margin-top: 0; }
+        .btn { display: inline-block; padding: 12px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; }
+        .footer { padding: 20px 32px; background: #f9fafb; text-align: center; color: #9ca3af; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Invitation Accepted!</h1>
+    </div>
+    <div class="body">
+        <p>Hello, <span th:text="${inviterName}">User</span>!</p>
+        <p>Good news! <strong th:text="${inviteeName}">Someone</strong> accepted your invitation to:</p>
+        <div class="trip-card">
+            <h3 th:text="${tripTitle}">Trip Title</h3>
+        </div>
+        <p>You can now start planning together. Head over to your dashboard to see the updated trip details.</p>
+        <a th:href="${dashboardUrl}" class="btn">View Trip</a>
+    </div>
+    <div class="footer">
+        <p>&copy; 2026 Trippy. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

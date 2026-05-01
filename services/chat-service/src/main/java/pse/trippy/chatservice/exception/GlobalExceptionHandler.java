@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import pse.trippy.chatservice.dto.response.ErrorResponse;
 
 import java.time.Instant;
@@ -57,6 +58,54 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.builder()
                 .error("CHAT_ROOM_NOT_FOUND")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(request.getRequestURI())
+                .build());
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(
+            IllegalArgumentException ex, HttpServletRequest request) {
+
+        return ResponseEntity.badRequest().body(ErrorResponse.builder()
+                .error("BAD_REQUEST")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(request.getRequestURI())
+                .build());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex, HttpServletRequest request) {
+
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ErrorResponse.builder()
+                .error("FILE_TOO_LARGE")
+                .message("File size exceeds the maximum allowed upload size")
+                .timestamp(Instant.now())
+                .path(request.getRequestURI())
+                .build());
+    }
+
+    @ExceptionHandler(FileTooLargeException.class)
+    public ResponseEntity<ErrorResponse> handleFileTooLarge(
+            FileTooLargeException ex, HttpServletRequest request) {
+
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(ErrorResponse.builder()
+                .error("FILE_TOO_LARGE")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(request.getRequestURI())
+                .build());
+    }
+
+    @ExceptionHandler(UnsupportedFileTypeException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedFileType(
+            UnsupportedFileTypeException ex, HttpServletRequest request) {
+
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(ErrorResponse.builder()
+                .error("UNSUPPORTED_FILE_TYPE")
                 .message(ex.getMessage())
                 .timestamp(Instant.now())
                 .path(request.getRequestURI())

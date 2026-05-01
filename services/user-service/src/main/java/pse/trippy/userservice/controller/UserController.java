@@ -6,14 +6,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pse.trippy.userservice.dto.request.ResendVerificationRequest;
 import pse.trippy.userservice.dto.request.UpdateProfileRequest;
 import pse.trippy.userservice.dto.response.UserProfileResponse;
 import pse.trippy.userservice.service.UserProfileService;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -64,5 +67,32 @@ public class UserController {
         }
 
         return ResponseEntity.ok(userProfileService.updateProfile(UUID.fromString(userId), request));
+    }
+
+    /**
+     * Verifies a user's email address using the provided token.
+     *
+     * @param request the verification request containing the token
+     * @return 200 OK with a success message
+     */
+    @PostMapping("/verify-email")
+    public ResponseEntity<Map<String, String>> verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest request) {
+        emailVerificationService.verifyEmail(request.getToken());
+        return ResponseEntity.ok(Map.of("message", "Email verified successfully."));
+    }
+
+    /**
+     * Resends the verification email to the specified address.
+     * Rate-limited to one request per minute per user.
+     *
+     * @param request the resend request containing the email
+     * @return 200 OK with a success message
+     */
+    @PostMapping("/resend-verification")
+    public ResponseEntity<Map<String, String>> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request) {
+        emailVerificationService.resendVerification(request.getEmail());
+        return ResponseEntity.ok(Map.of("message", "Verification email sent."));
     }
 }

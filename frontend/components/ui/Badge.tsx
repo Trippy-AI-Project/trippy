@@ -3,11 +3,11 @@ import { cn } from "@/lib/utils";
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "accent";
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: "bg-trippy-500/15 text-trippy-400",
+  default: "bg-trippy-500/14 text-trippy-700 border border-trippy-300/35",
   success: "bg-success/15 text-success",
   warning: "bg-warning/15 text-warning",
   danger: "bg-danger/15 text-danger",
-  accent: "bg-accent-400/15 text-accent-400",
+  accent: "bg-accent-400/15 text-accent-600 border border-accent-300/35",
 };
 
 interface BadgeProps {
@@ -24,7 +24,7 @@ export default function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm",
         variantStyles[variant],
         className
       )}
