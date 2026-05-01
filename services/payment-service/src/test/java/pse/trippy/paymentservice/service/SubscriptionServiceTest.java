@@ -16,10 +16,10 @@ import pse.trippy.paymentservice.exception.InvalidPaymentException;
 import pse.trippy.paymentservice.exception.SubscriptionNotFoundException;
 import pse.trippy.paymentservice.model.entity.Subscription;
 import pse.trippy.paymentservice.model.entity.Transaction;
+import pse.trippy.paymentservice.model.enums.PlanType;
 import pse.trippy.paymentservice.model.enums.SubscriptionPlan;
 import pse.trippy.paymentservice.model.enums.SubscriptionStatus;
 import pse.trippy.paymentservice.model.enums.TransactionStatus;
-import pse.trippy.paymentservice.model.enums.TransactionType;
 import pse.trippy.paymentservice.repository.SubscriptionRepository;
 import pse.trippy.paymentservice.repository.TransactionRepository;
 
@@ -52,11 +52,9 @@ class SubscriptionServiceTest {
     private Transaction savedTransaction() {
         Transaction t = Transaction.builder()
                 .userId(USER_ID)
-                .planId("premium_monthly")
+                .planId(PlanType.PREMIUM)
                 .amount(new BigDecimal("9.99"))
-                .type(TransactionType.SUBSCRIPTION)
                 .status(TransactionStatus.COMPLETED)
-                .description("Subscription purchase: premium_monthly")
                 .build();
         t.setId(UUID.randomUUID());
         return t;

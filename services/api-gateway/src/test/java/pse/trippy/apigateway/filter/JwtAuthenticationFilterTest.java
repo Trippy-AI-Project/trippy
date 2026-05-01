@@ -12,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -19,6 +20,8 @@ import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.web.server.ServerWebExchange;
 import pse.trippy.apigateway.service.JwksClient;
 import reactor.core.publisher.Mono;
+
+import static org.mockito.ArgumentMatchers.anyString;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -46,13 +49,16 @@ class JwtAuthenticationFilterTest {
     @Mock
     private GatewayFilterChain chain;
 
+    @Mock
+    private ReactiveStringRedisTemplate redisTemplate;
+
     private JwtAuthenticationFilter filter;
     private RSAPublicKey publicKey;
     private RSAPrivateKey privateKey;
 
     @BeforeEach
     void setUp() throws Exception {
-        filter = new JwtAuthenticationFilter(jwksClient);
+        filter = new JwtAuthenticationFilter(jwksClient, redisTemplate);
 
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
@@ -65,6 +71,7 @@ class JwtAuthenticationFilterTest {
     void filter_validJwt_injectsHeadersAndStripsAuthorization() throws Exception {
         String token = buildToken(Instant.now().plusSeconds(300), privateKey);
         when(jwksClient.getPublicKey()).thenReturn(publicKey);
+        when(redisTemplate.hasKey(anyString())).thenReturn(Mono.just(false));
 
         MockServerHttpRequest request = MockServerHttpRequest.get("/trips/1")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

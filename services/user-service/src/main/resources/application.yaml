@@ -1,0 +1,63 @@
+spring:
+  config:
+    import: "optional:file:../../infra/docker/.env[.properties]"
+  application:
+    name: user-service
+  devtools:
+    livereload:
+      enabled: false
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5434}/${POSTGRES_DB:trippy_db}?currentSchema=user_schema
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: UserServicePool
+      minimum-idle: 2
+      maximum-pool-size: 10
+      idle-timeout: 30000
+      connection-timeout: 20000
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: user_schema
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${MQ_USERNAME}
+    password: ${MQ_PASSWORD}
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:trippy}
+
+server:
+  port: 8081
+
+trippy:
+  jwt:
+    access-token-expiry-seconds: ${JWT_ACCESS_TOKEN_EXPIRY_SECONDS:900}
+    refresh-token-expiry-days: ${JWT_REFRESH_TOKEN_EXPIRY_DAYS:7}
+    remember-me-expiry-days: ${JWT_REMEMBER_ME_EXPIRY_DAYS:30}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    pse.trippy.userservice: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator: ERROR

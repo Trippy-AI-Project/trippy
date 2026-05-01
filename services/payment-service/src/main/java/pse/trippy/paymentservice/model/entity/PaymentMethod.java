@@ -41,8 +41,7 @@ public class PaymentMethod {
     @Column(nullable = false, length = 50)
     private String brand;
 
-    @Column(nullable = false)
-    @Column(name = "expiry_month")
+    @Column(name = "expiry_month", nullable = false)
     private Integer expiryMonth;
 
     @Column(name = "expiry_year")

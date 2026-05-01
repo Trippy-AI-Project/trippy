@@ -13,6 +13,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
+import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
@@ -208,12 +209,11 @@ class AiServiceTest {
                     """;
             when(callSpec.content()).thenReturn(groqJson);
 
-            GenerateItineraryRequest request = new GenerateItineraryRequest();
-            GenerateItineraryRequest.Constraints constraints = new GenerateItineraryRequest.Constraints();
-            constraints.setDestination("Kyoto, Japan");
-            constraints.setStartDate(LocalDate.of(2026, 9, 1));
-            constraints.setEndDate(LocalDate.of(2026, 9, 5));
-            request.setConstraints(constraints);
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto, Japan", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5),
+                            null, null, null),
+                    null, null, null);
 
             ItineraryResponse response = aiService.generateItinerary(request);
 
@@ -231,12 +231,11 @@ class AiServiceTest {
         void throwsOnBadJson() {
             when(callSpec.content()).thenReturn("I cannot generate that.");
 
-            GenerateItineraryRequest request = new GenerateItineraryRequest();
-            GenerateItineraryRequest.Constraints constraints = new GenerateItineraryRequest.Constraints();
-            constraints.setDestination("Kyoto");
-            constraints.setStartDate(LocalDate.of(2026, 9, 1));
-            constraints.setEndDate(LocalDate.of(2026, 9, 5));
-            request.setConstraints(constraints);
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5),
+                            null, null, null),
+                    null, null, null);
 
             org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                     () -> aiService.generateItinerary(request));

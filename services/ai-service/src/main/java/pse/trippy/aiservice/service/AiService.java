@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
+import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
@@ -75,17 +76,17 @@ public class AiService {
                 log.warn("AI returned valid JSON but with empty suggestions list");
                 suggestions = List.of();
             }
-            return new DestinationSuggestionResponse(suggestions, Instant.now());
+            return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
         } catch (Exception e) {
             log.error("Failed to parse destination suggestions. Raw response (first 1000 chars): {}",
                     rawJson != null && rawJson.length() > 1000 ? rawJson.substring(0, 1000) : rawJson, e);
-            return new DestinationSuggestionResponse(List.of(), Instant.now());
+            return new DestinationSuggestionResponse(List.of(), Instant.now(), false);
         }
     }
 
     public ItineraryResponse generateItinerary(GenerateItineraryRequest request) {
         String prompt = buildItineraryPrompt(request);
-        log.debug("Generating itinerary for destination: {}", request.getConstraints().getDestination());
+        log.debug("Generating itinerary for destination: {}", request.constraints().destination());
 
         String rawJson;
         try {
@@ -172,27 +173,30 @@ public class AiService {
     }
 
     private String buildItineraryPrompt(GenerateItineraryRequest req) {
-        GenerateItineraryRequest.Constraints c = req.getConstraints();
+        TripConstraints c = req.constraints();
         StringBuilder sb = new StringBuilder();
         sb.append("You are a professional travel planner. Create a detailed day-by-day itinerary.\n\n");
-        sb.append("Destination: ").append(c.getDestination()).append("\n");
-        sb.append("From: ").append(c.getStartDate()).append(" to ").append(c.getEndDate()).append("\n");
-        sb.append("Travelers: ").append(c.getAdults()).append(" adult(s), ").append(c.getChildren()).append(" child(ren)\n");
-        sb.append("Budget level: ").append(c.getBudgetLevel()).append("\n");
-        sb.append("Tone: ").append(req.getTone()).append("\n");
+        sb.append("Destination: ").append(c.destination()).append("\n");
+        sb.append("From: ").append(c.startDate()).append(" to ").append(c.endDate()).append("\n");
+        if (c.travelers() != null) {
+            sb.append("Travelers: ").append(c.travelers().adults()).append(" adult(s), ")
+              .append(c.travelers().children()).append(" child(ren)\n");
+        }
+        if (c.budgetLevel() != null) sb.append("Budget level: ").append(c.budgetLevel()).append("\n");
+        if (req.tone() != null) sb.append("Tone: ").append(req.tone()).append("\n");
 
-        if (req.getUserPrompt() != null && !req.getUserPrompt().isBlank())
-            sb.append("Special instructions: ").append(req.getUserPrompt()).append("\n");
+        if (req.userPrompt() != null && !req.userPrompt().isBlank())
+            sb.append("Special instructions: ").append(req.userPrompt()).append("\n");
 
-        if (req.getPreferences() != null) {
-            GenerateItineraryRequest.Preferences p = req.getPreferences();
-            sb.append("Include transport: ").append(p.isIncludeTransport()).append("\n");
-            sb.append("Include meals: ").append(p.isIncludeMeals()).append("\n");
-            sb.append("Pace: ").append(p.getPacePreference()).append("\n");
-            if (p.getMustSeeAttractions() != null && !p.getMustSeeAttractions().isEmpty())
-                sb.append("Must see: ").append(String.join(", ", p.getMustSeeAttractions())).append("\n");
-            if (p.getAvoidAttractions() != null && !p.getAvoidAttractions().isEmpty())
-                sb.append("Avoid: ").append(String.join(", ", p.getAvoidAttractions())).append("\n");
+        if (req.preferences() != null) {
+            GenerateItineraryRequest.ItineraryPreferences p = req.preferences();
+            sb.append("Include transport: ").append(p.includeTransport()).append("\n");
+            sb.append("Include meals: ").append(p.includeMeals()).append("\n");
+            if (p.pacePreference() != null) sb.append("Pace: ").append(p.pacePreference()).append("\n");
+            if (p.mustSeeAttractions() != null && !p.mustSeeAttractions().isEmpty())
+                sb.append("Must see: ").append(String.join(", ", p.mustSeeAttractions())).append("\n");
+            if (p.avoidAttractions() != null && !p.avoidAttractions().isEmpty())
+                sb.append("Avoid: ").append(String.join(", ", p.avoidAttractions())).append("\n");
         }
 
         sb.append("""

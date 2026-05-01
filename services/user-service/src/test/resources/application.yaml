@@ -1,0 +1,27 @@
+# Test profile - uses H2 in-memory database, no real infrastructure needed
+spring:
+  config:
+    import: ""
+  datasource:
+    url: "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS USER_SCHEMA"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+
+trippy:
+  jwt:
+    access-token-expiry-seconds: 900
+    refresh-token-expiry-days: 7
+    remember-me-expiry-days: 30

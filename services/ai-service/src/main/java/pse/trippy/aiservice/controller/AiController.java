@@ -10,6 +10,7 @@ import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
+import pse.trippy.aiservice.service.AiCacheService;
 import pse.trippy.aiservice.service.AiService;
 
 @RestController
@@ -18,6 +19,7 @@ import pse.trippy.aiservice.service.AiService;
 public class AiController {
 
     private final AiService aiService;
+    private final AiCacheService aiCacheService;
 
     /**
      * POST /ai/destination-suggestions

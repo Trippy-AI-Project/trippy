@@ -4,6 +4,8 @@ server:
     context-path: /
 
 spring:
+  config:
+    import: "optional:file:../../infra/docker/.env[.properties]"
   application:
     name: api-gateway
   devtools:
@@ -13,7 +15,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:change_me_redis}
+      password: ${REDIS_PASSWORD}
   cloud:
     gateway:
       routes:

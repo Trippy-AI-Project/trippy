@@ -15,10 +15,10 @@ import pse.trippy.paymentservice.exception.InvalidPaymentException;
 import pse.trippy.paymentservice.exception.SubscriptionNotFoundException;
 import pse.trippy.paymentservice.model.entity.Subscription;
 import pse.trippy.paymentservice.model.entity.Transaction;
+import pse.trippy.paymentservice.model.enums.PlanType;
 import pse.trippy.paymentservice.model.enums.SubscriptionPlan;
 import pse.trippy.paymentservice.model.enums.SubscriptionStatus;
 import pse.trippy.paymentservice.model.enums.TransactionStatus;
-import pse.trippy.paymentservice.model.enums.TransactionType;
 import pse.trippy.paymentservice.repository.SubscriptionRepository;
 import pse.trippy.paymentservice.repository.TransactionRepository;
 
@@ -58,11 +58,9 @@ public class SubscriptionService {
         // Create transaction with PENDING status
         Transaction transaction = Transaction.builder()
                 .userId(userId)
-                .planId(request.planId())
+                .planId(PlanType.valueOf(plan.name()))
                 .amount(price)
-                .type(TransactionType.SUBSCRIPTION)
                 .status(TransactionStatus.PENDING)
-                .description("Subscription purchase: " + request.planId())
                 .build();
         transaction = transactionRepository.save(transaction);
 

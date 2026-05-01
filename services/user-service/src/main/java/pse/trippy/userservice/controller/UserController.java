@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.userservice.dto.request.ResendVerificationRequest;
 import pse.trippy.userservice.dto.request.UpdateProfileRequest;
+import pse.trippy.userservice.dto.request.VerifyEmailRequest;
 import pse.trippy.userservice.dto.response.UserProfileResponse;
+import pse.trippy.userservice.service.EmailVerificationService;
 import pse.trippy.userservice.service.UserProfileService;
 
 import java.util.Map;
@@ -31,6 +33,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserProfileService userProfileService;
+    private final EmailVerificationService emailVerificationService;
 
     /**
      * Returns the authenticated user's full profile.

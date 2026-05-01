@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
+import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
@@ -56,7 +57,8 @@ class AiControllerTest {
                         BigDecimal.valueOf(100),
                         "May to September",
                         0.92)),
-                Instant.now());
+                Instant.now(),
+                false);
 
         when(aiService.suggestDestinations(any())).thenReturn(stubResponse);
 
@@ -134,12 +136,11 @@ class AiControllerTest {
 
         when(aiService.generateItinerary(any())).thenReturn(stubResponse);
 
-        GenerateItineraryRequest request = new GenerateItineraryRequest();
-        GenerateItineraryRequest.Constraints constraints = new GenerateItineraryRequest.Constraints();
-        constraints.setDestination("Kyoto, Japan");
-        constraints.setStartDate(LocalDate.of(2026, 9, 1));
-        constraints.setEndDate(LocalDate.of(2026, 9, 5));
-        request.setConstraints(constraints);
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                null,
+                new TripConstraints("Kyoto, Japan", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5),
+                        null, null, null),
+                null, null, null);
 
         mockMvc.perform(post("/ai/itineraries")
                         .contentType(MediaType.APPLICATION_JSON)
