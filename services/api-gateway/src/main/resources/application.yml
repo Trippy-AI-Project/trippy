@@ -75,6 +75,10 @@ spring:
           predicates:
             - Path=/payments/**
 
+trippy:
+  gateway:
+    jwks-uri: http://user-service:8081/.well-known/jwks.json
+
 management:
   endpoints:
     web:
@@ -97,16 +101,5 @@ info:
 
 logging:
   level:
-    org.springframework.cloud.gateway: INFO
-    pse.trippy.apigateway: INFO
-
-trippy:
-  gateway:
-    jwks-url: http://localhost:8081/.well-known/jwks.json
-    downstream-services:
-      user-service: http://localhost:8081
-      trip-service: http://localhost:8082
-      chat-service: http://localhost:8083
-      ai-service: http://localhost:8084
-      notification-service: http://localhost:8085
-      payment-service: http://localhost:8086
+    org.springframework.cloud.gateway: DEBUG
+    pse.trippy.apigateway: DEBUG

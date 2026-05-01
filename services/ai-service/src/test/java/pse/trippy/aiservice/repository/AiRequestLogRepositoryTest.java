@@ -80,8 +80,8 @@ class AiRequestLogRepositoryTest {
     }
 
     @Test
-    void findLatestByUserId_returnsLatestEntry() {
-        AiRequestLog latest = aiRequestLogRepository.findLatestByUserId(userId);
+    void findTopByUserIdOrderByCreatedAtDesc_returnsLatestEntry() {
+        AiRequestLog latest = aiRequestLogRepository.findTopByUserIdOrderByCreatedAtDesc(userId).orElse(null);
         assertThat(latest).isNotNull();
         assertThat(latest.getUserId()).isEqualTo(userId);
     }

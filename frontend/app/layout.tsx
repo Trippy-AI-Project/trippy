@@ -13,6 +13,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+
+
 export const metadata: Metadata = {
   title: "Trippy — Plan your next adventure",
   description:
@@ -29,10 +31,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{
-              localStorage.setItem("trippy-theme","light");
-              document.documentElement.setAttribute("data-theme","light");
-            }catch(e){document.documentElement.setAttribute("data-theme","light");}})()`,
+            __html: `(function(){try{var t=localStorage.getItem("trippy-theme")||"light";document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`,
           }}
         />
       </head>

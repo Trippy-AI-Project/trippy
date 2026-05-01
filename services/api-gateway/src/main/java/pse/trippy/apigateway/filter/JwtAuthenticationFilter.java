@@ -1,53 +1,62 @@
 package pse.trippy.apigateway.filter;
 
-import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
-import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
+import pse.trippy.apigateway.service.JwksClient;
 import reactor.core.publisher.Mono;
 
-import java.net.URL;
 import java.security.interfaces.RSAPublicKey;
+import java.text.ParseException;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Global filter that validates JWT tokens on protected routes
- * and injects user claim headers for downstream services.
+ * Global gateway filter that validates JWT Bearer tokens on all protected routes.
  *
- * <p>Public routes (auth, JWKS, health, actuator) are skipped.
- * On failure the filter returns 401 immediately.
+ * <p>Public routes ({@code /auth/**}, {@code /.well-known/**}, {@code /health}) pass
+ * through without a token. For every other path the filter:
+ * <ol>
+ *   <li>Requires a {@code Authorization: Bearer <token>} header.</li>
+ *   <li>Validates the RS256 signature using the cached JWKS public key.</li>
+ *   <li>Verifies the token has not expired.</li>
+ *   <li>Injects {@code X-User-Id}, {@code X-User-Role}, {@code X-User-Email},
+ *       {@code X-User-Plan} headers for downstream services.</li>
+ *   <li>Strips the {@code Authorization} header before forwarding.</li>
+ * </ol>
+ * Runs at order {@code -1} so it executes before all other global filters.
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
+    private static final int FILTER_ORDER = -1;
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
     private static final String TOKEN_BLACKLIST_PREFIX = "blacklist:token:";
     private static final String USER_BLACKLIST_PREFIX = "blacklist:user:";
     private static final List<String> PUBLIC_PATHS = List.of(
             "/auth/**",
             "/.well-known/**",
             "/health",
-            "/actuator/**"
+            "/actuator/health"
     );
 
+    private final JwksClient jwksClient;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final String jwksUrl;
     private final ReactiveStringRedisTemplate redisTemplate;
@@ -62,22 +71,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        // Run after correlation-id filter but before routing
-        return -1;
+        return FILTER_ORDER;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
-        // Skip public routes
-        for (String pattern : PUBLIC_PATHS) {
-            if (pathMatcher.match(pattern, path)) {
-                return chain.filter(exchange);
-            }
+        if (isPublicPath(path)) {
+            return chain.filter(exchange);
         }
 
-        // Extract Authorization header
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
             return unauthorized(exchange);
@@ -86,28 +90,32 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String token = authHeader.substring(BEARER_PREFIX.length());
 
         try {
-            SignedJWT signedJWT = SignedJWT.parse(token);
-
-            RSAPublicKey publicKey = fetchPublicKey(signedJWT.getHeader().getKeyID());
-            if (publicKey == null) {
-                log.warn("No matching public key found for kid={}", signedJWT.getHeader().getKeyID());
+            JWTClaimsSet claims = validateToken(token);
+            if (claims == null) {
                 return unauthorized(exchange);
             }
 
-            JWSVerifier verifier = new RSASSAVerifier(publicKey);
-            if (!signedJWT.verify(verifier)) {
-                log.warn("JWT signature verification failed");
+            String userId = claims.getSubject();
+            String role = (String) claims.getClaim("role");
+            String email = (String) claims.getClaim("email");
+            String plan = (String) claims.getClaim("plan");
+
+            if (userId == null || role == null || email == null || plan == null) {
+                log.debug("JWT missing required claims (sub, role, email, plan)");
                 return unauthorized(exchange);
             }
 
-            JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
+            ServerWebExchange mutatedExchange = exchange.mutate()
+                    .request(exchange.getRequest().mutate()
+                            .header("X-User-Id", userId)
+                            .header("X-User-Role", role)
+                            .header("X-User-Email", email)
+                            .header("X-User-Plan", plan)
+                            .headers(h -> h.remove(HttpHeaders.AUTHORIZATION))
+                            .build())
+                    .build();
 
-            // Check expiry
-            if (claims.getExpirationTime() == null || claims.getExpirationTime().before(new Date())) {
-                log.debug("JWT token expired");
-                return unauthorized(exchange);
-            }
-
+            return chain.filter(mutatedExchange);
             String jti = claims.getJWTID();
             String userId = claims.getSubject();
 
@@ -130,45 +138,54 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         return chain.filter(exchange.mutate().request(mutatedRequest).build());
                     });
 
-        } catch (Exception ex) {
-            log.warn("JWT processing failed: {}", ex.getMessage());
+        } catch (ParseException | JOSEException ex) {
+            log.debug("JWT validation error: {}", ex.getMessage());
             return unauthorized(exchange);
         }
     }
 
-    private RSAPublicKey fetchPublicKey(String kid) {
-        try {
-            JWKSet jwkSet = cachedJwkSet.get();
-            if (jwkSet == null) {
-                jwkSet = JWKSet.load(new URL(jwksUrl));
-                cachedJwkSet.set(jwkSet);
-            }
-
-            JWK jwk = jwkSet.getKeyByKeyId(kid);
-            if (jwk == null) {
-                // Key rotation — refetch once
-                jwkSet = JWKSet.load(new URL(jwksUrl));
-                cachedJwkSet.set(jwkSet);
-                jwk = jwkSet.getKeyByKeyId(kid);
-            }
-
-            if (jwk instanceof RSAKey rsaKey) {
-                return rsaKey.toRSAPublicKey();
-            }
-            return null;
-        } catch (Exception ex) {
-            log.error("Failed to fetch JWKS from {}: {}", jwksUrl, ex.getMessage());
+    /**
+     * Validates the JWT signature and expiration.
+     * On first signature failure, refreshes JWKS and retries once.
+     *
+     * @param token the raw JWT string
+     * @return verified claims, or {@code null} if validation fails
+     */
+    private JWTClaimsSet validateToken(String token) throws ParseException, JOSEException {
+        RSAPublicKey key = jwksClient.getPublicKey();
+        if (key == null) {
+            log.warn("No JWKS public key available — rejecting token");
             return null;
         }
+
+        SignedJWT jwt = SignedJWT.parse(token);
+        boolean valid = jwt.verify(new RSASSAVerifier(key));
+
+        if (!valid) {
+            // Refresh JWKS and retry with the new key
+            RSAPublicKey refreshedKey = jwksClient.refreshAndGet();
+            if (refreshedKey != null) {
+                jwt = SignedJWT.parse(token);
+                valid = jwt.verify(new RSASSAVerifier(refreshedKey));
+            }
+        }
+
+        if (!valid) {
+            return null;
+        }
+
+        JWTClaimsSet claims = jwt.getJWTClaimsSet();
+        Date exp = claims.getExpirationTime();
+        if (exp == null || exp.before(new Date())) {
+            log.debug("JWT expired at {}", exp);
+            return null;
+        }
+
+        return claims;
     }
 
-    private String getClaimAsString(JWTClaimsSet claims, String name) {
-        try {
-            Object value = claims.getClaim(name);
-            return value != null ? value.toString() : "";
-        } catch (Exception e) {
-            return "";
-        }
+    private boolean isPublicPath(String path) {
+        return PUBLIC_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path));
     }
 
     /**

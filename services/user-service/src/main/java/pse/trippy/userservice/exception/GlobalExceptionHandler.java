@@ -161,6 +161,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles user-not-found errors (404 Not Found).
+     */
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleUserNotFound(
+            UserNotFoundException ex, WebRequest request) {
+
+        ErrorResponse response = ErrorResponse.builder()
+                .error("USER_NOT_FOUND")
+                .message(ex.getMessage())
+                .timestamp(Instant.now())
+                .path(extractPath(request))
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    /**
      * Handles all other uncaught exceptions (500 Internal Server Error).
      */
     @ExceptionHandler(Exception.class)

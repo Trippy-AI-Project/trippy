@@ -32,7 +32,7 @@ build/
 ### VS Code ###
 .vscode/
 
-### Environment files ###
+### Environment variables — never commit secrets ###
 .env
 .env.*
 !.env.example

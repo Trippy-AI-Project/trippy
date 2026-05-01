@@ -44,7 +44,7 @@ class AiUsageServiceTest {
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.TRAVEL_ADVICE)).thenReturn(4L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.PREFERENCE_CONSOLIDATION)).thenReturn(0L);
         when(aiRequestLogRepository.sumTokensByUserId(userId)).thenReturn(15420L);
-        when(aiRequestLogRepository.findLatestByUserId(userId)).thenReturn(latest);
+        when(aiRequestLogRepository.findTopByUserIdOrderByCreatedAtDesc(userId)).thenReturn(java.util.Optional.of(latest));
 
         AiUsageResponse usage = aiUsageService.getUsage(userId);
 
@@ -68,7 +68,7 @@ class AiUsageServiceTest {
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.TRAVEL_ADVICE)).thenReturn(0L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.PREFERENCE_CONSOLIDATION)).thenReturn(0L);
         when(aiRequestLogRepository.sumTokensByUserId(userId)).thenReturn(0L);
-        when(aiRequestLogRepository.findLatestByUserId(userId)).thenReturn(null);
+        when(aiRequestLogRepository.findTopByUserIdOrderByCreatedAtDesc(userId)).thenReturn(java.util.Optional.empty());
 
         AiUsageResponse usage = aiUsageService.getUsage(userId);
 

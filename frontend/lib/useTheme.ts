@@ -8,7 +8,8 @@ export function useTheme() {
   const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
-    const initial: Theme = "light";
+    const stored = localStorage.getItem("trippy-theme") as Theme | null;
+    const initial = stored ?? "light";
     setThemeState(initial);
     localStorage.setItem("trippy-theme", initial);
     document.documentElement.setAttribute("data-theme", initial);

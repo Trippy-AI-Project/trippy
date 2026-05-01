@@ -1,0 +1,71 @@
+package pse.trippy.userservice.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pse.trippy.userservice.dto.request.UpdateProfileRequest;
+import pse.trippy.userservice.dto.response.UserProfileResponse;
+import pse.trippy.userservice.exception.UserNotFoundException;
+import pse.trippy.userservice.mapper.UserMapper;
+import pse.trippy.userservice.model.entity.User;
+import pse.trippy.userservice.repository.UserRepository;
+
+import java.util.UUID;
+
+/**
+ * Service for user profile read and update operations.
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class UserProfileService {
+
+    private final UserRepository userRepository;
+    private final UserMapper userMapper;
+
+    /**
+     * Returns the full profile for the given user.
+     *
+     * @param userId the user's UUID (from X-User-Id header)
+     * @return populated {@link UserProfileResponse}
+     * @throws UserNotFoundException if no user exists with the given ID
+     */
+    public UserProfileResponse getProfile(UUID userId) {
+        User user = findUser(userId);
+        return userMapper.toResponse(user);
+    }
+
+    /**
+     * Applies a partial update to the user's profile.
+     * Only non-null fields in {@code request} are written.
+     *
+     * @param userId  the user's UUID (from X-User-Id header)
+     * @param request the fields to update
+     * @return updated {@link UserProfileResponse}
+     * @throws UserNotFoundException if no user exists with the given ID
+     */
+    @Transactional
+    public UserProfileResponse updateProfile(UUID userId, UpdateProfileRequest request) {
+        User user = findUser(userId);
+
+        if (request.getDisplayName() != null) {
+            user.setDisplayName(request.getDisplayName());
+        }
+        if (request.getBio() != null) {
+            user.setBio(request.getBio());
+        }
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+
+        User saved = userRepository.save(user);
+        log.info("Profile updated for user {}", userId);
+        return userMapper.toResponse(saved);
+    }
+
+    private User findUser(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+    }
+}

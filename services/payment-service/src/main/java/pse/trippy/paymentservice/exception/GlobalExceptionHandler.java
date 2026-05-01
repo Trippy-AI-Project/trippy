@@ -7,35 +7,47 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pse.trippy.paymentservice.dto.response.ErrorResponse;
 
-import java.util.stream.Collectors;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(SubscriptionNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleSubscriptionNotFound(SubscriptionNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse(404, ex.getMessage()));
-    }
-
-    @ExceptionHandler(PaymentMethodNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handlePaymentMethodNotFound(PaymentMethodNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse(404, ex.getMessage()));
-    }
-
-    @ExceptionHandler(InvalidPaymentException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidPayment(InvalidPaymentException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, ex.getMessage()));
+    @ExceptionHandler(InvalidPlanException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPlan(InvalidPlanException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ErrorResponse.builder()
+                        .error("BAD_REQUEST")
+                        .message(ex.getMessage())
+                        .timestamp(Instant.now())
+                        .build()
+        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
-        String errors = ex.getBindingResult().getFieldErrors().stream()
-                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
-                .collect(Collectors.joining(", "));
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, errors));
+        Map<String, String> fieldErrors = new HashMap<>();
+        ex.getBindingResult().getFieldErrors()
+                .forEach(err -> fieldErrors.put(err.getField(), err.getDefaultMessage()));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ErrorResponse.builder()
+                        .error("VALIDATION_ERROR")
+                        .message("Request validation failed")
+                        .timestamp(Instant.now())
+                        .fieldErrors(fieldErrors)
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ErrorResponse.builder()
+                        .error("INTERNAL_SERVER_ERROR")
+                        .message("An unexpected error occurred")
+                        .timestamp(Instant.now())
+                        .build()
+        );
     }
 }

@@ -30,7 +30,7 @@ public class AiUsageService {
 
         long tokensConsumed = aiRequestLogRepository.sumTokensByUserId(userId);
 
-        AiRequestLog latest = aiRequestLogRepository.findLatestByUserId(userId);
+        AiRequestLog latest = aiRequestLogRepository.findTopByUserIdOrderByCreatedAtDesc(userId).orElse(null);
 
         return new AiUsageResponse(
                 userId,

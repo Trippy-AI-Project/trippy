@@ -70,7 +70,7 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- H2 Database (Test) -->
+        <!-- H2 - in-memory database for tests only -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>

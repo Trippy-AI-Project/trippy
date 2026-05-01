@@ -1,13 +1,21 @@
 package pse.trippy.paymentservice.dto.response;
 
-import java.time.Instant;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record ErrorResponse(
-        int status,
-        String message,
-        Instant timestamp
-) {
-    public ErrorResponse(int status, String message) {
-        this(status, message, Instant.now());
-    }
+import java.time.Instant;
+import java.util.Map;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ErrorResponse {
+
+    private String error;
+    private String message;
+    private Instant timestamp;
+    private Map<String, String> fieldErrors;
 }

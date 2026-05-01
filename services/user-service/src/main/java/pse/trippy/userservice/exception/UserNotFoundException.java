@@ -1,10 +1,13 @@
 package pse.trippy.userservice.exception;
 
+import java.util.UUID;
+
 /**
- * Thrown when a requested user cannot be found.
+ * Thrown when a user with the given ID cannot be found.
  */
 public class UserNotFoundException extends RuntimeException {
-    public UserNotFoundException(String message) {
-        super(message);
+
+    public UserNotFoundException(UUID userId) {
+        super("User not found: " + userId);
     }
 }
