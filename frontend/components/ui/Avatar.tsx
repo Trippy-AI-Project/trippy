@@ -30,7 +30,7 @@ export default function Avatar({ src, name, size = "md", className }: AvatarProp
     <div
       className={cn(
         "relative rounded-full flex items-center justify-center font-semibold shrink-0",
-        "bg-trippy-500/10 text-trippy-600 border border-border",
+        "bg-shore-100 text-trippy-500 border border-border",
         sizeMap[size],
         className
       )}

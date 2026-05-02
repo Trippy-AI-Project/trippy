@@ -15,11 +15,11 @@ const sizeMap = {
 export default function Logo({ size = "md", className }: LogoProps) {
   const s = sizeMap[size];
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <div className="bg-trippy-500 p-1.5 rounded-lg">
+    <div className={cn("group flex items-center gap-2", className)}>
+      <div className="grid place-items-center rounded-2xl bg-trippy-500 p-1.5 text-white shadow-sm transition-transform duration-200 group-hover:-translate-y-0.5">
         <Compass size={s.icon} className="text-white" />
       </div>
-      <span className={cn("font-bold tracking-tight text-foreground", s.text)}>
+      <span className={cn("font-display font-bold text-foreground", s.text)}>
         Trippy
       </span>
     </div>
