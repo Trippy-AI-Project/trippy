@@ -18,10 +18,13 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import pse.trippy.notificationservice.model.enums.NotificationChannel;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -70,9 +73,16 @@ public class Notification {
     @Column(name = "action_url", length = 500)
     private String actionUrl;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata")
+    private Map<String, Object> metadata;
+
     @Column(name = "is_read", nullable = false)
     @Builder.Default
     private boolean read = false;
+
+    @Column(name = "read_at")
+    private Instant readAt;
 
     @Column(name = "is_deleted", nullable = false)
     @Builder.Default

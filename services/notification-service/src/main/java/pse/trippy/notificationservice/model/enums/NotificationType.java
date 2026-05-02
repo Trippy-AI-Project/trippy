@@ -1,12 +1,18 @@
 package pse.trippy.notificationservice.model.enums;
 
 public enum NotificationType {
+    TRIP_INVITE,
+    TRIP_JOINED,
+    ITINERARY_READY,
     TRIP_INVITATION,
     INVITATION_ACCEPTED,
+    INVITATION_DECLINED,
     TRIP_UPDATED,
+    TRIP_CANCELLED,
     NEW_MESSAGE,
     PAYMENT_SUCCESS,
     PAYMENT_FAILED,
+    SUBSCRIPTION_EXPIRING,
     SYSTEM,
     WELCOME,
     EMAIL_VERIFICATION,
