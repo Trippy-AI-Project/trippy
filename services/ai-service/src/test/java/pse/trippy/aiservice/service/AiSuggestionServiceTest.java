@@ -59,7 +59,8 @@ class AiSuggestionServiceTest {
     void getDestinationSuggestions_success() {
         UUID userId = UUID.randomUUID();
         DestinationSuggestionRequest request = new DestinationSuggestionRequest(
-                List.of("history", "food"), "MODERATE", "ADVENTURE", 7, "Europe", "July"
+                null, null, List.of("history", "food"), "MODERATE", "ADVENTURE", 7, "Europe", "July",
+                null, null, null, null
         );
 
         String aiResponse = """
@@ -105,7 +106,8 @@ class AiSuggestionServiceTest {
     void getDestinationSuggestions_aiFailure_throws503() {
         UUID userId = UUID.randomUUID();
         DestinationSuggestionRequest request = new DestinationSuggestionRequest(
-                List.of("beaches"), "LOW", null, 5, null, null
+                null, null, List.of("beaches"), "LOW", null, 5, null, null,
+                null, null, null, null
         );
 
         when(chatClientBuilder.build()).thenReturn(chatClient);
@@ -128,7 +130,8 @@ class AiSuggestionServiceTest {
     @Test
     void buildPrompt_containsAllPreferences() {
         DestinationSuggestionRequest request = new DestinationSuggestionRequest(
-                List.of("history", "food"), "MODERATE", "ADVENTURE", 7, "Europe", "July"
+                null, null, List.of("history", "food"), "MODERATE", "ADVENTURE", 7, "Europe", "July",
+                null, null, null, null
         );
 
         String prompt = aiSuggestionService.buildPrompt(request);

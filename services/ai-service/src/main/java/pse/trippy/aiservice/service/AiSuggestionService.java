@@ -1,6 +1,7 @@
 package pse.trippy.aiservice.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -87,14 +88,21 @@ public class AiSuggestionService {
         return String.format("""
                 You are a travel expert. Suggest 3-5 travel destinations based on these preferences:
                 
+                User Request: %s
+                Requested City: %s
                 Interests: %s
                 Budget: %s
                 Travel Style: %s
                 Duration: %d days
+                Travelers: %s
+                Dietary Requirements: %s
+                Preferences: %s
+                Custom Notes: %s
                 Region: %s
                 Month: %s
                 
-                Return your response as a JSON array (no markdown, no code fences) with objects containing:
+                Return your response as either a JSON array or a JSON object with a "suggestions" array.
+                Use objects containing:
                 - "destination": full destination name (city, country)
                 - "country": country name
                 - "description": 1-2 sentence description
@@ -103,12 +111,20 @@ public class AiSuggestionService {
                 - "bestTimeToVisit": best months to visit
                 - "matchScore": how well this matches the preferences (0.0 to 1.0)
                 
-                Return ONLY the JSON array, no other text.
+                Return ONLY JSON, no markdown and no other text.
                 """,
-                String.join(", ", request.interests()),
+                request.prompt() != null ? request.prompt() : "none",
+                request.city() != null ? request.city() : "none",
+                request.interests() != null && !request.interests().isEmpty()
+                        ? String.join(", ", request.interests())
+                        : "any",
                 request.budget(),
                 request.travelStyle() != null ? request.travelStyle() : "any",
                 request.duration(),
+                request.people() != null ? request.people() : "not specified",
+                request.diet() != null ? request.diet() : "none",
+                request.preferences() != null ? request.preferences() : "none",
+                request.customNotes() != null ? request.customNotes() : "none",
                 request.region() != null ? request.region() : "worldwide",
                 request.month() != null ? request.month() : "any time"
         );
@@ -119,6 +135,10 @@ public class AiSuggestionService {
             String cleaned = aiResponse.strip();
             if (cleaned.startsWith("```")) {
                 cleaned = cleaned.replaceAll("^```(?:json)?\\s*", "").replaceAll("\\s*```$", "");
+            }
+            if (cleaned.startsWith("{")) {
+                JsonNode root = objectMapper.readTree(cleaned);
+                return objectMapper.convertValue(root.path("suggestions"), new TypeReference<>() {});
             }
             return objectMapper.readValue(cleaned, new TypeReference<>() {});
         } catch (Exception ex) {
