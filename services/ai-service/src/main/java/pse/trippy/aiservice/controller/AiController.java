@@ -4,9 +4,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import pse.trippy.aiservice.dto.request.AiChatRequest;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
+import pse.trippy.aiservice.dto.response.AiChatResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
@@ -39,6 +41,16 @@ public class AiController {
     public ResponseEntity<TravelAdviceResponse> getTravelAdvice(
             @Valid @RequestBody TravelAdviceRequest request) {
         return ResponseEntity.ok(aiService.getTravelAdvice(request));
+    }
+
+    /**
+     * POST /ai/chat
+     * Conversational trip assistant. Can update an itinerary when one is supplied.
+     */
+    @PostMapping("/chat")
+    public ResponseEntity<AiChatResponse> chat(
+            @Valid @RequestBody AiChatRequest request) {
+        return ResponseEntity.ok(aiService.chat(request));
     }
 
     /**

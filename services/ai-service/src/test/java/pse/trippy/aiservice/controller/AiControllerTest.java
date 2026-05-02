@@ -16,6 +16,7 @@ import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
+import pse.trippy.aiservice.service.AiCacheService;
 import pse.trippy.aiservice.service.AiService;
 
 import java.math.BigDecimal;
@@ -41,6 +42,9 @@ class AiControllerTest {
     @MockBean
     private AiService aiService;
 
+    @MockBean
+    private AiCacheService aiCacheService;
+
     // =========================================================================
     // POST /ai/destination-suggestions
     // =========================================================================
@@ -63,7 +67,8 @@ class AiControllerTest {
         when(aiService.suggestDestinations(any())).thenReturn(stubResponse);
 
         DestinationSuggestionRequest request = new DestinationSuggestionRequest(
-                List.of("beach", "culture"), "LOW", null, 7, "Europe", "August");
+                null, null, List.of("beach", "culture"), "LOW", null, 7, "Europe", "August",
+                null, null, null, null);
 
         mockMvc.perform(post("/ai/destination-suggestions")
                         .contentType(MediaType.APPLICATION_JSON)

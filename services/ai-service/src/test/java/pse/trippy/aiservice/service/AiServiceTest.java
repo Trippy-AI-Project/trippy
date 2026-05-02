@@ -78,7 +78,8 @@ class AiServiceTest {
             when(callSpec.content()).thenReturn(groqJson);
 
             DestinationSuggestionRequest request = new DestinationSuggestionRequest(
-                    List.of("beach", "culture"), "LOW", null, 7, "Europe", "August");
+                    null, null, List.of("beach", "culture"), "LOW", null, 7, "Europe", "August",
+                    null, null, null, null);
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
@@ -94,7 +95,8 @@ class AiServiceTest {
             when(callSpec.content()).thenReturn("Sorry, I cannot help with that.");
 
             DestinationSuggestionRequest request = new DestinationSuggestionRequest(
-                    List.of("history"), "MODERATE", null, 5, null, null);
+                    null, null, List.of("history"), "MODERATE", null, 5, null, null,
+                    null, null, null, null);
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
@@ -109,7 +111,8 @@ class AiServiceTest {
             when(callSpec.content()).thenReturn(wrapped);
 
             DestinationSuggestionRequest request = new DestinationSuggestionRequest(
-                    List.of("adventure"), "HIGH", null, 10, null, null);
+                    null, null, List.of("adventure"), "HIGH", null, 10, null, null,
+                    null, null, null, null);
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
