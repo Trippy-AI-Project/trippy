@@ -133,6 +133,10 @@ components:
           type: string
           maxLength: 500
           example: "Cheap beach destinations in Europe for August"
+        city:
+          type: string
+          description: Optional city/destination to focus the suggestions on
+          example: "Lisbon"
         budget:
           type: string
           enum: ["LOW", "MEDIUM", "HIGH"]
@@ -149,6 +153,19 @@ components:
           items:
             type: string
           example: ["beaches", "nightlife", "culture"]
+        people:
+          type: integer
+          minimum: 1
+          example: 2
+        diet:
+          type: string
+          example: "vegetarian"
+        preferences:
+          type: string
+          description: Free-form frontend preference text
+        customNotes:
+          type: string
+          description: Additional user notes
         excludeCountries:
           type: array
           items:
@@ -328,7 +345,7 @@ components:
               type: number
         category:
           type: string
-          enum: ["SIGHTSEEING", "FOOD", "TRANSPORT", "ACCOMMODATION", "ACTIVITY", "FREE_TIME"]
+          enum: ["SIGHTSEEING", "FOOD", "TRANSPORT", "ACCOMMODATION", "ACTIVITY", "FREE_TIME", "SHOPPING", "CULTURE", "NIGHTLIFE", "NATURE", "WELLNESS"]
         estimatedCost:
           type: string
           example: "¥500"
@@ -411,6 +428,72 @@ components:
         generatedAt:
           type: string
           format: date-time
+
+    # =====================================================
+    # AI CHAT SCHEMAS
+    # =====================================================
+    AiChatMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: ["user", "assistant"]
+        content:
+          type: string
+          maxLength: 2000
+
+    AiChatRequest:
+      type: object
+      required:
+        - messages
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiChatMessage'
+        tripContext:
+          type: string
+          maxLength: 2000
+        currentItinerary:
+          type: array
+          items:
+            $ref: '#/components/schemas/DayPlan'
+        destination:
+          type: string
+
+    AiChatChange:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["swap", "add", "remove", "info"]
+        dayNumber:
+          type: integer
+        removed:
+          type: string
+        added:
+          type: string
+        summary:
+          type: string
+
+    AiChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+        updatedItinerary:
+          type: array
+          items:
+            $ref: '#/components/schemas/DayPlan'
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiChatChange'
+        hasModification:
+          type: boolean
 
     # =====================================================
     # GROUP CONSOLIDATION SCHEMAS
@@ -550,6 +633,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TravelAdviceResponse'
+        '429':
+          description: Rate limit exceeded
+
+  /ai/chat:
+    post:
+      summary: Chat With Trip AI
+      operationId: chatWithTripAi
+      tags: [Advice]
+      security: [BearerAuth: []]
+      description: |
+        Conversational trip assistant endpoint used by the frontend.
+        When `currentItinerary` is supplied, the service may return an updated itinerary.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiChatRequest'
+      responses:
+        '200':
+          description: Chat response generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiChatResponse'
         '429':
           description: Rate limit exceeded
 

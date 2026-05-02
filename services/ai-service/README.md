@@ -1,11 +1,12 @@
 # AI Service
 
 ## Overview
-This service handles AI-powered trip planning features including destination suggestions and itinerary generation for the Trippy platform.
+This service handles AI-powered trip planning features including destination suggestions, itinerary generation, and itinerary chat/modification for the Trippy platform.
 
 ## Responsibilities
 - **Destination Discovery**: Natural language search for travel destinations
 - **Itinerary Generation**: Day-by-day trip plans based on user preferences
+- **Itinerary Chat**: Conversational itinerary updates from the frontend via the API gateway
 - **Preference Consolidation**: Merge group members' preferences for group trips
 - **Weather Integration**: Include weather context in suggestions
 - **Fallback Suggestions**: Alternative recommendations when direct matches unavailable
@@ -19,8 +20,8 @@ This service handles AI-powered trip planning features including destination sug
 
 ## Technology Stack
 - Spring Boot
-- Spring AI / LangChain4j
-- OpenAI API / Ollama (LLM provider)
+- Spring AI
+- Groq API via OpenAI-compatible configuration
 - PostgreSQL (schema: `ai_schema`) - for caching/logging
 - Redis (response caching)
 
