@@ -23,6 +23,8 @@ public class RabbitMQConfig {
     public static final String ROUTING_TRIP_UPDATED = "trip.updated";
     public static final String ROUTING_PAYMENT_COMPLETED = "payment.completed";
     public static final String ROUTING_PAYMENT_FAILED = "payment.failed";
+    public static final String ROUTING_ITINERARY_READY = "ai.itinerary.ready";
+    public static final String ROUTING_SYSTEM_NOTIFICATION = "system.notification";
 
     @Bean
     public TopicExchange trippyExchange() {
@@ -82,6 +84,20 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(notificationQueue)
                 .to(trippyExchange)
                 .with(ROUTING_PAYMENT_FAILED);
+    }
+
+    @Bean
+    public Binding itineraryReadyBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_ITINERARY_READY);
+    }
+
+    @Bean
+    public Binding systemNotificationBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_SYSTEM_NOTIFICATION);
     }
 
     @Bean
