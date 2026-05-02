@@ -12,21 +12,33 @@ import org.springframework.stereotype.Service;
 import pse.trippy.aiservice.dto.request.AiChatRequest;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
+import pse.trippy.aiservice.dto.request.GroupPreferenceRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.AiChatResponse;
+import pse.trippy.aiservice.dto.response.ConsolidatedPreferencesResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 
-import java.time.Instant;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,6 +56,9 @@ public class AiService {
 
     @Value("${spring.ai.openai.chat.options.model:llama-3.3-70b-versatile}")
     private String model;
+
+    @Value("${trippy.weather.openweather-api-key:}")
+    private String openWeatherApiKey;
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -90,25 +105,17 @@ public class AiService {
         String prompt = buildItineraryPrompt(request);
         log.debug("Generating itinerary for destination: {}", request.constraints().destination());
 
-        String rawJson;
         try {
-            rawJson = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-        } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
-            rawJson = callGroqDirect(prompt);
-        }
-
-        try {
+            String rawJson = requestAi(prompt);
             ItineraryResponse response = objectMapper.readValue(
                     extractJson(rawJson), ItineraryResponse.class);
             response.setGeneratedAt(Instant.now());
+            response.setFallbackUsed(false);
+            enrichItinerary(response, request);
             return response;
-        } catch (JsonProcessingException e) {
-            log.error("Failed to parse itinerary response", e);
-            throw new RuntimeException("Failed to generate itinerary. Please try again.", e);
+        } catch (Exception ex) {
+            log.warn("AI itinerary generation failed, returning fallback itinerary: {}", ex.getMessage());
+            return buildFallbackItinerary(request, ex.getMessage());
         }
     }
 
@@ -181,6 +188,42 @@ public class AiService {
         }
 
         return new AiChatResponse(reply, null, List.of(), false);
+    }
+
+    public ConsolidatedPreferencesResponse consolidatePreferences(GroupPreferenceRequest request) {
+        List<GroupPreferenceRequest.UserPreference> preferences = request.preferences();
+
+        String recommendedBudget = mostCommon(preferences.stream()
+                .map(GroupPreferenceRequest.UserPreference::budgetPreference)
+                .toList(), "MODERATE");
+        String recommendedPace = mostCommon(preferences.stream()
+                .map(GroupPreferenceRequest.UserPreference::pacePreference)
+                .toList(), "MODERATE");
+
+        List<String> sharedInterests = valuesMentionedByMultipleTravelers(
+                preferences.stream()
+                        .flatMap(p -> safeList(p.interests()).stream())
+                        .toList());
+        List<String> mustSeeConsensus = valuesMentionedByMultipleTravelers(
+                preferences.stream()
+                        .flatMap(p -> safeList(p.mustSee()).stream())
+                        .toList());
+        List<ConsolidatedPreferencesResponse.Conflict> conflicts = detectPreferenceConflicts(preferences);
+
+        String prompt = buildSuggestedGroupPrompt(
+                recommendedBudget,
+                recommendedPace,
+                sharedInterests,
+                mustSeeConsensus,
+                conflicts);
+
+        return new ConsolidatedPreferencesResponse(
+                recommendedBudget,
+                recommendedPace,
+                sharedInterests,
+                mustSeeConsensus,
+                conflicts,
+                prompt);
     }
 
     // -------------------------------------------------------------------------
@@ -278,6 +321,20 @@ public class AiService {
                       "dayNumber": 1,
                       "date": "YYYY-MM-DD",
                       "title": "string",
+                      "weather": {
+                        "condition": "string",
+                        "temperatureCelsius": 18,
+                        "advice": "string"
+                      },
+                      "transportRecommendations": [
+                        {
+                          "from": "string",
+                          "to": "string",
+                          "mode": "walk|metro|bus|train|taxi",
+                          "estimatedDuration": "string",
+                          "notes": "string"
+                        }
+                      ],
                       "activities": [
                         {
                           "time": "HH:mm",
@@ -390,6 +447,336 @@ public class AiService {
                 request.tripContext() == null ? "" : request.tripContext(),
                 request.destination() == null ? "the destination" : request.destination(),
                 conversation);
+    }
+
+    private void enrichItinerary(ItineraryResponse response, GenerateItineraryRequest request) {
+        if (response.getDailyPlan() == null || response.getDailyPlan().isEmpty()) {
+            ItineraryResponse fallback = buildFallbackItinerary(request, "AI returned an empty itinerary");
+            response.setDailyPlan(fallback.getDailyPlan());
+            response.setFallbackUsed(true);
+            response.setFallbackReason(fallback.getFallbackReason());
+        }
+
+        if (response.getPackingTips() == null) {
+            response.setPackingTips(List.of("Comfortable walking shoes", "Reusable water bottle"));
+        }
+        if (response.getTravelTips() == null) {
+            response.setTravelTips(List.of("Confirm opening hours before visiting major attractions."));
+        }
+
+        Map<LocalDate, ItineraryResponse.WeatherSummary> weatherByDate = fetchWeatherSummaries(request);
+        boolean includeTransport = request.preferences() == null || request.preferences().includeTransport();
+        LocalDate startDate = request.constraints().startDate();
+
+        for (ItineraryResponse.DayPlan day : response.getDailyPlan()) {
+            int dayNumber = day.getDayNumber() != null ? day.getDayNumber() : 1;
+            LocalDate date = parseDate(day.getDate())
+                    .orElse(startDate.plusDays(Math.max(0, dayNumber - 1L)));
+            if (day.getDayNumber() == null) {
+                day.setDayNumber(dayNumber);
+            }
+            if (day.getDate() == null || day.getDate().isBlank()) {
+                day.setDate(date.toString());
+            }
+            if (day.getWeather() == null) {
+                day.setWeather(weatherByDate.getOrDefault(date, unavailableWeather()));
+            }
+            if (includeTransport && (day.getTransportRecommendations() == null
+                    || day.getTransportRecommendations().isEmpty())) {
+                day.setTransportRecommendations(inferTransport(day.getActivities()));
+            }
+            if (day.getActivities() == null) {
+                day.setActivities(List.of());
+            }
+        }
+    }
+
+    private ItineraryResponse buildFallbackItinerary(GenerateItineraryRequest request, String reason) {
+        TripConstraints constraints = request.constraints();
+        LocalDate current = constraints.startDate();
+        LocalDate end = constraints.endDate();
+        List<ItineraryResponse.DayPlan> days = new ArrayList<>();
+        boolean includeMeals = request.preferences() == null || request.preferences().includeMeals();
+        boolean includeTransport = request.preferences() == null || request.preferences().includeTransport();
+
+        int dayNumber = 1;
+        while (!current.isAfter(end) && dayNumber <= 14) {
+            List<ItineraryResponse.Activity> activities = new ArrayList<>();
+            activities.add(ItineraryResponse.Activity.builder()
+                    .time("09:30")
+                    .duration(120)
+                    .title("Explore " + constraints.destination())
+                    .description("Start with a central landmark or neighborhood walk to get oriented.")
+                    .location(constraints.destination())
+                    .category("SIGHTSEEING")
+                    .estimatedCost("Varies")
+                    .tips("Check local opening hours before leaving.")
+                    .bookingRequired(false)
+                    .build());
+            if (includeMeals) {
+                activities.add(ItineraryResponse.Activity.builder()
+                        .time("12:30")
+                        .duration(75)
+                        .title("Local lunch")
+                        .description("Choose a well-reviewed local restaurant near the morning stop.")
+                        .location(constraints.destination())
+                        .category("FOOD")
+                        .estimatedCost("€15-€30")
+                        .tips("Reserve ahead for popular places.")
+                        .bookingRequired(false)
+                        .build());
+            }
+            activities.add(ItineraryResponse.Activity.builder()
+                    .time("15:00")
+                    .duration(120)
+                    .title("Flexible afternoon activity")
+                    .description("Visit a museum, market, park, or viewpoint based on group energy.")
+                    .location(constraints.destination())
+                    .category("ACTIVITY")
+                    .estimatedCost("€0-€25")
+                    .tips("Keep this flexible if weather or travel delays change the day.")
+                    .bookingRequired(false)
+                    .build());
+
+            ItineraryResponse.DayPlan day = ItineraryResponse.DayPlan.builder()
+                    .dayNumber(dayNumber)
+                    .date(current.toString())
+                    .title("Day " + dayNumber + " in " + constraints.destination())
+                    .weather(unavailableWeather())
+                    .activities(activities)
+                    .build();
+            if (includeTransport) {
+                day.setTransportRecommendations(inferTransport(activities));
+            }
+            days.add(day);
+            current = current.plusDays(1);
+            dayNumber++;
+        }
+
+        return ItineraryResponse.builder()
+                .tripTitle(days.size() + " Days in " + constraints.destination())
+                .summary("Fallback itinerary generated from your trip constraints.")
+                .totalEstimatedCost("Estimate unavailable")
+                .dailyPlan(days)
+                .packingTips(List.of("Comfortable walking shoes", "Weather-appropriate layers"))
+                .travelTips(List.of("Use this fallback as a starting point and regenerate when AI is available."))
+                .generatedAt(Instant.now())
+                .tokensUsed(0)
+                .fallbackUsed(true)
+                .fallbackReason(defaultString(reason, "AI response unavailable"))
+                .build();
+    }
+
+    private Map<LocalDate, ItineraryResponse.WeatherSummary> fetchWeatherSummaries(GenerateItineraryRequest request) {
+        if (openWeatherApiKey == null || openWeatherApiKey.isBlank()) {
+            return Map.of();
+        }
+
+        try {
+            String encodedDestination = URLEncoder.encode(
+                    request.constraints().destination(), StandardCharsets.UTF_8);
+            String geoUrl = "https://api.openweathermap.org/geo/1.0/direct?q="
+                    + encodedDestination + "&limit=1&appid=" + openWeatherApiKey;
+            HttpResponse<String> geoResponse = httpClient.send(
+                    HttpRequest.newBuilder(URI.create(geoUrl)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            JsonNode geo = objectMapper.readTree(geoResponse.body());
+            if (!geo.isArray() || geo.isEmpty()) {
+                return Map.of();
+            }
+
+            double lat = geo.get(0).path("lat").asDouble();
+            double lon = geo.get(0).path("lon").asDouble();
+            String forecastUrl = "https://api.openweathermap.org/data/2.5/forecast?lat="
+                    + lat + "&lon=" + lon + "&units=metric&appid=" + openWeatherApiKey;
+            HttpResponse<String> forecastResponse = httpClient.send(
+                    HttpRequest.newBuilder(URI.create(forecastUrl)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            JsonNode list = objectMapper.readTree(forecastResponse.body()).path("list");
+            if (!list.isArray()) {
+                return Map.of();
+            }
+
+            Map<LocalDate, List<Double>> temps = new LinkedHashMap<>();
+            Map<LocalDate, List<String>> conditions = new LinkedHashMap<>();
+            for (JsonNode item : list) {
+                Optional<LocalDate> date = parseDate(item.path("dt_txt").asText("").split(" ")[0]);
+                if (date.isEmpty()) {
+                    continue;
+                }
+                temps.computeIfAbsent(date.get(), ignored -> new ArrayList<>())
+                        .add(item.path("main").path("temp").asDouble());
+                conditions.computeIfAbsent(date.get(), ignored -> new ArrayList<>())
+                        .add(item.path("weather").path(0).path("main").asText("Forecast"));
+            }
+
+            Map<LocalDate, ItineraryResponse.WeatherSummary> summaries = new LinkedHashMap<>();
+            temps.forEach((date, values) -> {
+                double average = values.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+                String condition = mostCommon(conditions.getOrDefault(date, List.of()), "Forecast");
+                summaries.put(date, ItineraryResponse.WeatherSummary.builder()
+                        .condition(condition)
+                        .temperatureCelsius(Math.round(average * 10.0) / 10.0)
+                        .advice(weatherAdvice(condition))
+                        .build());
+            });
+            return summaries;
+        } catch (Exception ex) {
+            log.warn("Weather lookup failed: {}", ex.getMessage());
+            return Map.of();
+        }
+    }
+
+    private List<ItineraryResponse.TransportRecommendation> inferTransport(
+            List<ItineraryResponse.Activity> activities) {
+        if (activities == null || activities.size() < 2) {
+            return List.of();
+        }
+
+        List<ItineraryResponse.TransportRecommendation> recommendations = new ArrayList<>();
+        for (int i = 0; i < activities.size() - 1; i++) {
+            ItineraryResponse.Activity from = activities.get(i);
+            ItineraryResponse.Activity to = activities.get(i + 1);
+            recommendations.add(ItineraryResponse.TransportRecommendation.builder()
+                    .from(defaultString(from.getLocation(), from.getTitle()))
+                    .to(defaultString(to.getLocation(), to.getTitle()))
+                    .mode("walk / public transport")
+                    .estimatedDuration("10-30 min")
+                    .notes("Check live routes before departure.")
+                    .build());
+        }
+        return recommendations;
+    }
+
+    private ItineraryResponse.WeatherSummary unavailableWeather() {
+        return ItineraryResponse.WeatherSummary.builder()
+                .condition("Forecast unavailable")
+                .temperatureCelsius(null)
+                .advice("Check the local forecast closer to departure.")
+                .build();
+    }
+
+    private String weatherAdvice(String condition) {
+        String normalized = condition == null ? "" : condition.toLowerCase();
+        if (normalized.contains("rain")) {
+            return "Carry an umbrella and keep indoor backups ready.";
+        }
+        if (normalized.contains("snow")) {
+            return "Wear warm layers and allow extra transport time.";
+        }
+        if (normalized.contains("clear")) {
+            return "Bring sunscreen and water for outdoor stops.";
+        }
+        return "Keep the day flexible and confirm conditions before leaving.";
+    }
+
+    private Optional<LocalDate> parseDate(String value) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(LocalDate.parse(value));
+        } catch (DateTimeParseException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private String defaultString(String value, String fallback) {
+        return value != null && !value.isBlank() ? value : fallback;
+    }
+
+    private String mostCommon(List<String> values, String fallback) {
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.groupingBy(value -> value, LinkedHashMap::new, Collectors.counting()))
+                .entrySet()
+                .stream()
+                .max(Comparator.comparingLong(Map.Entry::getValue))
+                .map(Map.Entry::getKey)
+                .orElse(fallback);
+    }
+
+    private List<String> valuesMentionedByMultipleTravelers(List<String> rawValues) {
+        Map<String, Long> counts = rawValues.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.groupingBy(
+                        value -> value.toLowerCase(),
+                        LinkedHashMap::new,
+                        Collectors.counting()));
+        Map<String, String> labels = rawValues.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toMap(
+                        value -> value.toLowerCase(),
+                        value -> value,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new));
+
+        List<String> shared = counts.entrySet().stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(entry -> labels.get(entry.getKey()))
+                .toList();
+
+        if (!shared.isEmpty()) {
+            return shared;
+        }
+        return labels.values().stream().limit(5).toList();
+    }
+
+    private List<ConsolidatedPreferencesResponse.Conflict> detectPreferenceConflicts(
+            List<GroupPreferenceRequest.UserPreference> preferences) {
+        Map<String, String> mustSee = new LinkedHashMap<>();
+        Map<String, String> avoid = new LinkedHashMap<>();
+
+        for (GroupPreferenceRequest.UserPreference preference : preferences) {
+            safeList(preference.mustSee()).forEach(value -> mustSee.putIfAbsent(value.toLowerCase(), value));
+            safeList(preference.avoid()).forEach(value -> avoid.putIfAbsent(value.toLowerCase(), value));
+        }
+
+        List<ConsolidatedPreferencesResponse.Conflict> conflicts = new ArrayList<>();
+        mustSee.forEach((key, label) -> {
+            if (avoid.containsKey(key)) {
+                conflicts.add(new ConsolidatedPreferencesResponse.Conflict(
+                        label,
+                        label + " appears in both must-see and avoid preferences."));
+            }
+        });
+        return conflicts;
+    }
+
+    private List<String> safeList(List<String> values) {
+        return values == null ? List.of() : values.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .toList();
+    }
+
+    private String buildSuggestedGroupPrompt(String budget, String pace, List<String> interests,
+                                             List<String> mustSee,
+                                             List<ConsolidatedPreferencesResponse.Conflict> conflicts) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Create a ").append(pace.toLowerCase()).append(" itinerary with a ")
+                .append(budget.toLowerCase()).append(" budget.");
+        if (!interests.isEmpty()) {
+            prompt.append(" Prioritize ").append(String.join(", ", interests)).append(".");
+        }
+        if (!mustSee.isEmpty()) {
+            prompt.append(" Include ").append(String.join(", ", mustSee)).append(".");
+        }
+        if (!conflicts.isEmpty()) {
+            prompt.append(" Resolve group conflicts around ")
+                    .append(conflicts.stream()
+                            .map(ConsolidatedPreferencesResponse.Conflict::topic)
+                            .collect(Collectors.joining(", ")))
+                    .append(" with balanced alternatives.");
+        }
+        return prompt.toString();
     }
 
     // -------------------------------------------------------------------------

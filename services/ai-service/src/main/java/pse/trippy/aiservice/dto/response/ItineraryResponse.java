@@ -22,6 +22,8 @@ public class ItineraryResponse {
     private List<String> travelTips;
     private Instant generatedAt;
     private Integer tokensUsed;
+    private Boolean fallbackUsed;
+    private String fallbackReason;
 
     @Data
     @Builder
@@ -31,7 +33,31 @@ public class ItineraryResponse {
         private Integer dayNumber;
         private String date;
         private String title;
+        private WeatherSummary weather;
+        private List<TransportRecommendation> transportRecommendations;
         private List<Activity> activities;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class WeatherSummary {
+        private String condition;
+        private Double temperatureCelsius;
+        private String advice;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TransportRecommendation {
+        private String from;
+        private String to;
+        private String mode;
+        private String estimatedDuration;
+        private String notes;
     }
 
     @Data
