@@ -8,6 +8,7 @@ import pse.trippy.notificationservice.model.entity.Notification;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -15,9 +16,19 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     Page<Notification> findByUserIdAndDeletedFalseOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
+    Page<Notification> findByUserIdAndReadFalseAndDeletedFalseOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+
+    Page<Notification> findByUserIdAndTypeAndDeletedFalseOrderByCreatedAtDesc(
+            UUID userId, NotificationType type, Pageable pageable);
+
+    Page<Notification> findByUserIdAndTypeAndReadFalseAndDeletedFalseOrderByCreatedAtDesc(
+            UUID userId, NotificationType type, Pageable pageable);
+
     List<Notification> findByUserIdAndReadFalseAndDeletedFalseOrderByCreatedAtDesc(UUID userId);
 
     long countByUserIdAndReadFalseAndDeletedFalse(UUID userId);
+
+    Optional<Notification> findByIdAndUserIdAndDeletedFalse(UUID id, UUID userId);
 
     List<Notification> findByUserIdAndType(UUID userId, NotificationType type);
 
