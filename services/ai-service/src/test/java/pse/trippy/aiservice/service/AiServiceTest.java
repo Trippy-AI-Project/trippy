@@ -12,8 +12,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
+import pse.trippy.aiservice.dto.request.GroupPreferenceRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
+import pse.trippy.aiservice.dto.response.ConsolidatedPreferencesResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
@@ -23,6 +25,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,9 +49,9 @@ class AiServiceTest {
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callSpec = mock(ChatClient.CallResponseSpec.class);
 
-        when(chatClient.prompt()).thenReturn(requestSpec);
-        when(requestSpec.user(anyString())).thenReturn(requestSpec);
-        when(requestSpec.call()).thenReturn(callSpec);
+        lenient().when(chatClient.prompt()).thenReturn(requestSpec);
+        lenient().when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        lenient().when(requestSpec.call()).thenReturn(callSpec);
     }
 
     // =========================================================================
@@ -230,8 +233,8 @@ class AiServiceTest {
         }
 
         @Test
-        @DisplayName("throws RuntimeException when itinerary JSON cannot be parsed")
-        void throwsOnBadJson() {
+        @DisplayName("returns fallback itinerary when itinerary JSON cannot be parsed")
+        void returnsFallbackOnBadJson() {
             when(callSpec.content()).thenReturn("I cannot generate that.");
 
             GenerateItineraryRequest request = new GenerateItineraryRequest(
@@ -240,8 +243,48 @@ class AiServiceTest {
                             null, null, null),
                     null, null, null);
 
-            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
-                    () -> aiService.generateItinerary(request));
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getFallbackUsed()).isTrue();
+            assertThat(response.getFallbackReason()).isNotBlank();
+            assertThat(response.getDailyPlan()).hasSize(5);
+            assertThat(response.getDailyPlan().get(0).getWeather().getCondition())
+                    .isEqualTo("Forecast unavailable");
+        }
+    }
+
+    @Nested
+    @DisplayName("consolidatePreferences()")
+    class ConsolidatePreferences {
+
+        @Test
+        @DisplayName("returns deterministic group preference consolidation")
+        void returnsConsolidatedPreferences() {
+            GroupPreferenceRequest request = new GroupPreferenceRequest(
+                    java.util.UUID.randomUUID(),
+                    List.of(
+                            new GroupPreferenceRequest.UserPreference(
+                                    java.util.UUID.randomUUID(),
+                                    List.of("food", "museums"),
+                                    "MODERATE",
+                                    "SLOW",
+                                    List.of("Louvre"),
+                                    List.of("clubs")),
+                            new GroupPreferenceRequest.UserPreference(
+                                    java.util.UUID.randomUUID(),
+                                    List.of("food", "parks"),
+                                    "MODERATE",
+                                    "MODERATE",
+                                    List.of("Louvre"),
+                                    List.of("Louvre"))));
+
+            ConsolidatedPreferencesResponse response = aiService.consolidatePreferences(request);
+
+            assertThat(response.recommendedBudget()).isEqualTo("MODERATE");
+            assertThat(response.sharedInterests()).contains("food");
+            assertThat(response.mustSeeConsensus()).contains("Louvre");
+            assertThat(response.conflicts()).hasSize(1);
+            assertThat(response.suggestedPrompt()).contains("moderate budget");
         }
     }
 }
