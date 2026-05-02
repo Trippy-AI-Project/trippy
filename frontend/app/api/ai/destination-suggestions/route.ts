@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { callGroqWithRetry, extractJson, type GroqError } from "@/lib/groq-client";
+import { errorMessage, postToAiService, readJson } from "@/lib/server-ai-proxy";
 
-/* ── Types ─────────────────────────────────────────────────────────── */
 interface SuggestionBody {
   prompt?: string;
   city?: string;
@@ -14,7 +13,16 @@ interface SuggestionBody {
   customNotes?: string;
 }
 
-/* ── POST handler ──────────────────────────────────────────────────── */
+interface BackendSuggestion {
+  destination?: string;
+  country?: string;
+  description?: string;
+  highlights?: string[];
+  estimatedDailyCost?: number | string;
+  bestTimeToVisit?: string;
+  matchScore?: number;
+}
+
 export async function POST(request: Request) {
   let body: SuggestionBody;
 
@@ -24,103 +32,81 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  const backendBody = {
+    prompt: body.prompt,
+    city: body.city,
+    interests: body.interests?.length ? body.interests : ["travel"],
+    budget: body.budget,
+    travelStyle: body.preferences,
+    duration: clampDuration(body.durationDays),
+    region: body.city,
+    people: body.people,
+    diet: body.diet,
+    preferences: body.preferences,
+    customNotes: body.customNotes,
+  };
+
   try {
-    const prompt = buildPrompt(body);
+    const response = await postToAiService(request, "/ai/destination-suggestions", backendBody, 35_000);
+    const data = await readJson(response);
 
-    const result = await callGroqWithRetry(
-      [
-        {
-          role: "system",
-          content:
-            "You are Trippy AI, an expert travel planner. You create personalized, curated travel suggestions. " +
-            "Always respond with valid JSON. Never include markdown code fences. " +
-            "Every suggestion must be tailored to the user's specific preferences, budget, dietary needs, and travel style.",
-        },
-        { role: "user", content: prompt },
-      ],
-      { maxTokens: 4096, timeoutMs: 30_000 },
-    );
-
-    const json = extractJson(result.content);
-    let parsed;
-    try {
-      parsed = JSON.parse(json);
-    } catch (parseError) {
-      console.error("[AI] Failed to parse JSON. Raw content:", result.content.substring(0, 500) + "...");
+    if (!response.ok) {
       return NextResponse.json(
-        { error: "AI returned an invalid format. Please try again." },
-        { status: 502 }
+        { error: errorMessage(data, `AI service request failed (${response.status})`) },
+        { status: response.status },
       );
     }
-    const suggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
 
-    if (suggestions.length === 0) {
+    const suggestions = Array.isArray(data.suggestions)
+      ? data.suggestions.map(normalizeSuggestion)
+      : [];
+
+    if (!suggestions.length) {
       return NextResponse.json(
         { error: "AI could not generate suggestions for this query. Try different preferences." },
-        { status: 422 }
+        { status: 422 },
       );
     }
 
-    console.log(`[AI] Groq returned ${suggestions.length} suggestion(s)`);
-    return NextResponse.json({ suggestions, generatedAt: new Date().toISOString(), cached: false });
+    return NextResponse.json({
+      suggestions,
+      generatedAt: data.generatedAt ?? new Date().toISOString(),
+      cached: Boolean(data.cached),
+    });
   } catch (err) {
-    const groqErr = err as GroqError;
-    if (groqErr.status && groqErr.message) {
-      console.error(`[AI] Groq error (${groqErr.status}):`, groqErr.message);
-      return NextResponse.json(
-        { error: groqErr.message },
-        { status: groqErr.status >= 500 ? groqErr.status : 502 }
-      );
-    }
-    console.error("[AI] Unexpected error:", err);
+    console.error("[AI Proxy] Destination suggestions failed:", err);
     return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
-      { status: 500 }
+      { error: "Could not connect to AI service. Please make sure the backend is running." },
+      { status: 502 },
     );
   }
 }
 
-/* ── Prompt builder — includes ALL user preferences ────────────────── */
-function buildPrompt(body: SuggestionBody): string {
-  const city = body.city?.trim();
-  const parts: string[] = [];
+function clampDuration(durationDays?: number): number {
+  if (!durationDays || !Number.isFinite(durationDays)) return 3;
+  return Math.min(30, Math.max(1, Math.round(durationDays)));
+}
 
-  parts.push("You are an expert travel planner. Generate personalized travel destination suggestions.\n");
+function normalizeSuggestion(suggestion: BackendSuggestion) {
+  const destination = suggestion.destination ?? "";
+  const city = destination.includes(",")
+    ? destination.split(",")[0]?.trim()
+    : destination || undefined;
 
-  if (city) {
-    parts.push(`The user wants to travel specifically to: ${city}`);
-    parts.push(`Focus ONLY on ${city} as the destination. Do NOT suggest other cities.\n`);
-  } else if (body.prompt) {
-    parts.push(`User request: ${body.prompt}\n`);
-  } else {
-    parts.push("Suggest 3-5 diverse, interesting travel destinations.\n");
-  }
+  return {
+    city,
+    destination,
+    country: suggestion.country,
+    estimatedDailyCost: formatCost(suggestion.estimatedDailyCost),
+    bestTimeToVisit: suggestion.bestTimeToVisit,
+    highlights: suggestion.highlights ?? [],
+    reason: suggestion.description,
+    matchScore: suggestion.matchScore,
+  };
+}
 
-  // All user preferences — structured and clear for the LLM
-  if (body.durationDays) parts.push(`Trip duration: ${body.durationDays} days`);
-  if (body.people) parts.push(`Number of travelers: ${body.people}`);
-  if (body.budget) parts.push(`Budget level: ${body.budget}`);
-  if (body.diet) parts.push(`Dietary requirements: ${body.diet}`);
-  if (body.interests && body.interests.length > 0) {
-    parts.push(`Travel interests/style: ${body.interests.join(", ")}`);
-  }
-  if (body.preferences) parts.push(`Specific preferences: ${body.preferences}`);
-  if (body.customNotes) parts.push(`Additional notes: ${body.customNotes}`);
-
-  parts.push("\n--- INSTRUCTIONS ---");
-  parts.push("Tailor every suggestion to match the user's preferences above.");
-  if (body.diet) parts.push(`All food/restaurant suggestions must respect: ${body.diet} dietary needs.`);
-  if (body.budget) parts.push(`Costs should match a ${body.budget} budget level.`);
-  if (body.interests && body.interests.length > 0) {
-    parts.push(`Highlights and reasons should emphasize: ${body.interests.join(", ")}.`);
-  }
-
-  parts.push(
-    `\nRespond ONLY with valid JSON:\n` +
-    `{"suggestions":[{"city":"string","country":"string","estimatedDailyCost":"€XX–€XX","bestTimeToVisit":"string","highlights":["string"],"reason":"string","matchScore":0.95}]}\n` +
-    `Return ${city ? "1 suggestion for the specified city" : "3-5 suggestions"}. Costs in EUR (€). ` +
-    `Each reason must explain WHY this destination matches the user's specific preferences.`
-  );
-
-  return parts.join("\n");
+function formatCost(cost?: number | string): string | undefined {
+  if (cost === undefined || cost === null || cost === "") return undefined;
+  if (typeof cost === "number") return `€${Math.round(cost)}`;
+  return cost.startsWith("€") ? cost : `€${cost}`;
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callGroqWithRetry, extractJson } from "@/lib/groq-client";
+import { postToAiService, readJson } from "@/lib/server-ai-proxy";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -188,7 +188,7 @@ function applyModification(
     }
 
     case "add": {
-      // Don't add a blank placeholder — inform the user that Groq is needed for this
+      // Backend AI handles detailed additions; the local fallback only gives a safe response.
       changes.push({ type: "info", summary: "I need a moment to add that — please try again." });
       break;
     }
@@ -233,7 +233,7 @@ function applyModification(
     }
 
     case "swap": {
-      // Without Groq we can't make a meaningful swap — inform user
+      // Backend AI handles detailed swaps; the local fallback only gives a safe response.
       changes.push({ type: "info", summary: "I need a moment to make that swap — please try again." });
       break;
     }
@@ -269,99 +269,33 @@ export async function POST(request: Request) {
   const lastMessage = body.messages[body.messages.length - 1]?.content || "";
   const intent = parseModificationIntent(lastMessage);
 
-  // When an itinerary exists, always try Groq first for an intelligent update
-  if (body.currentItinerary?.length) {
-    const updatedItinerary = await tryGroqItineraryUpdate(
-      body.currentItinerary,
-      lastMessage,
-      body.destination,
-      body.tripContext,
-    );
-    if (updatedItinerary) {
-      return NextResponse.json({
-        reply: "✨ **Trip Updated!**\n\nYour itinerary has been updated based on your request.",
-        updatedItinerary,
-        changes: [{ type: "info", summary: "Itinerary updated based on your request." }],
-        hasModification: true,
-      });
-    }
-
-    // Groq failed — fall back to local keyword-based modifications
-    if (intent.action !== "general") {
-      const { updatedItinerary: localUpdated, changes } = applyModification(body.currentItinerary, intent);
-      const replyParts = ["✨ **Trip Updated!**\n"];
-      for (const c of changes) {
-        if (c.type === "swap") replyParts.push(`🔄 **Day ${c.dayNumber}**: ${c.summary}`);
-        else if (c.type === "add") replyParts.push(`➕ **Day ${c.dayNumber}**: ${c.summary}`);
-        else if (c.type === "remove") replyParts.push(`🗑️ **Day ${c.dayNumber}**: ${c.summary}`);
-        else replyParts.push(`💡 ${c.summary}`);
-      }
-      return NextResponse.json({
-        reply: replyParts.join("\n"),
-        updatedItinerary: localUpdated,
-        changes,
-        hasModification: true,
-      });
-    }
+  try {
+    const response = await postToAiService(request, "/ai/chat", body, 50_000);
+    const data = await readJson(response);
+    if (response.ok) return NextResponse.json(data);
+  } catch (err) {
+    console.error("[AI Proxy] Chat failed:", err);
   }
 
-  // Fallback: general Groq chat
-  try {
-    const groqReply = await tryGroqChat(body);
-    if (groqReply) return NextResponse.json({ reply: groqReply, hasModification: false });
-  } catch { /* fall through */ }
+  if (body.currentItinerary?.length && intent.action !== "general") {
+    const { updatedItinerary: localUpdated, changes } = applyModification(body.currentItinerary, intent);
+    const replyParts = ["Trip updated.\n"];
+    for (const c of changes) {
+      if (c.type === "swap") replyParts.push(`Day ${c.dayNumber}: ${c.summary}`);
+      else if (c.type === "add") replyParts.push(`Day ${c.dayNumber}: ${c.summary}`);
+      else if (c.type === "remove") replyParts.push(`Day ${c.dayNumber}: ${c.summary}`);
+      else replyParts.push(c.summary);
+    }
+    return NextResponse.json({
+      reply: replyParts.join("\n"),
+      updatedItinerary: localUpdated,
+      changes,
+      hasModification: true,
+    });
+  }
 
-  // Smart local response
   const reply = getSmartReply(lastMessage, body.destination);
   return NextResponse.json({ reply, hasModification: false });
-}
-
-async function tryGroqItineraryUpdate(
-  currentItinerary: DayPlan[],
-  userRequest: string,
-  destination?: string,
-  tripContext?: string,
-): Promise<DayPlan[] | null> {
-  try {
-    const lines = [
-      `You are Trippy AI, an expert travel planner.`,
-      tripContext ? `Trip context: ${tripContext}` : "",
-      destination ? `Destination: ${destination}` : "",
-      ``,
-      `The user wants to modify their existing trip itinerary.`,
-      `USER REQUEST: "${userRequest}"`,
-      ``,
-      `CURRENT ITINERARY (JSON):`,
-      JSON.stringify(currentItinerary, null, 2),
-      ``,
-      `Return an UPDATED version of the itinerary that fulfills the user's request.`,
-      `Keep the same number of days and overall JSON structure unless the user explicitly asked to change them.`,
-      `Use REAL place names and addresses for ${destination || "the destination"}.`,
-      ``,
-      `Return ONLY valid JSON — no markdown fences, no explanation — in exactly this shape:`,
-      `{"dailyPlan":[{"dayNumber":1,"date":"YYYY-MM-DD","title":"Day title","activities":[{"time":"09:00","title":"Activity","description":"Desc","location":"Venue, Address","category":"FOOD|SIGHTSEEING|TRANSPORT|SHOPPING|CULTURE|NIGHTLIFE|NATURE|WELLNESS","estimatedCost":"€15","duration":60}]}]}`,
-    ];
-
-    const result = await callGroqWithRetry(
-      [
-        {
-          role: "system",
-          content: "You are Trippy AI, an expert travel planner. Return ONLY valid JSON with no markdown fences and no extra text.",
-        },
-        { role: "user", content: lines.filter(Boolean).join("\n") },
-      ],
-      { maxTokens: 8192, timeoutMs: 45_000 },
-    );
-
-    const json = extractJson(result.content);
-    const parsed = JSON.parse(json) as { dailyPlan?: DayPlan[] };
-    if (Array.isArray(parsed.dailyPlan) && parsed.dailyPlan.length > 0) {
-      return parsed.dailyPlan;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 function getSmartReply(msg: string, destination?: string): string {
@@ -379,19 +313,3 @@ function getSmartReply(msg: string, destination?: string): string {
 
   return `🌍 **I can modify your trip!** Try:\n\n• "Make Day 1 more relaxed"\n• "Swap lunch to a vegetarian place"\n• "Add nightlife to Day 2"\n• "Make it more budget-friendly"\n• "Add an adventure activity"\n• "Remove shopping from Day 3"\n\nJust describe what you want changed and I'll update your itinerary! ✨`;
 }
-
-async function tryGroqChat(body: ChatBody): Promise<string | null> {
-  try {
-    const result = await callGroqWithRetry(
-      [
-        { role: "system", content: `You are Trippy AI, a travel assistant.\n\nTrip context:\n${body.tripContext}\n\nRules: Only travel topics. Concise. Use EUR (€).` },
-        ...body.messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-      ],
-      { maxTokens: 2048, timeoutMs: 20_000 },
-    );
-    return result.content;
-  } catch {
-    return null;
-  }
-}
-

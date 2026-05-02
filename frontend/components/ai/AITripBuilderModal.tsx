@@ -27,6 +27,7 @@ import {
 import Button from "@/components/ui/Button";
 import GlassCard from "@/components/ui/GlassCard";
 import TripFullScreenView from "@/components/ai/TripFullScreenView";
+import { getAccessToken } from "@/lib/api";
 
 /* ── Beautiful Loading Screen ─────────────────────────────────────── */
 const LOADING_MESSAGES = [
@@ -296,9 +297,7 @@ interface AiRequestPayload {
 async function fetchAiSuggestions(payload: AiRequestPayload): Promise<DestinationSuggestionItem[]> {
   const response = await fetch("/api/ai/destination-suggestions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: aiRequestHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -314,6 +313,13 @@ async function fetchAiSuggestions(payload: AiRequestPayload): Promise<Destinatio
     throw new Error(data.error);
   }
   return suggestions;
+}
+
+function aiRequestHeaders(): Record<string, string> {
+  const token = getAccessToken();
+  return token
+    ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+    : { "Content-Type": "application/json" };
 }
 
 /* ── Date Range Picker ────────────────────────────────────────────── */
@@ -1107,7 +1113,7 @@ function TripResultCard({
 
       const res = await fetch("/api/ai/itineraries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: aiRequestHeaders(),
         body: JSON.stringify({
           constraints: {
             destination: draftTrip.destination,
@@ -1445,7 +1451,7 @@ function TripResultCard({
                           const tripCtx = `Trip: ${draftTrip.title}\nDestination: ${draftTrip.destination}\nDuration: ${draftTrip.duration}`;
                           const res = await fetch("/api/ai/chat", {
                             method: "POST",
-                            headers: { "Content-Type": "application/json" },
+                            headers: aiRequestHeaders(),
                             body: JSON.stringify({
                               messages: updated.map(m => ({ role: m.role, content: m.content })),
                               tripContext: tripCtx,
