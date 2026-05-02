@@ -380,13 +380,17 @@ export const tripsApi = {
 
 export interface Notification {
   id: string;
+  notificationId?: string;
   userId: string;
   type: string;
   title: string;
   message: string;
+  body?: string;
   actionUrl?: string;
+  metadata?: Record<string, unknown>;
   read: boolean;
   createdAt: string;
+  readAt?: string;
 }
 
 export interface NotificationPage {
@@ -400,7 +404,10 @@ export interface NotificationPage {
 export const notificationsApi = {
   list: (page = 0, size = 10) =>
     api.get<NotificationPage>(`/notifications?page=${page}&size=${size}`),
-  unreadCount: () => api.get<{ count: number }>("/notifications/unread-count"),
+  unreadCount: async () => {
+    const data = await api.get<{ count?: number; unreadCount?: number }>("/notifications/unread-count");
+    return { count: data.count ?? data.unreadCount ?? 0 };
+  },
   markRead: (id: string) => api.patch<void>(`/notifications/${id}/read`),
   markAllRead: () => api.patch<void>("/notifications/read-all"),
   deleteNotification: (id: string) => api.delete<void>(`/notifications/${id}`),
