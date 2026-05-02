@@ -131,6 +131,9 @@ components:
     NotificationType:
       type: string
       enum:
+        - "TRIP_INVITE"
+        - "TRIP_JOINED"
+        - "ITINERARY_READY"
         - "TRIP_INVITATION"
         - "INVITATION_ACCEPTED"
         - "INVITATION_DECLINED"

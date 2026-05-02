@@ -16,6 +16,9 @@ import { notificationsApi, type Notification } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const typeIcon: Record<string, typeof Bell> = {
+  TRIP_INVITE: Plane,
+  TRIP_JOINED: Plane,
+  ITINERARY_READY: Plane,
   TRIP_INVITATION: Plane,
   INVITATION_ACCEPTED: Plane,
   INVITATION_DECLINED: Plane,
@@ -58,20 +61,37 @@ export default function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    fetchUnreadCount();
+    const initialPoll = window.setTimeout(fetchUnreadCount, 0);
     const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialPoll);
+      clearInterval(interval);
+    };
   }, [fetchUnreadCount]);
 
   // Load notifications when dropdown opens
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    notificationsApi
-      .list(0, 10)
-      .then((data) => setNotifications(data.content))
-      .catch(() => setNotifications([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      setLoading(true);
+      notificationsApi
+        .list(0, 10)
+        .then((data) => {
+          if (!cancelled) setNotifications(data.content);
+        })
+        .catch(() => {
+          if (!cancelled) setNotifications([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
   }, [open]);
 
   // Close dropdown on outside click
