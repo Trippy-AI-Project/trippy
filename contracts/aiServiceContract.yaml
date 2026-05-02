@@ -313,6 +313,35 @@ components:
         title:
           type: string
           example: "Temple Tour & Traditional Cuisine"
+        weather:
+          type: object
+          properties:
+            condition:
+              type: string
+              example: "Clear"
+            temperatureCelsius:
+              type: number
+              example: 22.5
+            advice:
+              type: string
+              example: "Bring sunscreen and water for outdoor stops."
+        transportRecommendations:
+          type: array
+          items:
+            type: object
+            properties:
+              from:
+                type: string
+              to:
+                type: string
+              mode:
+                type: string
+                example: "walk / public transport"
+              estimatedDuration:
+                type: string
+                example: "10-30 min"
+              notes:
+                type: string
         activities:
           type: array
           items:
@@ -388,6 +417,12 @@ components:
         tokensUsed:
           type: integer
           description: LLM tokens consumed (for internal tracking)
+        fallbackUsed:
+          type: boolean
+          description: True when a template fallback was returned because AI generation failed.
+        fallbackReason:
+          type: string
+          description: Why fallback content was used.
 
     # =====================================================
     # TRAVEL ADVICE SCHEMAS
