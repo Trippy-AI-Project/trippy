@@ -7,8 +7,10 @@ import org.springframework.web.bind.annotation.*;
 import pse.trippy.aiservice.dto.request.AiChatRequest;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
+import pse.trippy.aiservice.dto.request.GroupPreferenceRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.response.AiChatResponse;
+import pse.trippy.aiservice.dto.response.ConsolidatedPreferencesResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
@@ -61,6 +63,16 @@ public class AiController {
     public ResponseEntity<ItineraryResponse> generateItinerary(
             @Valid @RequestBody GenerateItineraryRequest request) {
         return ResponseEntity.ok(aiService.generateItinerary(request));
+    }
+
+    /**
+     * POST /ai/preferences/consolidate
+     * Internal S2S endpoint — called by Trip Service.
+     */
+    @PostMapping("/preferences/consolidate")
+    public ResponseEntity<ConsolidatedPreferencesResponse> consolidatePreferences(
+            @Valid @RequestBody GroupPreferenceRequest request) {
+        return ResponseEntity.ok(aiService.consolidatePreferences(request));
     }
 
     @DeleteMapping("/cache/{type}")

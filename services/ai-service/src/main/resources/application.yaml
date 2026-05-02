@@ -49,6 +49,10 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
+trippy:
+  weather:
+    openweather-api-key: ${OPENWEATHER_API_KEY:}
+
 server:
   port: 8084
 
