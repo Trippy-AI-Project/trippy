@@ -7,14 +7,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import pse.trippy.notificationservice.model.enums.NotificationType;
 import pse.trippy.notificationservice.service.EmailService;
 import pse.trippy.notificationservice.service.NotificationService;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -93,6 +97,77 @@ class NotificationEventListenerTest {
         assertThat(vars).containsEntry("inviteeName", "Bob");
         assertThat(vars).containsEntry("inviterName", "Jane");
         assertThat(vars).containsEntry("tripTitle", "Summer in Barcelona");
+    }
+
+    @Test
+    @DisplayName("trip.invitation.created event stores in-app notification")
+    void tripInvitationStoresNotification() {
+        UUID inviteeId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+        Map<String, Object> payload = Map.of(
+                "tripId", "223e4567-e89b-12d3-a456-426614174000",
+                "tripTitle", "Summer in Barcelona",
+                "inviterName", "Jane",
+                "inviteeId", inviteeId.toString(),
+                "inviteeEmail", "bob@test.com",
+                "inviteeName", "Bob");
+
+        listener.handleTripInvitation(payload);
+
+        verify(notificationService).createNotification(
+                eq(inviteeId),
+                eq(NotificationType.TRIP_INVITE),
+                eq("Trip Invitation"),
+                eq("Jane invited you to Summer in Barcelona"),
+                eq("/dashboard/trips/223e4567-e89b-12d3-a456-426614174000"),
+                any());
+    }
+
+    @Test
+    @DisplayName("malformed UUID payload is skipped without crashing")
+    void malformedUuidIsSkipped() {
+        Map<String, Object> payload = Map.of(
+                "tripTitle", "Bad ID Trip",
+                "inviterName", "Jane",
+                "inviteeId", "not-a-uuid",
+                "inviteeEmail", "bob@test.com",
+                "inviteeName", "Bob");
+
+        assertThatCode(() -> listener.handleTripInvitation(payload)).doesNotThrowAnyException();
+        verify(notificationService, never()).createNotification(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any());
+    }
+
+    @Test
+    @DisplayName("itinerary ready event sends email and stores notification")
+    void itineraryReadySendsEmailAndStoresNotification() {
+        UUID userId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+        Map<String, Object> payload = Map.of(
+                "userId", userId.toString(),
+                "email", "alice@test.com",
+                "userName", "Alice",
+                "tripId", "223e4567-e89b-12d3-a456-426614174000",
+                "tripTitle", "Kyoto Spring",
+                "destination", "Kyoto");
+
+        listener.handleItineraryReady(payload);
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Your Trippy itinerary is ready"),
+                eq("itinerary-ready"),
+                any());
+        verify(notificationService).createNotification(
+                eq(userId),
+                eq(NotificationType.ITINERARY_READY),
+                eq("Itinerary Ready"),
+                eq("Your itinerary for Kyoto Spring is ready to review."),
+                eq("/dashboard/trips/223e4567-e89b-12d3-a456-426614174000"),
+                any());
     }
 
     @Test
