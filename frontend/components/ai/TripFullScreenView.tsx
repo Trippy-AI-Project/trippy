@@ -9,6 +9,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { getAccessToken } from "@/lib/api";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 interface AiItineraryDay {
@@ -133,7 +134,7 @@ export default function TripFullScreenView({
 
       const res = await fetch("/api/ai/itineraries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: aiRequestHeaders(),
         body: JSON.stringify({
           constraints: {
             destination: draftTrip.destination,
@@ -256,7 +257,7 @@ export default function TripFullScreenView({
     try {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: aiRequestHeaders(),
         body: JSON.stringify({
           messages: updated.map(m => ({ role: m.role, content: m.content })),
           tripContext: `Trip: ${draftTrip.title}\nDestination: ${draftTrip.destination}\nDuration: ${draftTrip.duration}`,
@@ -820,4 +821,11 @@ export default function TripFullScreenView({
       </motion.div>
     </motion.div>
   );
+}
+
+function aiRequestHeaders(): Record<string, string> {
+  const token = getAccessToken();
+  return token
+    ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+    : { "Content-Type": "application/json" };
 }
