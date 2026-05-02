@@ -215,6 +215,7 @@ export interface AIBuilderRequest {
   startDate?: string;
   endDate?: string;
   people?: number;
+  budget?: string;
   filters?: string[];
   autoGenerate?: boolean;
 }
@@ -577,6 +578,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       setStartDate(initialRequest.startDate || "");
       setEndDate(initialRequest.endDate || "");
       setPeople(initialRequest.people || 2);
+      setBudget(initialRequest.budget || "");
       setSelectedFilters(initialRequest.filters || []);
 
       if (
