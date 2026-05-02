@@ -1,52 +1,45 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Compass,
-  Users,
-  MapPin,
-  Sparkles,
   ArrowRight,
-  Globe,
   Calendar,
-  MessageSquare,
-  Search,
-  Star,
-  CloudSun,
-  Mountain,
-  Palmtree,
-  Plane,
-  Heart,
-  Zap,
-  DollarSign,
-  ChevronRight,
-  Shield,
-  Clock,
-  TrendingUp,
-  Play,
-  Waves,
+  Check,
   ChevronDown,
+  Compass,
+  DollarSign,
+  MapPin,
+  Search,
+  Sparkles,
+  Star,
+  Users,
 } from "lucide-react";
 import AITripBuilderModal, { type AIBuilderRequest } from "@/components/ai/AITripBuilderModal";
-import MiniCalendar from "@/components/ui/MiniCalendar";
 import Logo from "@/components/Logo";
-import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   DATA
-   ═══════════════════════════════════════════════════════════════════════ */
+import { Badge, Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 const HERO_DESTINATIONS = [
-  "Santorini, Greece",
   "Kyoto, Japan",
+  "Lisbon, Portugal",
   "Bali, Indonesia",
   "Barcelona, Spain",
-  "Machu Picchu, Peru",
-  "Amalfi Coast, Italy",
   "Banff, Canada",
   "Cape Town, South Africa",
+];
+
+const EXPERIENCE_FILTERS = ["Beach", "City", "Food", "Nature", "Adventure", "Wellness"];
+
+const BUDGET_OPTIONS = ["Budget", "Moderate", "Premium", "Luxury"];
+
+const TRAVEL_GROUPS = [
+  { label: "Solo", people: 1 },
+  { label: "Couple", people: 2 },
+  { label: "Friends", people: 4 },
+  { label: "Family", people: 4 },
+  { label: "Group", people: 8 },
 ];
 
 const TRENDING_TRIPS = [
@@ -54,210 +47,120 @@ const TRENDING_TRIPS = [
     id: "1",
     title: "Greek Island Hopping",
     destination: "Santorini & Mykonos, Greece",
-    image: "https://images.unsplash.com/photo-1613395877344-13d4a8e0d49e?w=600&h=400&fit=crop",
-    dates: "Jul 12 – Jul 22",
+    image: "https://images.unsplash.com/photo-1613395877344-13d4a8e0d49e?w=900&h=650&fit=crop",
+    dates: "Jul 12 - Jul 22",
     price: "$2,340",
     rating: 4.9,
-    reviews: 234,
-    spots: 3,
-    maxSpots: 8,
     tags: ["Beach", "Culture"],
-    creator: { name: "Elena K.", avatar: null },
     isAI: false,
   },
   {
     id: "2",
-    title: "Tokyo Neon Nights & Zen Gardens",
+    title: "Tokyo Food, Neon & Temples",
     destination: "Tokyo & Kyoto, Japan",
-    image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600&h=400&fit=crop",
-    dates: "Aug 5 – Aug 18",
+    image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=900&h=650&fit=crop",
+    dates: "Aug 5 - Aug 18",
     price: "$3,120",
     rating: 4.8,
-    reviews: 189,
-    spots: 5,
-    maxSpots: 10,
     tags: ["City", "Food"],
-    creator: { name: "AI Trippy", avatar: null },
     isAI: true,
   },
   {
     id: "3",
     title: "Bali Wellness Retreat",
     destination: "Ubud & Seminyak, Bali",
-    image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&h=400&fit=crop",
-    dates: "Sep 1 – Sep 10",
+    image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=900&h=650&fit=crop",
+    dates: "Sep 1 - Sep 10",
     price: "$1,890",
     rating: 4.9,
-    reviews: 312,
-    spots: 2,
-    maxSpots: 6,
     tags: ["Wellness", "Nature"],
-    creator: { name: "Maya R.", avatar: null },
     isAI: false,
   },
   {
     id: "4",
     title: "Patagonia Trek Adventure",
     destination: "Torres del Paine, Chile",
-    image: "https://images.unsplash.com/photo-1531761535209-180857e963b9?w=600&h=400&fit=crop",
-    dates: "Oct 8 – Oct 20",
+    image: "https://images.unsplash.com/photo-1531761535209-180857e963b9?w=900&h=650&fit=crop",
+    dates: "Oct 8 - Oct 20",
     price: "$2,780",
     rating: 4.7,
-    reviews: 98,
-    spots: 4,
-    maxSpots: 8,
     tags: ["Adventure", "Nature"],
-    creator: { name: "AI Trippy", avatar: null },
     isAI: true,
   },
   {
     id: "5",
     title: "Amalfi Coast Road Trip",
     destination: "Naples to Positano, Italy",
-    image: "https://images.unsplash.com/photo-1534113414509-0eec2bfb493f?w=600&h=400&fit=crop",
-    dates: "Jun 20 – Jun 28",
+    image: "https://images.unsplash.com/photo-1534113414509-0eec2bfb493f?w=900&h=650&fit=crop",
+    dates: "Jun 20 - Jun 28",
     price: "$2,100",
     rating: 4.8,
-    reviews: 276,
-    spots: 6,
-    maxSpots: 10,
-    tags: ["Road Trip", "Food"],
-    creator: { name: "Luca T.", avatar: null },
+    tags: ["Food", "Road Trip"],
     isAI: false,
   },
   {
     id: "6",
     title: "Northern Lights Chase",
-    destination: "Tromsø & Lofoten, Norway",
-    image: "https://images.unsplash.com/photo-1483347756197-71ef80e95f73?w=600&h=400&fit=crop",
-    dates: "Nov 15 – Nov 24",
+    destination: "Tromso & Lofoten, Norway",
+    image: "https://images.unsplash.com/photo-1483347756197-71ef80e95f73?w=900&h=650&fit=crop",
+    dates: "Nov 15 - Nov 24",
     price: "$3,450",
     rating: 4.9,
-    reviews: 156,
-    spots: 3,
-    maxSpots: 6,
-    tags: ["Nature", "Photography"],
-    creator: { name: "AI Trippy", avatar: null },
+    tags: ["Nature", "Adventure"],
     isAI: true,
   },
 ];
 
-const AI_STEPS = [
-  { icon: MessageSquare, label: "Tell us your vibe", desc: "Beach? Mountains? City? Just say the word." },
-  { icon: Sparkles, label: "AI builds your trip", desc: "Smart itinerary with flights, stays & activities." },
-  { icon: Users, label: "Invite your crew", desc: "Share the plan — everyone can edit & vote." },
-  { icon: Plane, label: "Pack & go", desc: "Real-time updates, chat & day-by-day guides." },
-];
-
-const PREFERENCES = [
-  { icon: Palmtree, label: "Beach & Islands", color: "text-accent-600" },
-  { icon: Mountain, label: "Mountains", color: "text-trippy-600" },
-  { icon: Globe, label: "City Breaks", color: "text-trippy-300" },
-  { icon: Waves, label: "Adventure", color: "text-accent-500" },
-  { icon: CloudSun, label: "Tropical", color: "text-warning" },
-  { icon: Star, label: "Luxury", color: "text-accent-300" },
-];
-
-const FEATURES = [
+const WORKFLOW_STEPS = [
   {
-    icon: MapPin,
-    title: "Plan Together",
-    desc: "Build itineraries collaboratively with your travel companions in real-time.",
+    icon: Search,
+    title: "Search",
+    desc: "Pick a place and dates.",
   },
   {
     icon: Sparkles,
-    title: "AI-Powered Trips",
-    desc: "Get complete trip plans generated by AI — flights, hotels, activities & budget.",
+    title: "Generate",
+    desc: "Get a first itinerary.",
   },
   {
     icon: Users,
-    title: "Invite Friends",
-    desc: "Share trips with friends and family. Everyone can contribute ideas and vote.",
-  },
-  {
-    icon: MessageSquare,
-    title: "Group Chat",
-    desc: "Discuss plans, share links, and coordinate without leaving the app.",
-  },
-  {
-    icon: Calendar,
-    title: "Day-by-Day Plans",
-    desc: "Organize activities into daily plans with time slots, maps & budgets.",
-  },
-  {
-    icon: Globe,
-    title: "Discover & Join Trips",
-    desc: "Browse public itineraries from real travelers & verified hosts. Join instantly.",
+    title: "Plan",
+    desc: "Shape it with your people.",
   },
 ];
 
-const TESTIMONIALS = [
-  {
-    name: "Sarah M.",
-    role: "Solo Traveler",
-    text: "Trippy's AI planned my entire 2-week Japan trip in minutes. Every recommendation was spot-on!",
-    rating: 5,
-  },
-  {
-    name: "James & Priya",
-    role: "Couple",
-    text: "We used to fight over trip planning. Now we collaborate on Trippy and it's actually fun.",
-    rating: 5,
-  },
-  {
-    name: "The Wanderers",
-    role: "Group of 6",
-    text: "Coordinating 6 people across 3 timezones? Trippy made it seamless. Best group trip ever.",
-    rating: 5,
-  },
-];
-
-const STATS = [
-  { value: "50K+", label: "Trips Created", icon: Globe },
-  { value: "120K+", label: "Happy Travelers", icon: Users },
-  { value: "190+", label: "Countries Covered", icon: MapPin },
-  { value: "4.9", label: "App Rating", icon: Star },
-];
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   ANIMATION VARIANTS
-   ═══════════════════════════════════════════════════════════════════════ */
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: "easeOut" as const },
-  }),
-};
-
-const staggerContainer = {
+const revealContainer = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.08 } },
+  visible: {
+    transition: { staggerChildren: 0.08 },
+  },
 };
 
-const fadeIn = {
-  hidden: { opacity: 0, y: 20 },
+const revealItem = {
+  hidden: { opacity: 0, y: 22 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: "easeOut" as const },
+    transition: { duration: 0.56, ease: "easeOut" as const },
   },
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   HERO TYPING EFFECT
-   ═══════════════════════════════════════════════════════════════════════ */
+const cardReveal = {
+  hidden: { opacity: 0, y: 26 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.06, duration: 0.48, ease: "easeOut" as const },
+  }),
+};
 
-function useTypingEffect(words: string[], typingSpeed = 80, pause = 2000) {
+function useTypingEffect(words: string[], typingSpeed = 90, pause = 1900) {
   const [text, setText] = useState("");
   const [wordIndex, setWordIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const current = words[wordIndex];
-
     const timeout = setTimeout(
       () => {
         if (!isDeleting) {
@@ -273,7 +176,7 @@ function useTypingEffect(words: string[], typingSpeed = 80, pause = 2000) {
           }
         }
       },
-      isDeleting ? typingSpeed / 2 : typingSpeed
+      isDeleting ? typingSpeed / 2 : typingSpeed,
     );
 
     return () => clearTimeout(timeout);
@@ -282,115 +185,108 @@ function useTypingEffect(words: string[], typingSpeed = 80, pause = 2000) {
   return text;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   PAGE
-   ═══════════════════════════════════════════════════════════════════════ */
-
 export default function LandingPage() {
-  const typedDestination = useTypingEffect(HERO_DESTINATIONS, 70, 1800);
-  const [activeAIStep, setActiveAIStep] = useState(0);
-  const [selectedPrefs, setSelectedPrefs] = useState<string[]>(["Beach & Islands", "City Breaks"]);
-  const [hoveredTrip, setHoveredTrip] = useState<string | null>(null);
-  const [showAITooltip, setShowAITooltip] = useState(false);
+  const requestIdRef = useRef(0);
+  const typedDestination = useTypingEffect(HERO_DESTINATIONS);
+  const [activeStep, setActiveStep] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [travelGroup, setTravelGroup] = useState("Couple");
+  const [heroBudget, setHeroBudget] = useState("Moderate");
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showAIBuilder, setShowAIBuilder] = useState(false);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
-  const [travelGroup, setTravelGroup] = useState("");
-  const [heroBudget, setHeroBudget] = useState("");
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [calendarSelecting, setCalendarSelecting] = useState<"start" | "end">("start");
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [aiBuilderRequest, setAiBuilderRequest] = useState<AIBuilderRequest | undefined>(undefined);
 
-  const formatDateShort = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400000);
-  const toggleDropdown = (name: string) => setActiveDropdown((p) => (p === name ? null : name));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % WORKFLOW_STEPS.length);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, []);
 
-  const isSearchActive =
-    isSearchFocused ||
-    searchQuery.length > 0 ||
-    activeFilters.length > 0 ||
-    startDate !== null ||
-    endDate !== null ||
-    travelGroup !== "" ||
-    heroBudget !== "";
+  const selectedGroup = TRAVEL_GROUPS.find((group) => group.label === travelGroup);
+
+  const nextRequestId = () => {
+    requestIdRef.current += 1;
+    return requestIdRef.current;
+  };
 
   const openAIBuilder = (autoGenerate = false) => {
     setAiBuilderRequest({
-      requestId: Date.now(),
+      requestId: nextRequestId(),
       city: searchQuery.trim() || undefined,
-      startDate: startDate ? startDate.toISOString().slice(0, 10) : undefined,
-      endDate: endDate ? endDate.toISOString().slice(0, 10) : undefined,
-      people: travelGroup === "Solo" ? 1 : travelGroup === "Couple" ? 2 : travelGroup === "Family" ? 4 : travelGroup === "Friends" ? 4 : travelGroup === "Group" ? 8 : 2,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      people: selectedGroup?.people ?? 2,
+      budget: heroBudget,
       filters: activeFilters,
       autoGenerate,
     });
     setShowAIBuilder(true);
   };
 
-  // Auto-cycle AI steps
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveAIStep((prev) => (prev + 1) % AI_STEPS.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const togglePref = (label: string) => {
-    setSelectedPrefs((prev) =>
-      prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label]
-    );
+  const openAIBuilderForTrip = (trip: (typeof TRENDING_TRIPS)[number]) => {
+    setAiBuilderRequest({
+      requestId: nextRequestId(),
+      city: trip.destination,
+      people: selectedGroup?.people ?? 2,
+      budget: heroBudget,
+      filters: trip.tags,
+      autoGenerate: false,
+    });
+    setShowAIBuilder(true);
   };
 
   const toggleFilter = (tag: string) => {
     setActiveFilters((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag],
     );
   };
 
-  // Filter trips by search query + active tag filters
+  const clearPlanner = () => {
+    setSearchQuery("");
+    setActiveFilters([]);
+    setStartDate("");
+    setEndDate("");
+    setTravelGroup("Couple");
+    setHeroBudget("Moderate");
+  };
+
   const filteredTrips = TRENDING_TRIPS.filter((trip) => {
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
     const matchesSearch =
       !q ||
       trip.title.toLowerCase().includes(q) ||
       trip.destination.toLowerCase().includes(q) ||
-      trip.tags.some((t) => t.toLowerCase().includes(q));
+      trip.tags.some((tag) => tag.toLowerCase().includes(q));
     const matchesTags =
       activeFilters.length === 0 ||
-      trip.tags.some((t) => activeFilters.includes(t));
+      trip.tags.some((tag) => activeFilters.includes(tag));
     return matchesSearch && matchesTags;
   });
 
-  return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      {/* ── Ambient gradients ─────────────────────────────────────────── */}
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-60 -left-60 h-[700px] w-[700px] rounded-full bg-trippy-300/30 blur-[120px]" />
-        <div className="absolute top-[20%] right-[-10%] h-[600px] w-[600px] rounded-full bg-accent-300/25 blur-[100px]" />
-        <div className="absolute bottom-[-5%] left-[30%] h-[500px] w-[500px] rounded-full bg-trippy-200/40 blur-[100px]" />
-        <div className="absolute top-[60%] left-[-5%] h-[400px] w-[400px] rounded-full bg-accent-200/30 blur-[80px]" />
-      </div>
+  const hasPlannerInput =
+    Boolean(searchQuery.trim()) ||
+    activeFilters.length > 0 ||
+    Boolean(startDate) ||
+    Boolean(endDate) ||
+    travelGroup !== "Couple" ||
+    heroBudget !== "Moderate";
 
-      {/* ════════════════════════════════════════════════════════════════
-          HEADER
-          ════════════════════════════════════════════════════════════ */}
-      <header className="glass-strong sticky top-0 z-50 px-4 lg:px-8">
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
+      <header className="sticky top-0 z-50 border-b border-border bg-surface px-4 lg:px-8">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between">
           <Logo size="md" />
 
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted">
-            <a href="#discover" className="hover:text-foreground transition-colors">Discover</a>
-            <a href="#ai-trips" className="hover:text-foreground transition-colors">AI Trips</a>
-            <a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a>
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
+          <nav className="hidden items-center gap-7 text-sm font-semibold text-muted md:flex">
+            <a href="#discover" className="transition-colors hover:text-trippy-500">Discover</a>
+            <a href="#planning" className="transition-colors hover:text-trippy-500">How it works</a>
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link href="/login">
               <Button variant="ghost" size="sm">Log in</Button>
             </Link>
@@ -401,1104 +297,743 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* ════════════════════════════════════════════════════════════════
-          HERO
-          ════════════════════════════════════════════════════════════ */}
-      <section className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-8 text-center lg:pt-32">
-        {/* Floating elements */}
-        <motion.div
-          className="absolute top-24 left-[8%] hidden lg:block"
-          animate={{ y: [0, -12, 0] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <div className="glass-sm p-3 rounded-2xl">
-            <Plane size={20} className="text-trippy-600" />
-          </div>
-        </motion.div>
-        <motion.div
-          className="absolute top-40 right-[10%] hidden lg:block"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <div className="glass-sm p-3 rounded-2xl">
-            <Globe size={20} className="text-accent-600" />
-          </div>
-        </motion.div>
-        <motion.div
-          className="absolute top-64 left-[15%] hidden lg:block"
-          animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <div className="glass-sm p-3 rounded-2xl">
-            <Heart size={18} className="text-danger" />
-          </div>
-        </motion.div>
+      <main>
+        <section className="relative isolate overflow-hidden border-b border-border bg-[#f4f8f3]">
+          <AnimatedTravelBackdrop />
 
-        {/* Pill badge */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6 }}
-          className="mb-6 inline-flex items-center gap-2 rounded-full bg-trippy-500/10 px-5 py-2 text-sm font-medium text-trippy-600 border border-trippy-500/20"
-        >
-          <Zap size={14} className="text-accent-600" />
-          Powered by AI — Plan trips in seconds
-        </motion.div>
-
-        {/* Heading */}
-        <motion.h1
-          className="max-w-4xl text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-6xl lg:text-7xl"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.1 }}
-        >
-          Explore the world,{" "}
-          <br className="hidden sm:block" />
-          <span className="text-trippy-600">
-            together
-          </span>
-        </motion.h1>
-
-        <motion.p
-          className="mt-6 max-w-2xl text-lg text-muted leading-relaxed sm:text-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.25 }}
-        >
-          Trippy is the AI-powered collaborative trip planner. Create
-          itineraries in seconds, invite your crew, and turn dream
-          destinations into real adventures.
-        </motion.p>
-
-        {/* ── Hero Search Bar ─────────────────────────────── */}
-        <motion.div
-          className={`mt-10 w-full transition-all duration-500 ${isSearchFocused ? "max-w-3xl scale-[1.01]" : "max-w-2xl hover:scale-[1.005]"}`}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          {/* Main search input */}
-          <div className={`glass-strong rounded-2xl transition-all duration-500 ${isSearchFocused ? "ring-4 ring-trippy-500/30 shadow-[0_0_60px_-15px_rgba(62,155,126,0.4)] bg-white/95" : "hover:ring-2 hover:ring-trippy-500/20 hover:shadow-xl"}`}>
-            <div className="flex items-center">
-              <Search size={18} className="ml-5 text-muted shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && searchQuery.trim()) openAIBuilder(true); }}
-                placeholder={searchQuery ? "" : typedDestination}
-                className="flex-1 bg-transparent py-4 px-4 text-base text-foreground placeholder:text-muted/50 outline-none"
-              />
-              <button
-                onClick={() => openAIBuilder(true)}
-                className="mr-2 flex items-center gap-2 bg-trippy-500 hover:bg-trippy-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer group"
+          <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col justify-center px-4 py-14 lg:px-8 lg:py-20">
+            <motion.div
+              className="mx-auto w-full max-w-5xl text-center"
+              variants={revealContainer}
+              initial="hidden"
+              animate="visible"
+            >
+              <motion.div
+                variants={revealItem}
+                className="mx-auto mb-5 inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-bold text-trippy-500 shadow-sm"
               >
-                <Sparkles size={15} className="group-hover:rotate-12 transition-transform" />
-                <span className="hidden sm:inline">Plan Trip</span>
-                <span className="sm:hidden">Go</span>
-              </button>
-            </div>
-          </div>
+                <Compass size={15} className="text-accent-500" />
+                Trippy planner
+              </motion.div>
 
-          {/* Filter chips below search */}
-          <div className="mt-3 flex flex-wrap justify-center items-center gap-2">
-
-            {/* ── Duration ── */}
-            <div className="relative">
-              <button
-                onClick={() => toggleDropdown("duration")}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
-                  startDate
-                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
-                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
-                }`}
+              <motion.h1
+                variants={revealItem}
+                className="font-display text-balance text-5xl font-black leading-tight text-foreground sm:text-6xl lg:text-7xl"
               >
-                <Calendar size={13} />
-                {startDate && endDate
-                  ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)} (${daysBetween(startDate, endDate)} days)`
-                  : "Duration"}
-                {startDate && (
-                  <span onClick={(e) => { e.stopPropagation(); setStartDate(null); setEndDate(null); setCalendarSelecting("start"); }} className="ml-0.5 hover:text-danger">✕</span>
-                )}
-              </button>
+                Where are you going next?
+              </motion.h1>
 
-              <AnimatePresence>
-                {activeDropdown === "duration" && (() => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const cm = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-                  const nm = new Date(cm.getFullYear(), cm.getMonth() + 1, 1);
-                  const renderMonth = (monthStart: Date) => {
-                    const year = monthStart.getFullYear();
-                    const month = monthStart.getMonth();
-                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                    const firstDay = monthStart.getDay();
-                    const cells: (number | null)[] = Array(firstDay).fill(null);
-                    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-                    return (
-                      <div className="w-[224px]">
-                        <p className="text-xs font-semibold text-center mb-2">{monthStart.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</p>
-                        <div className="grid grid-cols-7 place-items-center">
-                          {["Su","Mo","Tu","We","Th","Fr","Sa"].map((d) => <div key={d} className="w-8 h-6 flex items-center justify-center text-[10px] text-muted font-medium">{d}</div>)}
-                          {cells.map((day, i) => {
-                            if (!day) return <div key={`e-${i}`} className="w-8 h-8" />;
-                            const date = new Date(year, month, day);
-                            const isPast = date < today;
-                            const isStart = startDate && date.getTime() === startDate.getTime();
-                            const isEnd = endDate && date.getTime() === endDate.getTime();
-                            const inRange = startDate && endDate && date > startDate && date < endDate;
-                            return (
-                              <button
-                                key={day}
-                                disabled={isPast}
-                                onClick={() => {
-                                  if (calendarSelecting === "start" || (startDate && date < startDate)) {
-                                    setStartDate(date); setEndDate(null); setCalendarSelecting("end");
-                                  } else {
-                                    setEndDate(date); setCalendarSelecting("start"); setActiveDropdown(null);
-                                  }
-                                }}
-                                className={`w-8 h-8 rounded-full text-[11px] flex items-center justify-center transition-all ${
-                                  isPast ? "text-muted/30 cursor-not-allowed" :
-                                  isStart || isEnd ? "bg-trippy-500 text-white font-bold cursor-pointer" :
-                                  inRange ? "bg-trippy-500/15 text-trippy-600 cursor-pointer" :
-                                  "hover:bg-trippy-500/10 text-foreground cursor-pointer"
-                                }`}
-                              >
-                                {day}
-                              </button>
-                            );
-                          })}
+              <motion.p variants={revealItem} className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted sm:text-lg">
+                Search, choose your dates, and build the first plan.
+              </motion.p>
+
+              <motion.form
+                variants={revealItem}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  openAIBuilder(true);
+                }}
+                className="mx-auto mt-8 w-full rounded-xl border border-border bg-surface p-3 shadow-xl sm:p-4"
+              >
+                <div className="grid gap-3 lg:grid-cols-[1fr_250px_170px]">
+                  <label
+                    className={cn(
+                      "flex min-h-16 items-center gap-3 rounded-lg border bg-shore-50 px-4 text-left transition-all duration-200",
+                      focusedField === "destination" ? "border-trippy-500 shadow-md" : "border-border",
+                    )}
+                  >
+                    <Search size={18} className="text-trippy-500" />
+                    <span className="sr-only">Destination</span>
+                    <input
+                      value={searchQuery}
+                      onFocus={() => setFocusedField("destination")}
+                      onBlur={() => setFocusedField(null)}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder={typedDestination || "Where do you want to go?"}
+                      className="w-full bg-transparent text-base font-semibold text-foreground outline-none placeholder:text-muted"
+                    />
+                  </label>
+
+                  <DateRangePicker
+                    startDate={startDate}
+                    endDate={endDate}
+                    onStartDateChange={setStartDate}
+                    onEndDateChange={setEndDate}
+                  />
+
+                  <Button type="submit" size="lg" className="min-h-16 rounded-lg">
+                    Plan Trip <ArrowRight size={18} />
+                  </Button>
+                </div>
+
+                <div className="mt-3 grid gap-2 lg:grid-cols-[160px_170px_1fr]">
+                  <PlannerDropdown
+                    icon={<DollarSign size={16} />}
+                    label="Budget"
+                    value={heroBudget}
+                    options={BUDGET_OPTIONS}
+                    onChange={setHeroBudget}
+                  />
+
+                  <PlannerDropdown
+                    icon={<Users size={16} />}
+                    label="Travelers"
+                    value={travelGroup}
+                    options={TRAVEL_GROUPS.map((group) => group.label)}
+                    onChange={setTravelGroup}
+                  />
+
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-shore-50 p-2">
+                    {EXPERIENCE_FILTERS.map((tag) => {
+                      const active = activeFilters.includes(tag);
+                      return (
+                        <motion.button
+                          key={tag}
+                          type="button"
+                          onClick={() => toggleFilter(tag)}
+                          whileTap={{ scale: 0.96 }}
+                          className={cn(
+                            "rounded-md border px-3 py-2 text-sm font-semibold transition-all duration-200",
+                            active
+                              ? "border-trippy-500 bg-trippy-500 text-white shadow-sm"
+                              : "border-border bg-surface text-muted hover:border-trippy-500 hover:text-trippy-500",
+                          )}
+                        >
+                          {tag}
+                        </motion.button>
+                      );
+                    })}
+                    {hasPlannerInput && (
+                      <button
+                        type="button"
+                        onClick={clearPlanner}
+                        className="ml-auto rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-muted transition-colors hover:text-danger"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.form>
+            </motion.div>
+          </div>
+        </section>
+
+        <section id="discover" className="mx-auto max-w-7xl px-4 py-14 lg:px-8 lg:py-16">
+          <SectionHeading
+            eyebrow="Discover"
+            title="Popular starts"
+            description="Use an example or search your own destination above."
+          />
+
+          <AnimatePresence mode="popLayout">
+            {filteredTrips.length > 0 ? (
+              <motion.div layout className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredTrips.map((trip, index) => (
+                  <motion.article
+                    key={trip.id}
+                    custom={index}
+                    variants={cardReveal}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-80px" }}
+                    className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg"
+                  >
+                    <div className="aspect-[4/3] overflow-hidden bg-shore-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={trip.image}
+                        alt={trip.title}
+                        className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+                      />
+                    </div>
+                    <div className="p-4">
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {trip.tags.map((tag) => (
+                          <Badge key={tag}>{tag}</Badge>
+                        ))}
+                        {trip.isAI && <Badge variant="accent">AI draft</Badge>}
+                      </div>
+
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-lg font-black leading-tight">{trip.title}</h3>
+                          <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-muted">
+                            <MapPin size={15} className="text-trippy-500" />
+                            {trip.destination}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 rounded-md bg-shore-100 px-2.5 py-1 text-sm font-black text-trippy-500">
+                          <Star size={14} fill="currentColor" />
+                          {trip.rating}
                         </div>
                       </div>
-                    );
-                  };
-                  return (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 6 }}
-                        className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 p-5 bg-white rounded-xl shadow-2xl border border-border/50"
-                      >
-                        <div className="flex items-center justify-between mb-3 px-1">
-                          <button onClick={() => setCalendarMonth(new Date(cm.getFullYear(), cm.getMonth() - 1, 1))} className="w-7 h-7 rounded-full hover:bg-surface flex items-center justify-center text-muted cursor-pointer text-sm">‹</button>
-                          <p className="text-[10px] text-muted font-medium">{calendarSelecting === "start" ? "Select start date" : "Select end date"}</p>
-                          <button onClick={() => setCalendarMonth(new Date(cm.getFullYear(), cm.getMonth() + 1, 1))} className="w-7 h-7 rounded-full hover:bg-surface flex items-center justify-center text-muted cursor-pointer text-sm">›</button>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-lg border border-border bg-shore-50 p-3">
+                          <p className="text-xs font-bold uppercase text-muted">Dates</p>
+                          <p className="mt-1 font-black">{trip.dates}</p>
                         </div>
-                        <div className="flex gap-8">
-                          {renderMonth(cm)}
-                          {renderMonth(nm)}
+                        <div className="rounded-lg border border-border bg-shore-50 p-3">
+                          <p className="text-xs font-bold uppercase text-muted">From</p>
+                          <p className="mt-1 font-black">{trip.price}</p>
                         </div>
-                      </motion.div>
-                    </>
-                  );
-                })()}
-              </AnimatePresence>
-            </div>
+                      </div>
 
-            {/* ── Travel Group ── */}
-            <div className="relative">
-              <button
-                onClick={() => toggleDropdown("group")}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
-                  travelGroup
-                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
-                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
-                }`}
-              >
-                <Users size={13} />
-                {travelGroup || "Who's going"}
-                {travelGroup && (
-                  <span onClick={(e) => { e.stopPropagation(); setTravelGroup(""); }} className="ml-0.5 hover:text-danger">✕</span>
-                )}
-              </button>
-
-              <AnimatePresence>
-                {activeDropdown === "group" && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 6 }}
-                      className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 bg-white rounded-xl shadow-2xl border border-border/50 overflow-hidden min-w-[160px]"
-                    >
-                      {[
-                        { label: "Solo", emoji: "🧑" },
-                        { label: "Couple", emoji: "💑" },
-                        { label: "Friends", emoji: "👯" },
-                        { label: "Family", emoji: "👨‍👩‍👧‍👦" },
-                        { label: "Group", emoji: "🎉" },
-                      ].map(({ label, emoji }) => (
-                        <button
-                          key={label}
-                          onClick={() => { setTravelGroup(label); setActiveDropdown(null); }}
-                          className={`w-full text-left px-4 py-2.5 text-xs hover:bg-trippy-500/5 transition-colors cursor-pointer flex items-center gap-2.5 ${
-                            travelGroup === label ? "text-trippy-600 font-medium bg-trippy-500/5" : "text-foreground"
-                          }`}
-                        >
-                          <span className="text-sm">{emoji}</span>
-                          {label}
-                        </button>
-                      ))}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* ── Budget ── */}
-            <div className="relative">
-              <button
-                onClick={() => toggleDropdown("budget")}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
-                  heroBudget
-                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
-                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
-                }`}
-              >
-                <DollarSign size={13} />
-                {heroBudget || "Budget"}
-                {heroBudget && (
-                  <span onClick={(e) => { e.stopPropagation(); setHeroBudget(""); }} className="ml-0.5 hover:text-danger">✕</span>
-                )}
-              </button>
-
-              <AnimatePresence>
-                {activeDropdown === "budget" && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 6 }}
-                      className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 bg-white rounded-xl shadow-2xl border border-border/50 overflow-hidden min-w-[150px]"
-                    >
-                      {[
-                        { label: "Budget", icon: "💰" },
-                        { label: "Moderate", icon: "💵" },
-                        { label: "Premium", icon: "💎" },
-                        { label: "Luxury", icon: "👑" },
-                      ].map(({ label, icon }) => (
-                        <button
-                          key={label}
-                          onClick={() => { setHeroBudget(label); setActiveDropdown(null); }}
-                          className={`w-full text-left px-4 py-2.5 text-xs hover:bg-trippy-500/5 transition-colors cursor-pointer flex items-center gap-2.5 ${
-                            heroBudget === label ? "text-trippy-600 font-medium bg-trippy-500/5" : "text-foreground"
-                          }`}
-                        >
-                          <span className="text-sm">{icon}</span>
-                          {label}
-                        </button>
-                      ))}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* ── Experience Type (multi-select) ── */}
-            <div className="relative">
-              <button
-                onClick={() => toggleDropdown("experience")}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer border ${
-                  activeFilters.length > 0
-                    ? "bg-trippy-500/10 border-trippy-500/30 text-trippy-600"
-                    : "bg-white/70 border-border/50 text-muted hover:text-foreground hover:border-border"
-                }`}
-              >
-                <Compass size={13} />
-                {activeFilters.length > 0 ? `${activeFilters.length} selected` : "Experience"}
-                {activeFilters.length > 0 && (
-                  <span onClick={(e) => { e.stopPropagation(); setActiveFilters([]); }} className="ml-0.5 hover:text-danger">✕</span>
-                )}
-              </button>
-
-              <AnimatePresence>
-                {activeDropdown === "experience" && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 6 }}
-                      className="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-2 bg-white rounded-xl shadow-2xl border border-border/50 overflow-hidden min-w-[180px]"
-                    >
-                      {[
-                        { label: "Beach", tag: "Beach", emoji: "🏖️" },
-                        { label: "Mountains", tag: "Nature", emoji: "⛰️" },
-                        { label: "City Break", tag: "City", emoji: "🏙️" },
-                        { label: "Adventure", tag: "Adventure", emoji: "🧗" },
-                        { label: "Wellness", tag: "Wellness", emoji: "🧘" },
-                        { label: "Road Trip", tag: "Road Trip", emoji: "🚗" },
-                        { label: "Cultural", tag: "Cultural", emoji: "🏛️" },
-                        { label: "Nightlife", tag: "Nightlife", emoji: "🌃" },
-                        { label: "Food & Wine", tag: "Food", emoji: "🍷" },
-                      ].map(({ label, tag, emoji }) => {
-                        const active = activeFilters.includes(tag);
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => toggleFilter(tag)}
-                            className={`w-full text-left px-4 py-2.5 text-xs hover:bg-trippy-500/5 transition-colors cursor-pointer flex items-center gap-2.5 ${
-                              active ? "text-trippy-600 font-medium bg-trippy-500/5" : "text-foreground"
-                            }`}
-                          >
-                            <span className="text-sm">{emoji}</span>
-                            <span className="flex-1">{label}</span>
-                            {active && <span className="text-trippy-500 text-xs">✓</span>}
-                          </button>
-                        );
-                      })}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Clear all */}
-            {(activeFilters.length > 0 || startDate || endDate || travelGroup || heroBudget) && (
-              <button
-                onClick={() => { setActiveFilters([]); setSearchQuery(""); setStartDate(null); setEndDate(null); setTravelGroup(""); setHeroBudget(""); setCalendarSelecting("start"); }}
-                className="text-xs text-danger/70 hover:text-danger cursor-pointer hover:underline ml-1"
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        </motion.div>
-
-        {/* ── Hero Stats Row ──────────────────────────────── */}
-        <AnimatePresence>
-          {!isSearchActive && (
-            <motion.div
-              className="grid w-full max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4 overflow-hidden"
-              initial={{ height: 0, opacity: 0, marginTop: 0 }}
-              animate={{ height: "auto", opacity: 1, marginTop: 56 }}
-              exit={{ height: 0, opacity: 0, marginTop: 0 }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
-            >
-              {STATS.map(({ value, label, icon: Icon }) => (
-                <div key={label} className="glass-sm p-4 text-center group hover:bg-surface-hover transition-all cursor-default">
-                  <Icon size={18} className="mx-auto mb-2 text-trippy-600 group-hover:text-trippy-300 transition-colors" />
-                  <div className="text-2xl font-bold text-trippy-600">
-                    {value}
-                  </div>
-                  <div className="text-xs text-muted mt-0.5">{label}</div>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════
-          DISCOVER & JOIN TRIPS
-          ════════════════════════════════════════════════════════════ */}
-      <section id="discover" className={`mx-auto max-w-7xl px-4 lg:px-8 transition-all duration-500 ${isSearchActive ? "py-10" : "py-20"}`}>
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10">
-          <div>
-            {!isSearchActive ? (
-              <motion.div
-                initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-                className="flex flex-col items-start"
-              >
-                <div className="inline-flex items-center gap-2 rounded-full bg-accent-400/10 px-4 py-1.5 text-xs font-semibold text-accent-600 mb-3">
-                  <TrendingUp size={12} /> TRENDING NOW
-                </div>
-                <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Discover <span className="text-trippy-600">amazing trips</span>
-                </h2>
-                <p className="mt-2 text-muted max-w-lg">
-                  Browse curated trips from travelers & AI. Find your perfect adventure and join with one click.
-                </p>
+                      <Button className="mt-4 w-full rounded-lg" onClick={() => openAIBuilderForTrip(trip)}>
+                        Plan similar trip <ArrowRight size={16} />
+                      </Button>
+                    </div>
+                  </motion.article>
+                ))}
               </motion.div>
             ) : (
               <motion.div
-                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col items-start"
+                key="no-results"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                className="mt-8 rounded-lg border border-border bg-surface p-8 text-center shadow-sm"
               >
-                <div className="inline-flex items-center gap-2 rounded-full bg-trippy-500/10 px-4 py-1.5 text-xs font-semibold text-trippy-600 mb-3">
-                  <Search size={12} /> SEARCH RESULTS
-                </div>
-                <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Found <span className="text-trippy-600">{filteredTrips.length} trips</span>
-                </h2>
-                <p className="mt-2 text-muted max-w-lg">
-                  Showing trips matching your active searches and filters.
+                <Sparkles size={28} className="mx-auto text-accent-500" />
+                <h3 className="mt-4 text-xl font-black">No examples match that search</h3>
+                <p className="mx-auto mt-2 max-w-md text-muted">
+                  Clear the filters or open the builder with your idea.
                 </p>
+                <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+                  <Button variant="secondary" onClick={clearPlanner}>Clear filters</Button>
+                  <Button onClick={() => openAIBuilder(true)}>Open AI builder</Button>
+                </div>
               </motion.div>
             )}
-          </div>
-          <Link href="/register" className="mt-4 sm:mt-0">
-            <Button variant="secondary" size="sm">
-              View all trips <ArrowRight size={14} />
-            </Button>
-          </Link>
-        </div>
+          </AnimatePresence>
+        </section>
 
-        {/* Trip Cards Grid */}
-        <AnimatePresence mode="popLayout">
-          {filteredTrips.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredTrips.map((trip, i) => (
-            <motion.div
-              key={trip.id}
-              custom={i}
-              variants={fadeUp}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              onMouseEnter={() => setHoveredTrip(trip.id)}
-              onMouseLeave={() => setHoveredTrip(null)}
-            >
-              <GlassCard className="p-0 overflow-hidden group cursor-pointer hover:shadow-xl hover:shadow-trippy-500/10 transition-all duration-500">
-                {/* Image */}
-                <div className="relative h-48 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={trip.image}
-                    alt={trip.title}
-                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+        <section id="planning" className="bg-surface py-12 lg:py-14">
+          <div className="mx-auto max-w-7xl px-4 lg:px-8">
+            <SectionHeading
+              eyebrow="How it works"
+              title="From search to itinerary"
+              description="A short path from idea to first plan."
+            />
+
+            <div className="relative mt-7">
+              <motion.svg
+                viewBox="0 0 900 170"
+                className="mb-2 hidden h-24 w-full md:block"
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
+              >
+                <motion.path
+                  d="M48 112 C190 32 322 132 458 78 C600 22 700 126 852 54"
+                  fill="none"
+                  stroke="#123C69"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  initial={{ pathLength: 0 }}
+                  whileInView={{ pathLength: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 1.25, ease: "easeInOut" }}
+                />
+                {[48, 458, 852].map((cx, index) => (
+                  <motion.circle
+                    key={cx}
+                    cx={cx}
+                    cy={[112, 78, 54][index]}
+                    r="11"
+                    fill={index === activeStep ? "#E76F51" : "#FFFFFF"}
+                    stroke="#123C69"
+                    strokeWidth="5"
+                    initial={{ scale: 0 }}
+                    whileInView={{ scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.2 + index * 0.12, duration: 0.3 }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                ))}
+              </motion.svg>
 
-                  {/* Top row */}
-                  <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
-                    <div className="flex gap-1.5">
-                      {trip.tags.map((tag) => (
-                        <Badge key={tag} variant="default" className="bg-black/40 text-white border-0 backdrop-blur-sm text-[10px]">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                    {trip.isAI && (
-                      <div className="flex items-center gap-1 rounded-full bg-trippy-500/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-semibold text-white">
-                        <Sparkles size={10} /> AI Created
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bottom price */}
-                  <div className="absolute bottom-3 right-3 glass-sm px-3 py-1.5 !rounded-lg bg-black/40 border-0 backdrop-blur-md">
-                    <span className="text-sm font-bold text-white">{trip.price}</span>
-                    <span className="text-[10px] text-white/70 ml-1">/person</span>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-semibold leading-tight line-clamp-1 group-hover:text-trippy-600 transition-colors">
-                      {trip.title}
-                    </h3>
-                    <div className="flex items-center gap-1 text-xs text-accent-600 shrink-0">
-                      <Star size={12} fill="currentColor" />
-                      {trip.rating}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-sm text-muted">
-                    <MapPin size={14} className="shrink-0 text-trippy-600" />
-                    <span className="line-clamp-1">{trip.destination}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-sm text-muted">
-                    <Calendar size={14} className="shrink-0 text-trippy-600" />
-                    <span>{trip.dates}</span>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-3 border-t border-border">
-                    <div className="flex items-center gap-2">
-                      <Avatar size="sm" name={trip.creator.name} />
-                      <div className="text-xs">
-                        <div className="font-medium">{trip.creator.name}</div>
-                        <div className="text-muted">{trip.reviews} reviews</div>
-                      </div>
-                    </div>
-
-                    {/* Spots left */}
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 rounded-full bg-border overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-trippy-gradient"
-                          style={{
-                            width: `${((trip.maxSpots - trip.spots) / trip.maxSpots) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs text-muted whitespace-nowrap">
-                        {trip.spots} left
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Hover reveal: join button */}
-                  <AnimatePresence>
-                    {hoveredTrip === trip.id && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <Button className="w-full mt-1" size="sm">
-                          Join this trip <ArrowRight size={14} />
-                        </Button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </GlassCard>
-            </motion.div>
-          ))}
-            </div>
-          ) : (
-            <motion.div
-              key="no-results"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="text-center py-16"
-            >
-              <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-trippy-500/10 flex items-center justify-center">
-                <Sparkles size={28} className="text-trippy-600" />
-              </div>
-              <h3 className="text-lg font-semibold">
-                {searchQuery
-                  ? `No curated trips for "${searchQuery}"`
-                  : "No trips match your filters"}
-              </h3>
-              <p className="mt-2 text-muted max-w-md mx-auto">
-                {searchQuery
-                  ? "Let our AI create a personalized trip plan for this destination instantly!"
-                  : `No trips match "${activeFilters.join(", ")}". Try different filters or let AI help.`}
-              </p>
-              <div className="mt-5 flex justify-center gap-3">
-                <Button variant="secondary" size="sm" onClick={() => { setSearchQuery(""); setActiveFilters([]); }}>
-                  Clear filters
-                </Button>
-                <Button size="sm" onClick={() => openAIBuilder(true)}>
-                  <Sparkles size={14} /> {searchQuery ? `AI Trip to ${searchQuery}` : "AI Trip Builder"}
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════
-          AI TRIP CREATION SHOWCASE
-          ════════════════════════════════════════════════════════════ */}
-      <section id="ai-trips" className="relative overflow-hidden py-24">
-        {/* Section glow */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-trippy-300/30 blur-[120px]" />
-        </div>
-
-        <div className="relative mx-auto max-w-7xl px-4 lg:px-8">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-              className="inline-flex items-center gap-2 rounded-full bg-trippy-500/10 px-4 py-1.5 text-xs font-semibold text-trippy-600 mb-3 border border-trippy-500/20"
-            >
-              <Sparkles size={12} /> AI-POWERED
-            </motion.div>
-            <motion.h2
-              className="text-3xl font-bold tracking-tight sm:text-4xl"
-              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }} transition={{ duration: 0.5 }}
-            >
-              Let AI plan your{" "}
-              <span className="text-trippy-600">
-                dream trip
-              </span>
-            </motion.h2>
-            <p className="mt-3 text-muted max-w-xl mx-auto text-lg">
-              Just tell us where and when. Our AI does the rest — creating personalised itineraries in seconds.
-            </p>
-          </div>
-
-          <div className="grid lg:grid-cols-2 gap-10 items-center">
-            {/* Left: AI Mock Interface */}
-            <motion.div
-              initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }} transition={{ duration: 0.6 }}
-            >
-              <GlassCard variant="strong" className="p-0 overflow-hidden">
-                {/* Mock header bar */}
-                <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-danger/60" />
-                    <div className="w-3 h-3 rounded-full bg-warning/60" />
-                    <div className="w-3 h-3 rounded-full bg-success/60" />
-                  </div>
-                  <div className="flex-1 flex justify-center">
-                    <span className="text-xs text-muted font-medium">Trippy AI Trip Builder</span>
-                  </div>
-                </div>
-
-                <div className="p-6 space-y-4">
-                  {/* User message */}
-                  <div className="flex justify-end">
-                    <div className="glass-sm px-4 py-2.5 max-w-[80%] text-sm">
-                      Plan me a 10-day trip to Japan with my 3 friends. We love food, temples, and nightlife. Budget around $3000 each. 🇯🇵
-                    </div>
-                  </div>
-
-                  {/* AI typing */}
-                  <div className="flex gap-3">
-                    <div className="shrink-0 w-8 h-8 rounded-full bg-trippy-500 flex items-center justify-center">
-                      <Sparkles size={14} className="text-white" />
-                    </div>
-                    <div className="glass-sm px-4 py-3 max-w-[85%] text-sm space-y-2">
-                      <p className="font-medium text-foreground">Here&apos;s your 10-day Japan itinerary! 🎌</p>
-                      <div className="space-y-1.5 text-muted text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-trippy-400" />
-                          Days 1-3: Tokyo — Shibuya, Akihabara, Tsukiji market
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-trippy-400" />
-                          Days 4-5: Hakone — Mt. Fuji views, hot springs
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-trippy-400" />
-                          Days 6-8: Kyoto — Fushimi Inari, bamboo grove, tea ceremony
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-trippy-400" />
-                          Days 9-10: Osaka — Dotonbori, street food tour, nightlife
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 pt-2 text-xs">
-                        <span className="flex items-center gap-1 text-success"><Clock size={10} /> 10 days</span>
-                        <span className="flex items-center gap-1 text-trippy-600"><Users size={10} /> 4 travelers</span>
-                        <span className="flex items-center gap-1 text-accent-600"><TrendingUp size={10} /> ~$2,840/person</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* CTA */}
-                  <div className="pt-2 flex gap-3">
-                    <Button className="w-full flex-1" size="sm" onClick={() => openAIBuilder(false)}>
-                        <Sparkles size={14} /> Generate my trip
-                    </Button>
-                    <Button variant="secondary" size="sm">Customize</Button>
-                  </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-
-            {/* Right: How AI works steps */}
-            <motion.div
-              className="space-y-6"
-              initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <h3 className="text-xl font-bold">Create a trip in 4 steps</h3>
-              <div className="space-y-3">
-                {AI_STEPS.map((step, i) => {
+              <div className="grid overflow-hidden rounded-lg border border-border bg-background md:grid-cols-3">
+                {WORKFLOW_STEPS.map((step, index) => {
                   const StepIcon = step.icon;
-                  const isActive = activeAIStep === i;
+                  const active = activeStep === index;
                   return (
-                    <motion.div
-                      key={step.label}
-                      className={`glass-sm p-4 flex items-center gap-4 cursor-pointer transition-all duration-300 ${
-                        isActive ? "!bg-trippy-500/10 !border-trippy-500/30 shadow-lg shadow-trippy-500/5" : "hover:bg-surface-hover"
-                      }`}
-                      onClick={() => setActiveAIStep(i)}
-                      animate={isActive ? { scale: 1.02 } : { scale: 1 }}
+                    <motion.button
+                      key={step.title}
+                      type="button"
+                      onClick={() => setActiveStep(index)}
+                      custom={index}
+                      variants={cardReveal}
+                      initial="hidden"
+                      whileInView="visible"
+                      viewport={{ once: true }}
+                      className={cn(
+                        "border-border p-5 text-left transition-all duration-300 md:border-r md:last:border-r-0",
+                        active
+                          ? "bg-trippy-500 text-white"
+                          : "bg-background text-foreground hover:bg-shore-50",
+                      )}
                     >
-                      <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                        isActive ? "bg-trippy-gradient text-white" : "bg-trippy-500/10 text-trippy-600"
-                      }`}>
-                        <StepIcon size={18} />
+                      <div
+                        className={cn(
+                          "mb-4 grid h-10 w-10 place-items-center rounded-lg",
+                          active ? "bg-surface text-trippy-500" : "bg-surface text-trippy-500",
+                        )}
+                      >
+                        <StepIcon size={20} />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted font-medium">Step {i + 1}</span>
-                          {isActive && (
-                            <motion.div
-                              layoutId="activeStep"
-                              className="h-1 w-6 rounded-full bg-trippy-gradient"
-                            />
-                          )}
-                        </div>
-                        <div className="font-semibold text-sm mt-0.5">{step.label}</div>
-                        <div className="text-xs text-muted mt-0.5">{step.desc}</div>
-                      </div>
-                      <ChevronRight size={16} className={`text-muted transition-transform ${isActive ? "translate-x-1 text-trippy-600" : ""}`} />
-                    </motion.div>
+                      <h3 className="text-lg font-black">{step.title}</h3>
+                      <p className={cn("mt-2 text-sm leading-6", active ? "text-white" : "text-muted")}>{step.desc}</p>
+                    </motion.button>
                   );
                 })}
               </div>
-
-                <Button size="lg" className="mt-4 bg-trippy-600 hover:shadow-trippy-500/25" onClick={() => openAIBuilder(false)}>
-                  <Sparkles size={16} /> Try AI Trip Builder <ArrowRight size={16} />
-              </Button>
-            </motion.div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ════════════════════════════════════════════════════════════════
-          PERSONALISATION SECTION
-          ════════════════════════════════════════════════════════════ */}
-      <section className="mx-auto max-w-7xl px-4 py-20 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left: Text + Preference Chips */}
+        <section className="mx-auto max-w-7xl px-4 py-12 lg:px-8 lg:py-14">
           <motion.div
-            initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }} transition={{ duration: 0.5 }}
+            className="overflow-hidden rounded-lg border border-border bg-surface p-5 shadow-sm sm:p-6"
+            initial={{ opacity: 0, y: 28 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.52, ease: "easeOut" }}
           >
-            <div className="inline-flex items-center gap-2 rounded-full bg-success/10 px-4 py-1.5 text-xs font-semibold text-success mb-3">
-              <Heart size={12} /> PERSONALISED FOR YOU
-            </div>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Trips that match{" "}
-              <span className="text-trippy-600">your style</span>
-            </h2>
-            <p className="mt-3 text-muted max-w-lg text-lg">
-              Select your travel preferences and we&apos;ll curate trips, destinations, and
-              activities that match exactly what you&apos;re looking for.
-            </p>
-
-            {/* Preference chips */}
-            <div className="mt-8 flex flex-wrap gap-3">
-              {PREFERENCES.map(({ icon: PIcon, label, color }) => {
-                const isSelected = selectedPrefs.includes(label);
-                return (
-                  <button
-                    key={label}
-                    onClick={() => togglePref(label)}
-                    className={`glass-sm px-4 py-2.5 flex items-center gap-2 text-sm font-medium transition-all duration-200 cursor-pointer ${
-                      isSelected
-                        ? "!bg-trippy-500/15 !border-trippy-500/30 text-foreground shadow-md"
-                        : "text-muted hover:text-foreground hover:bg-surface-hover"
-                    }`}
-                  >
-                    <PIcon size={16} className={isSelected ? color : "text-muted"} />
-                    {label}
-                    {isSelected && <span className="w-2 h-2 rounded-full bg-trippy-gradient ml-1" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="mt-5 text-xs text-muted">
-              {selectedPrefs.length > 0
-                ? `Showing trips for: ${selectedPrefs.join(", ")}`
-                : "Select preferences to personalise your feed"}
-            </p>
-          </motion.div>
-
-          {/* Right: Mock personalised feed */}
-          <motion.div
-            className="space-y-4"
-            initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            {[
-              {
-                title: "Maldives Overwater Paradise",
-                dest: "Maldives",
-                weather: "29°C Sunny",
-                match: 98,
-                tags: ["Beach", "Luxury"],
-              },
-              {
-                title: "Swiss Alps Winter Trek",
-                dest: "Zermatt, Switzerland",
-                weather: "2°C Snowy",
-                match: 85,
-                tags: ["Mountains", "Adventure"],
-              },
-              {
-                title: "Costa Rica Rainforest",
-                dest: "San José, Costa Rica",
-                weather: "26°C Tropical",
-                match: 92,
-                tags: ["Nature", "Adventure"],
-              },
-            ].map((item, i) => (
-              <motion.div
-                key={item.title}
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 + 0.3 }}
-              >
-                <div className="glass p-4 flex items-center gap-4 hover:bg-surface-hover transition-all cursor-pointer group">
-                  {/* Match score */}
-                  <div className="shrink-0 w-14 h-14 rounded-xl bg-trippy-gradient flex flex-col items-center justify-center">
-                    <span className="text-lg font-bold text-white leading-none">{item.match}%</span>
-                    <span className="text-[8px] text-white/70 font-medium">match</span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-sm group-hover:text-trippy-600 transition-colors line-clamp-1">
-                      {item.title}
-                    </h4>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted">
-                      <span className="flex items-center gap-1">
-                        <MapPin size={10} /> {item.dest}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <CloudSun size={10} /> {item.weather}
-                      </span>
-                    </div>
-                    <div className="flex gap-1.5 mt-1.5">
-                      {item.tags.map((t) => (
-                        <Badge key={t} className="text-[9px] py-0">{t}</Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <ChevronRight size={16} className="text-muted group-hover:text-trippy-600 group-hover:translate-x-1 transition-all" />
-                </div>
-              </motion.div>
-            ))}
-
-            <div className="text-center pt-2">
-              <Link href="/register">
-                <Button variant="ghost" size="sm">
-                  See all personalised picks <ArrowRight size={14} />
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════
-          HOW IT WORKS
-          ════════════════════════════════════════════════════════════ */}
-      <section id="how-it-works" className="relative py-24 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-px w-full max-w-7xl bg-gradient-to-r from-transparent via-border to-transparent" />
-        </div>
-        <div className="mx-auto max-w-7xl px-4 lg:px-8 text-center">
-          <motion.h2
-            className="text-3xl font-bold tracking-tight sm:text-4xl"
-            initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ duration: 0.5 }}
-          >
-            How Trippy{" "}
-            <span className="text-trippy-600">works</span>
-          </motion.h2>
-          <p className="mt-3 text-muted text-lg max-w-xl mx-auto">
-            From idea to adventure in minutes — not hours.
-          </p>
-
-          <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { num: "01", icon: Search, title: "Search or AI-Create", desc: "Find existing trips or let AI build one from scratch based on your preferences." },
-              { num: "02", icon: Users, title: "Build your crew", desc: "Invite friends via link. Everyone collaborates on the plan in real-time." },
-              { num: "03", icon: Calendar, title: "Plan day-by-day", desc: "Add activities, set budgets, vote on options. AI fills gaps for you." },
-              { num: "04", icon: Plane, title: "Travel & share", desc: "Get real-time updates, chat with your group, and share memories." },
-            ].map((step, i) => (
-              <motion.div
-                key={step.num}
-                custom={i}
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-              >
-                <GlassCard className="text-center h-full hover:bg-surface-hover transition-all group">
-                  <div className="text-xs font-bold text-trippy-600/50 mb-3">{step.num}</div>
-                  <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-trippy-500/10 flex items-center justify-center group-hover:bg-trippy-500/20 transition-colors">
-                    <step.icon size={24} className="text-trippy-600" />
-                  </div>
-                  <h3 className="font-semibold text-sm">{step.title}</h3>
-                  <p className="mt-2 text-xs text-muted leading-relaxed">{step.desc}</p>
-                </GlassCard>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════
-          FEATURES GRID
-          ════════════════════════════════════════════════════════════ */}
-      <section id="features" className="mx-auto max-w-7xl px-4 py-20 lg:px-8">
-        <div className="mb-14 text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything you need for{" "}
-            <span className="text-trippy-600">epic trips</span>
-          </h2>
-          <p className="mt-4 text-muted text-lg">
-            From brainstorming to boarding — Trippy has it covered.
-          </p>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-            <motion.div
-              key={title}
-              custom={i}
-              variants={fadeUp}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-            >
-              <GlassCard className="h-full hover:bg-surface-hover transition-all duration-300 group">
-                <div className="mb-4 inline-flex rounded-xl bg-trippy-500/10 p-3 text-trippy-600 group-hover:bg-trippy-500/20 group-hover:scale-110 transition-all">
-                  <Icon size={22} />
-                </div>
-                <h3 className="text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm text-muted leading-relaxed">{desc}</p>
-              </GlassCard>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════
-          TESTIMONIALS
-          ════════════════════════════════════════════════════════════ */}
-      <section className="mx-auto max-w-7xl px-4 py-20 lg:px-8">
-        <div className="text-center mb-14">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Loved by{" "}
-            <span className="text-trippy-600">travelers</span>
-          </h2>
-          <p className="mt-3 text-muted text-lg">Don&apos;t take our word for it.</p>
-        </div>
-
-        <motion.div
-          className="grid gap-6 md:grid-cols-3"
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-        >
-          {TESTIMONIALS.map((t) => (
-            <motion.div key={t.name} variants={fadeIn}>
-              <GlassCard className="h-full hover:bg-surface-hover transition-all">
-                {/* Stars */}
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: t.rating }).map((_, j) => (
-                    <Star key={j} size={14} className="text-accent-600" fill="currentColor" />
-                  ))}
-                </div>
-                <p className="text-sm leading-relaxed text-foreground/90 italic">
-                  &ldquo;{t.text}&rdquo;
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-2xl font-black leading-tight text-foreground sm:text-3xl">
+                  Ready to build your plan?
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm font-semibold text-muted">
+                  Open the AI builder or create an account to save trips.
                 </p>
-                <div className="flex items-center gap-3 mt-5 pt-4 border-t border-border">
-                  <Avatar size="sm" name={t.name} />
-                  <div>
-                    <div className="text-sm font-semibold">{t.name}</div>
-                    <div className="text-xs text-muted">{t.role}</div>
-                  </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          ))}
-        </motion.div>
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════
-          FINAL CTA
-          ════════════════════════════════════════════════════════════ */}
-      <section className="mx-auto max-w-7xl px-4 py-20 lg:px-8">
-        <GlassCard variant="strong" className="relative py-20 overflow-hidden text-center">
-          {/* Inner glow */}
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-accent-300/30 blur-[80px]" />
-          </div>
-
-          <motion.div
-            className="relative"
-            initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ duration: 0.6 }}
-          >
-            <div className="mx-auto mb-6 w-16 h-16 rounded-2xl bg-trippy-gradient flex items-center justify-center">
-              <Compass size={28} className="text-white" />
-            </div>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
-              Ready to explore the world?
-            </h2>
-            <p className="mx-auto mt-4 max-w-lg text-muted text-lg">
-              Join 120,000+ travelers planning smarter trips. Your next adventure is one click away.
-            </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/register">
-                <Button size="lg">
-                  Start for free <ArrowRight size={16} />
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button
+                  size="lg"
+                  onClick={() => openAIBuilder(false)}
+                  className="w-full min-w-44 rounded-lg sm:w-auto"
+                >
+                  Try AI Builder <ArrowRight size={16} />
                 </Button>
-              </Link>
-                <Button variant="secondary" size="lg" onClick={() => openAIBuilder(false)}>
-                  <Sparkles size={16} /> Try AI Trip Builder
-              </Button>
+                <Link href="/register" className="w-full sm:w-auto">
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    className="w-full min-w-44 rounded-lg whitespace-nowrap"
+                  >
+                    Create account
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <p className="mt-4 text-xs text-muted flex items-center justify-center gap-2">
-              <Shield size={12} /> No credit card required &middot; Free forever for personal use
-            </p>
           </motion.div>
-        </GlassCard>
-      </section>
+        </section>
+      </main>
 
-      {/* ════════════════════════════════════════════════════════════════
-          FOOTER
-          ════════════════════════════════════════════════════════════ */}
-      <footer className="border-t border-border px-4 py-12 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4 mb-10">
-            <div>
-              <Logo size="md" />
-              <p className="mt-3 text-sm text-muted max-w-xs leading-relaxed">
-                The AI-powered trip planner that brings your travel dreams to life.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-3">Product</h4>
-              <ul className="space-y-2 text-sm text-muted">
-                <li className="hover:text-foreground cursor-pointer transition-colors">Features</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">AI Trip Builder</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">Pricing</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">Mobile App</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-3">Company</h4>
-              <ul className="space-y-2 text-sm text-muted">
-                <li className="hover:text-foreground cursor-pointer transition-colors">About</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">Blog</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">Careers</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">Contact</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-3">Legal</h4>
-              <ul className="space-y-2 text-sm text-muted">
-                <li className="hover:text-foreground cursor-pointer transition-colors">Privacy Policy</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">Terms of Service</li>
-                <li className="hover:text-foreground cursor-pointer transition-colors">Cookie Policy</li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-border pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted">
-            <span>&copy; {new Date().getFullYear()} Trippy. All rights reserved.</span>
-            <span>Made with <Heart size={12} className="inline text-danger" fill="currentColor" /> for travelers everywhere.</span>
+      <footer className="border-t border-border bg-surface px-4 py-10 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <Logo size="md" />
+          <div className="flex flex-wrap gap-5 text-sm font-semibold text-muted">
+            <a href="#discover" className="hover:text-trippy-500">Discover</a>
+            <a href="#planning" className="hover:text-trippy-500">How it works</a>
+            <Link href="/login" className="hover:text-trippy-500">Log in</Link>
           </div>
         </div>
       </footer>
 
-      {/* AI Trip Builder Modal */}
       <AITripBuilderModal
         open={showAIBuilder}
         onClose={() => setShowAIBuilder(false)}
         initialRequest={aiBuilderRequest}
       />
     </div>
+  );
+}
+
+function AnimatedTravelBackdrop() {
+  const pins = [
+    { label: "Lisbon", top: "17%", left: "14%", delay: 0 },
+    { label: "Kyoto", top: "21%", left: "78%", delay: 0.35 },
+    { label: "Bali", top: "69%", left: "82%", delay: 0.7 },
+    { label: "Banff", top: "72%", left: "19%", delay: 1.05 },
+  ];
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[linear-gradient(#d8d2c8_1px,transparent_1px),linear-gradient(90deg,#d8d2c8_1px,transparent_1px)] bg-[size:72px_72px] opacity-20" />
+      <motion.svg
+        viewBox="0 0 1200 720"
+        className="absolute inset-0 h-full w-full opacity-80"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M-40 590 C120 520 180 635 330 548 C500 448 590 520 720 412 C860 292 980 350 1240 210"
+          fill="none"
+          stroke="#d8d2c8"
+          strokeWidth="2"
+          strokeDasharray="10 16"
+        />
+        <motion.path
+          d="M-40 590 C120 520 180 635 330 548 C500 448 590 520 720 412 C860 292 980 350 1240 210"
+          fill="none"
+          stroke="#123C69"
+          strokeWidth="4"
+          strokeLinecap="round"
+          initial={{ pathLength: 0, opacity: 0.2 }}
+          animate={{ pathLength: [0, 1, 1], opacity: [0.2, 0.8, 0.2] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.path
+          d="M140 160 C230 96 348 112 420 178 C506 257 638 214 720 142 C790 80 922 92 1040 156"
+          fill="none"
+          stroke="#2f5d50"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray="6 18"
+          animate={{ strokeDashoffset: [0, -72] }}
+          transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.path
+          d="M120 440 C230 392 304 420 382 472 C504 552 620 488 682 426 C760 348 858 394 932 476 C1000 552 1092 526 1160 456"
+          fill="none"
+          stroke="#e76f51"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray="5 20"
+          animate={{ strokeDashoffset: [0, 90] }}
+          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+        />
+      </motion.svg>
+
+      {pins.map((pin) => (
+        <motion.div
+          key={pin.label}
+          className="absolute hidden items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-black text-trippy-500 shadow-md sm:flex"
+          style={{ top: pin.top, left: pin.left }}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: [0.35, 0.9, 0.35], y: [14, 0, 14] }}
+          transition={{ delay: pin.delay, duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <MapPin size={15} className="text-accent-500" />
+          {pin.label}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function DateRangePicker({
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+}: {
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
+}) {
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const selected = parseLocalDate(startDate);
+    return selected ?? new Date();
+  });
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
+
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const days = buildCalendarDays(monthStart);
+  const rangeLabel = formatDateRangeLabel(startDate, endDate);
+
+  const selectDate = (date: Date) => {
+    const selected = toDateInputValue(date);
+
+    if (!start || end || date < start) {
+      onStartDateChange(selected);
+      onEndDateChange("");
+      return;
+    }
+
+    onEndDateChange(selected);
+    setOpen(false);
+  };
+
+  const clearDates = () => {
+    onStartDateChange("");
+    onEndDateChange("");
+  };
+
+  return (
+    <div ref={pickerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "flex min-h-16 w-full items-center gap-3 rounded-lg border bg-shore-50 px-4 text-left transition-all duration-200 focus-visible:focus-ring",
+          open ? "border-trippy-500 shadow-md" : "border-border hover:border-trippy-500",
+        )}
+      >
+        <Calendar size={18} className="text-trippy-500" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs font-black uppercase text-muted">Dates</span>
+          <span className={cn("mt-1 block truncate text-sm font-black", rangeLabel ? "text-foreground" : "text-muted")}>
+            {rangeLabel || "Add dates"}
+          </span>
+        </span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className="absolute left-0 top-full z-40 mt-2 w-full min-w-[20rem] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-4 text-left shadow-2xl"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                className="grid h-9 w-9 place-items-center rounded-md border border-border bg-shore-50 text-lg font-black text-trippy-500 hover:border-trippy-500"
+                aria-label="Previous month"
+              >
+                &lt;
+              </button>
+              <div className="text-center">
+                <p className="text-sm font-black">{monthStart.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</p>
+                <p className="mt-0.5 text-xs font-semibold text-muted">
+                  {start && !end ? "Select an end date" : "Select a start date"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                className="grid h-9 w-9 place-items-center rounded-md border border-border bg-shore-50 text-lg font-black text-trippy-500 hover:border-trippy-500"
+                aria-label="Next month"
+              >
+                &gt;
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+                <div key={day} className="py-2 text-[11px] font-black uppercase text-muted">
+                  {day}
+                </div>
+              ))}
+
+              {days.map((date, index) => {
+                if (!date) return <div key={`empty-${index}`} className="h-10" />;
+
+                const isStart = Boolean(start && sameDay(date, start));
+                const isEnd = Boolean(end && sameDay(date, end));
+                const isBetween = Boolean(start && end && date > start && date < end);
+
+                return (
+                  <button
+                    key={toDateInputValue(date)}
+                    type="button"
+                    onClick={() => selectDate(date)}
+                    className={cn(
+                      "grid h-10 place-items-center rounded-md text-sm font-bold transition-all",
+                      isStart || isEnd
+                        ? "bg-trippy-500 text-white"
+                        : isBetween
+                          ? "bg-lagoon-100 text-trippy-500"
+                          : "text-foreground hover:bg-shore-100 hover:text-trippy-500",
+                    )}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+              <button
+                type="button"
+                onClick={clearDates}
+                className="text-sm font-bold text-muted transition-colors hover:text-danger"
+              >
+                Clear
+              </button>
+              <Button type="button" size="sm" className="rounded-md" onClick={() => setOpen(false)}>
+                Done
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PlannerDropdown({
+  icon,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "flex min-h-14 w-full items-center gap-3 rounded-lg border bg-shore-50 px-4 text-left transition-all duration-200 focus-visible:focus-ring",
+          open ? "border-trippy-500 shadow-md" : "border-border hover:border-trippy-500",
+        )}
+      >
+        <span className="text-trippy-500">{icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs font-black uppercase text-muted">{label}</span>
+          <span className="mt-0.5 block truncate text-sm font-black text-foreground">{value}</span>
+        </span>
+        <ChevronDown size={16} className={cn("text-muted transition-transform", open && "rotate-180")} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute left-0 top-full z-40 mt-2 w-full min-w-[11rem] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-xl"
+          >
+            {options.map((option) => {
+              const selected = option === value;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm font-bold transition-colors",
+                    selected
+                      ? "bg-trippy-500 text-white"
+                      : "text-foreground hover:bg-shore-100 hover:text-trippy-500",
+                  )}
+                >
+                  {option}
+                  {selected && <Check size={15} />}
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function parseLocalDate(value: string) {
+  if (!value) return null;
+  return new Date(`${value}T00:00:00`);
+}
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateRangeLabel(startDate: string, endDate: string) {
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  const format = (date: Date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+  if (start && end) return `${format(start)} - ${format(end)}`;
+  if (start) return `${format(start)} - Add return`;
+  return "";
+}
+
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function buildCalendarDays(monthStart: Date) {
+  const days: Array<Date | null> = [];
+  const year = monthStart.getFullYear();
+  const month = monthStart.getMonth();
+  const firstDay = monthStart.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let index = 0; index < firstDay; index += 1) {
+    days.push(null);
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    days.push(new Date(year, month, day));
+  }
+
+  return days;
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <motion.div
+      className="mx-auto max-w-2xl text-center"
+      initial={{ opacity: 0, y: 22 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
+      <p className="text-xs font-black uppercase text-accent-500">{eyebrow}</p>
+      <h2 className="mt-2 text-3xl font-black sm:text-4xl">{title}</h2>
+      <p className="mt-3 text-base leading-7 text-muted">{description}</p>
+    </motion.div>
   );
 }
