@@ -10,8 +10,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
+import pse.trippy.aiservice.dto.request.GroupPreferenceRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
+import pse.trippy.aiservice.dto.response.ConsolidatedPreferencesResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
@@ -23,6 +25,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -154,5 +157,36 @@ class AiControllerTest {
                 .andExpect(jsonPath("$.tripTitle").value("5 Days in Kyoto"))
                 .andExpect(jsonPath("$.dailyPlan[0].dayNumber").value(1))
                 .andExpect(jsonPath("$.packingTips[0]").value("Comfortable shoes"));
+    }
+
+    @Test
+    @DisplayName("POST /ai/preferences/consolidate → 200 with consolidated preferences")
+    void consolidatePreferences_returns200() throws Exception {
+        ConsolidatedPreferencesResponse stubResponse = new ConsolidatedPreferencesResponse(
+                "MODERATE",
+                "SLOW",
+                List.of("food"),
+                List.of("Louvre"),
+                List.of(),
+                "Create a slow itinerary with a moderate budget.");
+
+        when(aiService.consolidatePreferences(any())).thenReturn(stubResponse);
+
+        GroupPreferenceRequest request = new GroupPreferenceRequest(
+                UUID.randomUUID(),
+                List.of(new GroupPreferenceRequest.UserPreference(
+                        UUID.randomUUID(),
+                        List.of("food"),
+                        "MODERATE",
+                        "SLOW",
+                        List.of("Louvre"),
+                        List.of())));
+
+        mockMvc.perform(post("/ai/preferences/consolidate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recommendedBudget").value("MODERATE"))
+                .andExpect(jsonPath("$.sharedInterests[0]").value("food"));
     }
 }
