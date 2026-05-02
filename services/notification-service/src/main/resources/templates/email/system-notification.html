@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="${title}">Trippy Update</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #111827, #4b5563); padding: 32px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 28px; }
+        .body { padding: 32px; color: #374151; line-height: 1.6; }
+        .notice { background: #f9fafb; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .btn { display: inline-block; padding: 12px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; }
+        .footer { padding: 20px 32px; background: #f9fafb; text-align: center; color: #9ca3af; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1 th:text="${title}">Trippy Update</h1>
+    </div>
+    <div class="body">
+        <p>Hello, <span th:text="${userName}">Traveler</span>!</p>
+        <div class="notice">
+            <p th:text="${message}">You have a new notification from Trippy.</p>
+        </div>
+        <a th:href="${actionUrl}" class="btn">Open Trippy</a>
+    </div>
+    <div class="footer">
+        <p>&copy; 2026 Trippy. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>
