@@ -38,3 +38,6 @@ build/
 !.env.example
 !.env.template
 !.env.sample
+
+### Personal Responsibility Docs ###
+xano*
