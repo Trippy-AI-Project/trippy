@@ -632,13 +632,69 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-border bg-surface px-4 py-10 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <Logo size="md" />
-          <div className="flex flex-wrap gap-5 text-sm font-semibold text-muted">
-            <a href="#discover" className="hover:text-trippy-500">Discover</a>
-            <a href="#planning" className="hover:text-trippy-500">How it works</a>
-            <Link href="/login" className="hover:text-trippy-500">Log in</Link>
+      <footer className="border-t border-border bg-surface">
+        <div className="mx-auto max-w-7xl px-4 py-14 lg:px-8">
+          <div className="grid gap-10 md:grid-cols-[2fr_1fr_1fr_1fr]">
+            {/* Brand */}
+            <div className="space-y-4">
+              <Logo size="md" />
+              <p className="max-w-xs text-sm leading-6 text-muted">
+                Collaborative trip planning powered by AI. Search, generate, and shape your itinerary together.
+              </p>
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://twitter.com"
+                  aria-label="Twitter"
+                  className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-background text-muted transition-colors hover:border-trippy-500 hover:text-trippy-500"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                </a>
+                <a
+                  href="https://instagram.com"
+                  aria-label="Instagram"
+                  className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-background text-muted transition-colors hover:border-trippy-500 hover:text-trippy-500"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" x2="17.51" y1="6.5" y2="6.5" /></svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Product */}
+            <div className="space-y-4">
+              <h6 className="text-sm font-black uppercase tracking-wider text-foreground">Product</h6>
+              <ul className="space-y-2.5 text-sm text-muted">
+                <li><Link href="/dashboard" className="transition-colors hover:text-trippy-500">Dashboard</Link></li>
+                <li><Link href="/register" className="transition-colors hover:text-trippy-500">Get started</Link></li>
+                <li><Link href="/login" className="transition-colors hover:text-trippy-500">Sign in</Link></li>
+              </ul>
+            </div>
+
+            {/* Resources */}
+            <div className="space-y-4">
+              <h6 className="text-sm font-black uppercase tracking-wider text-foreground">Resources</h6>
+              <ul className="space-y-2.5 text-sm text-muted">
+                <li><Link href="/about" className="transition-colors hover:text-trippy-500">About us</Link></li>
+                <li><Link href="/blog" className="transition-colors hover:text-trippy-500">Blog</Link></li>
+                <li><Link href="/support" className="transition-colors hover:text-trippy-500">Support</Link></li>
+              </ul>
+            </div>
+
+            {/* Legal */}
+            <div className="space-y-4">
+              <h6 className="text-sm font-black uppercase tracking-wider text-foreground">Legal</h6>
+              <ul className="space-y-2.5 text-sm text-muted">
+                <li><Link href="/privacy" className="transition-colors hover:text-trippy-500">Privacy policy</Link></li>
+                <li><Link href="/terms" className="transition-colors hover:text-trippy-500">Terms of service</Link></li>
+                <li><Link href="/cookies" className="transition-colors hover:text-trippy-500">Cookie policy</Link></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 text-sm text-muted sm:flex-row">
+            <p>&copy; {new Date().getFullYear()} Trippy, Inc. All rights reserved.</p>
+            <p className="flex items-center gap-1.5">
+              Made with <span className="text-accent-500">♥</span> for curious travelers
+            </p>
           </div>
         </div>
       </footer>
