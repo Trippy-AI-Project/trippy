@@ -57,9 +57,10 @@ public class AiController {
 
     /**
      * POST /ai/itineraries
+     * POST /ai/itinerary/generate
      * Internal S2S endpoint — called by Trip Service.
      */
-    @PostMapping("/itineraries")
+    @PostMapping({"/itineraries", "/itinerary/generate"})
     public ResponseEntity<ItineraryResponse> generateItinerary(
             @Valid @RequestBody GenerateItineraryRequest request) {
         return ResponseEntity.ok(aiService.generateItinerary(request));

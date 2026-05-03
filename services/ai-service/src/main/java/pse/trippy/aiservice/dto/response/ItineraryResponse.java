@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -14,6 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ItineraryResponse {
 
+    private UUID generationId;
     private String tripTitle;
     private String summary;
     private String totalEstimatedCost;
