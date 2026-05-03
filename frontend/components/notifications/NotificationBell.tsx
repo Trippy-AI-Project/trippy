@@ -167,7 +167,7 @@ export default function NotificationBell() {
 
       {/* Dropdown panel */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 glass-strong shadow-2xl z-50 max-h-[28rem] flex flex-col">
+        <div className="fixed left-3 right-3 top-16 glass-strong shadow-2xl z-50 max-h-[calc(100vh-5rem)] flex flex-col sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-h-[28rem]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="font-semibold text-sm">Notifications</h3>
@@ -240,7 +240,7 @@ export default function NotificationBell() {
           {/* Footer */}
           <div className="border-t border-border px-4 py-2">
             <Link
-              href="/dashboard/notifications"
+              href="/notifications"
               onClick={() => setOpen(false)}
               className="text-xs text-trippy-400 hover:text-trippy-300 transition-colors"
             >
