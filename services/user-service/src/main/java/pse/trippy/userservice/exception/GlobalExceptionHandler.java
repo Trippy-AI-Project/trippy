@@ -27,7 +27,7 @@ public class GlobalExceptionHandler {
 
         log.warn("User not found: {}", ex.getMessage());
         ErrorResponse response = ErrorResponse.builder()
-                .error("NOT_FOUND")
+                .error("USER_NOT_FOUND")
                 .message(ex.getMessage())
                 .timestamp(Instant.now())
                 .path(extractPath(request))

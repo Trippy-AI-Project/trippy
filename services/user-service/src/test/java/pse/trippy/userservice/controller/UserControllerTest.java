@@ -16,6 +16,7 @@ import pse.trippy.userservice.dto.response.UserProfileResponse;
 import pse.trippy.userservice.exception.UserNotFoundException;
 import pse.trippy.userservice.model.enums.SubscriptionPlan;
 import pse.trippy.userservice.model.enums.UserRole;
+import pse.trippy.userservice.service.EmailVerificationService;
 import pse.trippy.userservice.service.UserProfileService;
 
 import java.time.Instant;
@@ -45,6 +46,9 @@ class UserControllerTest {
 
     @MockBean
     private UserProfileService userProfileService;
+
+    @MockBean
+    private EmailVerificationService emailVerificationService;
 
     private static final String GET_ME_URL = "/users/me";
     private static final String PATCH_ME_URL = "/users/me";
