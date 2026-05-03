@@ -128,6 +128,7 @@ class AiControllerTest {
     @DisplayName("POST /ai/itineraries → 200 with itinerary")
     void generateItinerary_returns200() throws Exception {
         ItineraryResponse stubResponse = ItineraryResponse.builder()
+                .generationId(UUID.fromString("123e4567-e89b-12d3-a456-426614174000"))
                 .tripTitle("5 Days in Kyoto")
                 .summary("Culture and temples")
                 .dailyPlan(List.of(
@@ -154,9 +155,36 @@ class AiControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.generationId").value("123e4567-e89b-12d3-a456-426614174000"))
                 .andExpect(jsonPath("$.tripTitle").value("5 Days in Kyoto"))
                 .andExpect(jsonPath("$.dailyPlan[0].dayNumber").value(1))
                 .andExpect(jsonPath("$.packingTips[0]").value("Comfortable shoes"));
+    }
+
+    @Test
+    @DisplayName("POST /ai/itinerary/generate → 200 with itinerary")
+    void generateItineraryAlias_returns200() throws Exception {
+        ItineraryResponse stubResponse = ItineraryResponse.builder()
+                .generationId(UUID.fromString("123e4567-e89b-12d3-a456-426614174001"))
+                .tripTitle("5 Days in Kyoto")
+                .summary("Culture and temples")
+                .dailyPlan(List.of())
+                .generatedAt(Instant.now())
+                .build();
+
+        when(aiService.generateItinerary(any())).thenReturn(stubResponse);
+
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                null,
+                new TripConstraints("Kyoto, Japan", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5),
+                        null, null, null),
+                null, null, null);
+
+        mockMvc.perform(post("/ai/itinerary/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.generationId").value("123e4567-e89b-12d3-a456-426614174001"));
     }
 
     @Test

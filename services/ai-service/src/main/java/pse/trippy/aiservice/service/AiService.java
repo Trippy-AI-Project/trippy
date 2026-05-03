@@ -21,20 +21,33 @@ import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
+import pse.trippy.aiservice.model.entity.GenerationHistory;
+import pse.trippy.aiservice.repository.GenerationHistoryRepository;
 
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -45,8 +58,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiService {
 
+    private static final Duration ITINERARY_TIMEOUT = Duration.ofSeconds(30);
+    private static final int ITINERARY_MAX_ATTEMPTS = 3;
+
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
+    private final GenerationHistoryRepository generationHistoryRepository;
 
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
@@ -60,7 +77,9 @@ public class AiService {
     @Value("${trippy.weather.openweather-api-key:}")
     private String openWeatherApiKey;
 
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(20))
+            .build();
 
     public DestinationSuggestionResponse suggestDestinations(DestinationSuggestionRequest request) {
         String prompt = buildDestinationPrompt(request);
@@ -103,19 +122,29 @@ public class AiService {
 
     public ItineraryResponse generateItinerary(GenerateItineraryRequest request) {
         String prompt = buildItineraryPrompt(request);
+        UUID generationId = UUID.randomUUID();
         log.debug("Generating itinerary for destination: {}", request.constraints().destination());
 
         try {
-            String rawJson = requestAi(prompt);
+            String rawJson = requestAiWithRetry(prompt, ITINERARY_MAX_ATTEMPTS, ITINERARY_TIMEOUT);
             ItineraryResponse response = objectMapper.readValue(
                     extractJson(rawJson), ItineraryResponse.class);
+            if (response.getGenerationId() == null) {
+                response.setGenerationId(generationId);
+            }
             response.setGeneratedAt(Instant.now());
             response.setFallbackUsed(false);
             enrichItinerary(response, request);
+            saveGenerationHistory(request, response, prompt, "SUCCESS");
             return response;
+        } catch (AiServiceTimeoutException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.warn("AI itinerary generation failed, returning fallback itinerary: {}", ex.getMessage());
-            return buildFallbackItinerary(request, ex.getMessage());
+            ItineraryResponse fallback = buildFallbackItinerary(request, ex.getMessage());
+            fallback.setGenerationId(generationId);
+            saveGenerationHistory(request, fallback, prompt, "FALLBACK");
+            return fallback;
         }
     }
 
@@ -783,6 +812,92 @@ public class AiService {
     // Utility
     // -------------------------------------------------------------------------
 
+    private String requestAiWithRetry(String prompt, int maxAttempts, Duration timeout) {
+        RuntimeException lastFailure = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return requestAiWithTimeout(prompt, timeout);
+            } catch (AiServiceTimeoutException ex) {
+                throw ex;
+            } catch (RuntimeException ex) {
+                lastFailure = ex;
+                if (!isRateLimitException(ex) || attempt == maxAttempts) {
+                    throw ex;
+                }
+                sleepBeforeRetry(attempt);
+            }
+        }
+
+        throw lastFailure == null
+                ? new RuntimeException("AI request failed")
+                : lastFailure;
+    }
+
+    private String requestAiWithTimeout(String prompt, Duration timeout) {
+        try {
+            return CompletableFuture.supplyAsync(() -> requestAi(prompt))
+                    .orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
+                    .join();
+        } catch (CompletionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof TimeoutException) {
+                throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", cause);
+            }
+            if (cause instanceof RuntimeException runtimeException) {
+                if (isTimeoutException(runtimeException)) {
+                    throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", runtimeException);
+                }
+                throw runtimeException;
+            }
+            throw new RuntimeException("AI request failed", cause);
+        }
+    }
+
+    private void sleepBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(Math.min(2000L, 500L * attempt));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while retrying rate-limited AI request", ex);
+        }
+    }
+
+    private boolean isRateLimitException(Throwable ex) {
+        Throwable cause = ex;
+        while (cause != null) {
+            String message = cause.getMessage();
+            if (message != null) {
+                String normalized = message.toLowerCase(Locale.ROOT);
+                if (normalized.contains("429")
+                        || normalized.contains("rate limit")
+                        || normalized.contains("too many requests")) {
+                    return true;
+                }
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    private boolean isTimeoutException(Throwable ex) {
+        Throwable cause = ex;
+        while (cause != null) {
+            if (cause instanceof TimeoutException || cause instanceof HttpTimeoutException) {
+                return true;
+            }
+            String message = cause.getMessage();
+            if (message != null) {
+                String normalized = message.toLowerCase(Locale.ROOT);
+                if (normalized.contains("timed out") || normalized.contains("timeout")) {
+                    return true;
+                }
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
     private String requestAi(String prompt) {
         try {
             return chatClient.prompt()
@@ -831,6 +946,38 @@ public class AiService {
         return trimmed;
     }
 
+    private void saveGenerationHistory(GenerateItineraryRequest request, ItineraryResponse response,
+                                       String prompt, String status) {
+        try {
+            TripConstraints constraints = request.constraints();
+            GenerationHistory history = GenerationHistory.builder()
+                    .generationId(response.getGenerationId())
+                    .tripId(request.tripId())
+                    .destination(constraints.destination())
+                    .startDate(constraints.startDate())
+                    .endDate(constraints.endDate())
+                    .promptHash(hashPrompt(prompt))
+                    .fallbackUsed(Boolean.TRUE.equals(response.getFallbackUsed()))
+                    .status(status)
+                    .requestPayload(objectMapper.convertValue(request, new TypeReference<Map<String, Object>>() {}))
+                    .responsePayload(objectMapper.convertValue(response, new TypeReference<Map<String, Object>>() {}))
+                    .build();
+            generationHistoryRepository.save(history);
+        } catch (Exception ex) {
+            log.warn("Failed to persist itinerary generation history: {}", ex.getMessage());
+        }
+    }
+
+    private String hashPrompt(String prompt) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(prompt.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException ex) {
+            return Integer.toHexString(prompt.hashCode());
+        }
+    }
+
     private String callGroqDirect(String prompt) {
         try {
             String endpoint = baseUrl.endsWith("/")
@@ -847,6 +994,7 @@ public class AiService {
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
+                    .timeout(ITINERARY_TIMEOUT)
                     .header("Authorization", "Bearer " + apiKey)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
@@ -863,6 +1011,10 @@ public class AiService {
                 throw new RuntimeException("Groq API returned empty content");
             }
             return content.asText();
+        } catch (AiServiceTimeoutException ex) {
+            throw ex;
+        } catch (HttpTimeoutException ex) {
+            throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", ex);
         } catch (Exception ex) {
             throw new RuntimeException("Direct Groq fallback failed", ex);
         }

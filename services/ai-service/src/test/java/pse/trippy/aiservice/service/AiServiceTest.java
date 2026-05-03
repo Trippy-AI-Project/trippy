@@ -19,14 +19,18 @@ import pse.trippy.aiservice.dto.response.ConsolidatedPreferencesResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
+import pse.trippy.aiservice.model.entity.GenerationHistory;
+import pse.trippy.aiservice.repository.GenerationHistoryRepository;
 
 import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +40,9 @@ class AiServiceTest {
     @Mock
     private ChatClient chatClient;
 
+    @Mock
+    private GenerationHistoryRepository generationHistoryRepository;
+
     private AiService aiService;
 
     // Fluent chain mocks
@@ -44,7 +51,10 @@ class AiServiceTest {
 
     @BeforeEach
     void setUp() {
-        aiService = new AiService(chatClient, new ObjectMapper().registerModule(new JavaTimeModule()));
+        aiService = new AiService(
+                chatClient,
+                new ObjectMapper().registerModule(new JavaTimeModule()),
+                generationHistoryRepository);
 
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callSpec = mock(ChatClient.CallResponseSpec.class);
@@ -230,6 +240,8 @@ class AiServiceTest {
                     .isEqualTo("Fushimi Inari Shrine");
             assertThat(response.getPackingTips()).contains("Comfortable walking shoes");
             assertThat(response.getGeneratedAt()).isNotNull();
+            assertThat(response.getGenerationId()).isNotNull();
+            verify(generationHistoryRepository).save(any(GenerationHistory.class));
         }
 
         @Test
@@ -246,10 +258,12 @@ class AiServiceTest {
             ItineraryResponse response = aiService.generateItinerary(request);
 
             assertThat(response.getFallbackUsed()).isTrue();
+            assertThat(response.getGenerationId()).isNotNull();
             assertThat(response.getFallbackReason()).isNotBlank();
             assertThat(response.getDailyPlan()).hasSize(5);
             assertThat(response.getDailyPlan().get(0).getWeather().getCondition())
                     .isEqualTo("Forecast unavailable");
+            verify(generationHistoryRepository).save(any(GenerationHistory.class));
         }
     }
 
