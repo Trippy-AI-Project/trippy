@@ -90,13 +90,82 @@ class NotificationEventListenerTest {
         verify(emailService).sendTemplateEmail(
                 eq("bob@test.com"),
                 eq("Jane invited you to Summer in Barcelona"),
-                eq("trip-invitation"),
+                eq("trip-invite"),
                 varsCaptor.capture());
 
         Map<String, Object> vars = varsCaptor.getValue();
         assertThat(vars).containsEntry("inviteeName", "Bob");
         assertThat(vars).containsEntry("inviterName", "Jane");
         assertThat(vars).containsEntry("tripTitle", "Summer in Barcelona");
+    }
+
+    @Test
+    @DisplayName("trip.participant.invited event triggers trip invite template")
+    void tripParticipantInvitedDispatchesToInviteTemplate() {
+        listener.handleEvent(Map.of(
+                "tripId", "223e4567-e89b-12d3-a456-426614174000",
+                "tripTitle", "Summer in Barcelona",
+                "inviterName", "Jane",
+                "participantEmail", "bob@test.com",
+                "participantName", "Bob"), "trip.participant.invited");
+
+        verify(emailService).sendTemplateEmail(
+                eq("bob@test.com"),
+                eq("Jane invited you to Summer in Barcelona"),
+                eq("trip-invite"),
+                any());
+    }
+
+    @Test
+    @DisplayName("user.password.reset event triggers password reset template")
+    void passwordResetDispatchesToTemplate() {
+        UUID userId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+
+        listener.handleEvent(Map.of(
+                "userId", userId.toString(),
+                "email", "alice@test.com",
+                "userName", "Alice",
+                "resetLink", "https://trippy.app/reset?token=abc"), "user.password.reset");
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Reset your Trippy password"),
+                eq("password-reset"),
+                any());
+        verify(notificationService).createNotification(
+                eq(userId),
+                eq(NotificationType.PASSWORD_RESET),
+                eq("Password Reset Requested"),
+                eq("Use the password reset link we sent to update your Trippy password."),
+                eq("https://trippy.app/reset?token=abc"),
+                any());
+    }
+
+    @Test
+    @DisplayName("ai.itinerary.generated event sends email and stores notification")
+    void itineraryGeneratedDispatchesToReadyHandler() {
+        UUID userId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+
+        listener.handleEvent(Map.of(
+                "userId", userId.toString(),
+                "email", "alice@test.com",
+                "userName", "Alice",
+                "tripId", "223e4567-e89b-12d3-a456-426614174000",
+                "tripTitle", "Kyoto Spring",
+                "destination", "Kyoto"), "ai.itinerary.generated");
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Your Trippy itinerary is ready"),
+                eq("itinerary-ready"),
+                any());
+        verify(notificationService).createNotification(
+                eq(userId),
+                eq(NotificationType.ITINERARY_READY),
+                eq("Itinerary Ready"),
+                eq("Your itinerary for Kyoto Spring is ready to review."),
+                eq("/dashboard/trips/223e4567-e89b-12d3-a456-426614174000"),
+                any());
     }
 
     @Test
