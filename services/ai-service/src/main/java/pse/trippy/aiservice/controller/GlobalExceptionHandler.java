@@ -6,6 +6,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pse.trippy.aiservice.dto.response.ErrorResponse;
+import pse.trippy.aiservice.service.AiServiceTimeoutException;
 import pse.trippy.aiservice.service.AiServiceUnavailableException;
 
 @RestControllerAdvice
@@ -15,6 +16,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException ex) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(new ErrorResponse(503, ex.getMessage()));
+    }
+
+    @ExceptionHandler(AiServiceTimeoutException.class)
+    public ResponseEntity<ErrorResponse> handleAiServiceTimeout(AiServiceTimeoutException ex) {
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+                .body(new ErrorResponse(504, ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
