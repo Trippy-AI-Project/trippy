@@ -33,12 +33,13 @@ public class NotificationEventListener {
         switch (routingKey) {
             case "user.registered" -> handleUserRegistered(payload);
             case "user.email.verified" -> handleUserEmailVerified(payload);
-            case "trip.invitation.created" -> handleTripInvitation(payload);
+            case "user.password.reset" -> handlePasswordReset(payload);
+            case "trip.invitation.created", "trip.participant.invited" -> handleTripInvitation(payload);
             case "trip.invitation.accepted", "trip.joined" -> handleTripJoined(payload);
             case "trip.updated" -> handleTripUpdated(payload);
             case "payment.completed" -> handlePaymentCompleted(payload);
             case "payment.failed" -> handlePaymentFailed(payload);
-            case "ai.itinerary.ready", "itinerary.ready" -> handleItineraryReady(payload);
+            case "ai.itinerary.ready", "ai.itinerary.generated", "itinerary.ready" -> handleItineraryReady(payload);
             case "system.notification" -> handleSystemNotification(payload);
             default -> log.warn("Unknown routing key: {}", routingKey);
         }
@@ -94,10 +95,34 @@ public class NotificationEventListener {
         }
     }
 
+    void handlePasswordReset(Object payload) {
+        if (payload instanceof Map<?, ?> map) {
+            String email = stringValue(map, "email", "userEmail", "recipientEmail");
+            String userName = defaultString(stringValue(map, "userName", "displayName"), "Traveler");
+            String resetLink = defaultString(stringValue(map, "resetLink", "passwordResetUrl"), DASHBOARD_URL);
+
+            log.info("Processing user.password.reset for {}", email);
+            sendTemplateEmail(
+                    email,
+                    "Reset your Trippy password",
+                    "password-reset",
+                    Map.of("userName", userName,
+                            "resetLink", resetLink));
+
+            uuidValue(map, "userId", "recipientUserId").ifPresent(userId -> notificationService.createNotification(
+                    userId,
+                    NotificationType.PASSWORD_RESET,
+                    "Password Reset Requested",
+                    "Use the password reset link we sent to update your Trippy password.",
+                    resetLink,
+                    metadata(map, "userId", "recipientUserId")));
+        }
+    }
+
     void handleTripInvitation(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String inviteeEmail = stringValue(map, "inviteeEmail");
-            String inviteeName = defaultString(stringValue(map, "inviteeName"), "Traveler");
+            String inviteeEmail = stringValue(map, "inviteeEmail", "participantEmail", "email");
+            String inviteeName = defaultString(stringValue(map, "inviteeName", "participantName", "userName"), "Traveler");
             String inviterName = defaultString(stringValue(map, "inviterName"), "Someone");
             String tripTitle = defaultString(stringValue(map, "tripTitle"), "your trip");
 
@@ -105,20 +130,20 @@ public class NotificationEventListener {
             sendTemplateEmail(
                     inviteeEmail,
                     inviterName + " invited you to " + tripTitle,
-                    "trip-invitation",
+                    "trip-invite",
                     Map.of("inviteeName", inviteeName,
                             "inviterName", inviterName,
                             "tripTitle", tripTitle,
                             "dashboardUrl", DASHBOARD_URL));
 
-            uuidValue(map, "inviteeId", "inviteeUserId", "userId").ifPresent(inviteeId ->
+            uuidValue(map, "inviteeId", "inviteeUserId", "participantId", "userId").ifPresent(inviteeId ->
                     notificationService.createNotification(
                             inviteeId,
                             NotificationType.TRIP_INVITE,
                             "Trip Invitation",
                             inviterName + " invited you to " + tripTitle,
                             tripActionUrl(map),
-                            metadata(map, "inviteeId", "inviteeUserId", "userId")));
+                            metadata(map, "inviteeId", "inviteeUserId", "participantId", "userId")));
         }
     }
 
@@ -137,7 +162,7 @@ public class NotificationEventListener {
             sendTemplateEmail(
                     inviterEmail,
                     inviteeName + " joined " + tripTitle,
-                    "invitation-accepted",
+                    "trip-joined",
                     Map.of("inviterName", inviterName,
                             "inviteeName", inviteeName,
                             "tripTitle", tripTitle,
@@ -307,9 +332,14 @@ public class NotificationEventListener {
         return Optional.empty();
     }
 
-    private String stringValue(Map<?, ?> map, String fieldName) {
-        Object value = map.get(fieldName);
-        return value != null ? value.toString() : null;
+    private String stringValue(Map<?, ?> map, String... fieldNames) {
+        for (String fieldName : fieldNames) {
+            Object value = map.get(fieldName);
+            if (value != null) {
+                return value.toString();
+            }
+        }
+        return null;
     }
 
     private String defaultString(String value, String fallback) {

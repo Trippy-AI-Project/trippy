@@ -8,6 +8,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 import pse.trippy.notificationservice.model.entity.EmailLog;
@@ -41,13 +42,17 @@ public class EmailService {
         return templateEngine.process("email/" + templateName, context);
     }
 
+    public String renderPlainText(String templateName, Map<String, Object> variables) {
+        return toPlainText(renderTemplate(templateName, variables));
+    }
+
     private void sendHtmlEmail(String to, String subject, String templateName, String htmlBody) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(htmlBody, true);
+            helper.setText(toPlainText(htmlBody), htmlBody);
 
             mailSender.send(message);
 
@@ -72,5 +77,18 @@ public class EmailService {
                     .errorMessage(e.getMessage())
                     .build());
         }
+    }
+
+    private String toPlainText(String htmlBody) {
+        String withoutTags = htmlBody
+                .replaceAll("(?is)<style.*?</style>", " ")
+                .replaceAll("(?is)<script.*?</script>", " ")
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</p>", "\n")
+                .replaceAll("<[^>]+>", " ")
+                .replaceAll("[ \\t\\x0B\\f\\r]+", " ")
+                .replaceAll("\\n\\s+", "\n")
+                .trim();
+        return HtmlUtils.htmlUnescape(withoutTags);
     }
 }

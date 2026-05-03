@@ -18,12 +18,15 @@ public class RabbitMQConfig {
     public static final String DLQ = "notification.events.dlq";
 
     public static final String ROUTING_USER_REGISTERED = "user.registered";
+    public static final String ROUTING_PASSWORD_RESET = "user.password.reset";
     public static final String ROUTING_TRIP_INVITATION = "trip.invitation.created";
+    public static final String ROUTING_TRIP_PARTICIPANT_INVITED = "trip.participant.invited";
     public static final String ROUTING_INVITATION_ACCEPTED = "trip.invitation.accepted";
     public static final String ROUTING_TRIP_UPDATED = "trip.updated";
     public static final String ROUTING_PAYMENT_COMPLETED = "payment.completed";
     public static final String ROUTING_PAYMENT_FAILED = "payment.failed";
     public static final String ROUTING_ITINERARY_READY = "ai.itinerary.ready";
+    public static final String ROUTING_ITINERARY_GENERATED = "ai.itinerary.generated";
     public static final String ROUTING_SYSTEM_NOTIFICATION = "system.notification";
 
     @Bean
@@ -52,10 +55,24 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Binding passwordResetBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_PASSWORD_RESET);
+    }
+
+    @Bean
     public Binding tripInvitationBinding(Queue notificationQueue, TopicExchange trippyExchange) {
         return BindingBuilder.bind(notificationQueue)
                 .to(trippyExchange)
                 .with(ROUTING_TRIP_INVITATION);
+    }
+
+    @Bean
+    public Binding tripParticipantInvitedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_TRIP_PARTICIPANT_INVITED);
     }
 
     @Bean
@@ -91,6 +108,13 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(notificationQueue)
                 .to(trippyExchange)
                 .with(ROUTING_ITINERARY_READY);
+    }
+
+    @Bean
+    public Binding itineraryGeneratedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_ITINERARY_GENERATED);
     }
 
     @Bean

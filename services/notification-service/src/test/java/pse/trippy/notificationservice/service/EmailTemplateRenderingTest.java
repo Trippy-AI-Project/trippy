@@ -22,6 +22,9 @@ class EmailTemplateRenderingTest {
     @Autowired
     private TemplateEngine templateEngine;
 
+    @Autowired
+    private EmailService emailService;
+
     @MockBean
     private JavaMailSender mailSender;
 
@@ -82,6 +85,34 @@ class EmailTemplateRenderingTest {
     }
 
     @Test
+    @DisplayName("trip-invite template renders trip context")
+    void tripInviteTemplate() {
+        String html = render("trip-invite", Map.of(
+                "inviteeName", "Dev",
+                "inviterName", "Mira",
+                "tripTitle", "Berlin Weekend",
+                "dashboardUrl", "https://trippy.app/dashboard"));
+
+        assertThat(html).contains("Dev");
+        assertThat(html).contains("Mira");
+        assertThat(html).contains("Berlin Weekend");
+    }
+
+    @Test
+    @DisplayName("trip-joined template renders trip context")
+    void tripJoinedTemplate() {
+        String html = render("trip-joined", Map.of(
+                "inviterName", "Mira",
+                "inviteeName", "Dev",
+                "tripTitle", "Berlin Weekend",
+                "dashboardUrl", "https://trippy.app/dashboard"));
+
+        assertThat(html).contains("Mira");
+        assertThat(html).contains("Dev");
+        assertThat(html).contains("Berlin Weekend");
+    }
+
+    @Test
     @DisplayName("payment-success template renders payment details")
     void paymentSuccessTemplate() {
         String html = render("payment-success", Map.of(
@@ -93,6 +124,18 @@ class EmailTemplateRenderingTest {
         assertThat(html).contains("Payment Successful");
         assertThat(html).contains("19.99");
         assertThat(html).contains("Premium");
+    }
+
+    @Test
+    @DisplayName("payment-failed template renders retry CTA")
+    void paymentFailedTemplate() {
+        String html = render("payment-failed", Map.of(
+                "userName", "Dev",
+                "dashboardUrl", "https://trippy.app/dashboard"));
+
+        assertThat(html).contains("Payment Failed");
+        assertThat(html).contains("Dev");
+        assertThat(html).contains("https://trippy.app/dashboard");
     }
 
     @Test
@@ -121,5 +164,20 @@ class EmailTemplateRenderingTest {
         assertThat(html).contains("Trippy update");
         assertThat(html).contains("Your account settings changed.");
         assertThat(html).contains("https://trippy.app/dashboard");
+    }
+
+    @Test
+    @DisplayName("plain-text fallback is rendered from HTML template")
+    void plainTextFallback() {
+        String text = emailService.renderPlainText("trip-invite", Map.of(
+                "inviteeName", "Dev",
+                "inviterName", "Mira",
+                "tripTitle", "Berlin Weekend",
+                "dashboardUrl", "https://trippy.app/dashboard"));
+
+        assertThat(text).contains("Dev");
+        assertThat(text).contains("Mira");
+        assertThat(text).contains("Berlin Weekend");
+        assertThat(text).doesNotContain("<html");
     }
 }
