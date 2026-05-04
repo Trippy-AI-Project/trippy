@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { notificationsApi, type Notification } from "@/lib/api";
+import { isSafeInternalPath } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const typeIcon: Record<string, typeof Bell> = {
@@ -132,7 +133,7 @@ export default function NotificationBell() {
     }
     // Navigate
     setOpen(false);
-    if (n.actionUrl) {
+    if (isSafeInternalPath(n.actionUrl)) {
       router.push(n.actionUrl);
     }
   }

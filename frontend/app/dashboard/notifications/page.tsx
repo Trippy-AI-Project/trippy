@@ -15,6 +15,7 @@ import {
 import { motion } from "framer-motion";
 import { GlassCard, Button } from "@/components/ui";
 import { notificationsApi, type Notification } from "@/lib/api";
+import { isSafeInternalPath } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const typeIcon: Record<string, typeof Bell> = {
@@ -99,7 +100,7 @@ export default function NotificationsPage() {
 
   function handleClick(n: Notification) {
     handleMarkRead(n);
-    if (n.actionUrl) router.push(n.actionUrl);
+    if (isSafeInternalPath(n.actionUrl)) router.push(n.actionUrl);
   }
 
   async function handleDelete(e: React.MouseEvent, id: string) {

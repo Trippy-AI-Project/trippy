@@ -2,8 +2,10 @@ package pse.trippy.aiservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import pse.trippy.aiservice.dto.request.AiChatRequest;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
@@ -87,7 +89,12 @@ public class AiController {
     }
 
     @GetMapping("/usage/{userId}")
-    public ResponseEntity<AiUsageResponse> getUsage(@PathVariable UUID userId) {
+    public ResponseEntity<AiUsageResponse> getUsage(
+            @RequestHeader("X-User-Id") UUID authenticatedUserId,
+            @PathVariable UUID userId) {
+        if (!authenticatedUserId.equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot access another user's AI usage");
+        }
         return ResponseEntity.ok(aiUsageService.getUsage(userId));
     }
 

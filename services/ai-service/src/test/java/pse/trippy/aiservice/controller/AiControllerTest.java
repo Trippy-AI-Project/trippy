@@ -12,6 +12,7 @@ import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
+import pse.trippy.aiservice.dto.response.AiUsageResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryGenerationResponse;
@@ -26,10 +27,12 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -198,5 +201,27 @@ class AiControllerTest {
                 .andExpect(jsonPath("$.generationId").value(generationId.toString()))
                 .andExpect(jsonPath("$.overview").value("Kyoto culture trip"))
                 .andExpect(jsonPath("$.tokensUsed").value(1200));
+    }
+
+    @Test
+    @DisplayName("GET /ai/usage/{userId} → 200 for authenticated owner")
+    void usageReturnsForOwner() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(aiUsageService.getUsage(userId)).thenReturn(
+                new AiUsageResponse(userId, 3, Map.of("CHAT", 2L), Instant.now(), 500));
+
+        mockMvc.perform(get("/ai/usage/{userId}", userId)
+                        .header("X-User-Id", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.totalRequests").value(3));
+    }
+
+    @Test
+    @DisplayName("GET /ai/usage/{userId} → 403 for another user's usage")
+    void usageRejectsDifferentUser() throws Exception {
+        mockMvc.perform(get("/ai/usage/{userId}", UUID.randomUUID())
+                        .header("X-User-Id", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
     }
 }
