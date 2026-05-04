@@ -40,8 +40,10 @@ public class NotificationController {
     }
 
     @PatchMapping("/{id}/read")
-    public ResponseEntity<Void> markAsRead(@PathVariable UUID id) {
-        notificationService.markAsRead(id);
+    public ResponseEntity<Void> markAsRead(
+            @PathVariable UUID id,
+            @RequestHeader("X-User-Id") UUID userId) {
+        notificationService.markAsRead(id, userId);
         return ResponseEntity.ok().build();
     }
 

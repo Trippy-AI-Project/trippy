@@ -12,7 +12,10 @@ import pse.trippy.notificationservice.model.enums.NotificationChannel;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 import pse.trippy.notificationservice.repository.NotificationRepository;
 
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -25,12 +28,19 @@ public class NotificationService {
     @Transactional
     public Notification createNotification(UUID userId, NotificationType type, String title,
                                            String message, String actionUrl) {
+        return createNotification(userId, type, title, message, actionUrl, Map.of());
+    }
+
+    @Transactional
+    public Notification createNotification(UUID userId, NotificationType type, String title,
+                                           String message, String actionUrl, Map<String, Object> metadata) {
         Notification notification = Notification.builder()
                 .userId(userId)
                 .type(type)
                 .title(title)
                 .message(message)
                 .actionUrl(actionUrl)
+                .metadata(metadata == null ? new HashMap<>() : new HashMap<>(metadata))
                 .channel(NotificationChannel.IN_APP)
                 .read(false)
                 .build();
@@ -53,11 +63,16 @@ public class NotificationService {
     }
 
     @Transactional
-    public void markAsRead(UUID notificationId) {
+    public void markAsRead(UUID notificationId, UUID userId) {
         notificationRepository.findById(notificationId).ifPresent(n -> {
-            n.setRead(true);
-            notificationRepository.save(n);
-            log.info("Marked notification {} as read", notificationId);
+            if (n.getUserId().equals(userId) && !n.isDeleted()) {
+                n.setRead(true);
+                if (n.getReadAt() == null) {
+                    n.setReadAt(Instant.now());
+                }
+                notificationRepository.save(n);
+                log.info("Marked notification {} as read for user {}", notificationId, userId);
+            }
         });
     }
 
@@ -65,7 +80,11 @@ public class NotificationService {
     public void markAllAsRead(UUID userId) {
         List<Notification> unread = notificationRepository
                 .findByUserIdAndReadFalseAndDeletedFalseOrderByCreatedAtDesc(userId);
-        unread.forEach(n -> n.setRead(true));
+        Instant readAt = Instant.now();
+        unread.forEach(n -> {
+            n.setRead(true);
+            n.setReadAt(readAt);
+        });
         notificationRepository.saveAll(unread);
         log.info("Marked all notifications as read for user {}", userId);
     }
@@ -88,8 +107,11 @@ public class NotificationService {
                 n.getType(),
                 n.getTitle(),
                 n.getMessage(),
+                n.getMessage(),
                 n.getActionUrl(),
                 n.isRead(),
+                n.getReadAt(),
+                n.getMetadata(),
                 n.getCreatedAt()
         );
     }

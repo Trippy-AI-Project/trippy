@@ -386,6 +386,8 @@ export interface Notification {
   message: string;
   actionUrl?: string;
   read: boolean;
+  readAt?: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
 }
 

@@ -66,4 +66,46 @@ class EmailTemplateRenderingTest {
         assertThat(html).contains("https://trippy.app/reset?token=abc123");
         assertThat(html).contains("1 hour");
     }
+
+    @Test
+    @DisplayName("trip-invite template renders invite details")
+    void tripInviteTemplate() {
+        String html = render("trip-invite", Map.of(
+                "inviteeName", "Bob",
+                "inviterName", "Jane",
+                "tripTitle", "Summer in Barcelona",
+                "link", "https://trippy.app/dashboard/trips/1"));
+
+        assertThat(html).contains("Bob");
+        assertThat(html).contains("Jane");
+        assertThat(html).contains("Summer in Barcelona");
+        assertThat(html).contains("https://trippy.app/dashboard/trips/1");
+    }
+
+    @Test
+    @DisplayName("trip-joined template renders participant details")
+    void tripJoinedTemplate() {
+        String html = render("trip-joined", Map.of(
+                "userName", "Jane",
+                "joinerName", "Bob",
+                "tripTitle", "Summer in Barcelona",
+                "link", "https://trippy.app/dashboard/trips/1"));
+
+        assertThat(html).contains("Jane");
+        assertThat(html).contains("Bob");
+        assertThat(html).contains("Summer in Barcelona");
+    }
+
+    @Test
+    @DisplayName("itinerary-ready template renders trip details")
+    void itineraryReadyTemplate() {
+        String html = render("itinerary-ready", Map.of(
+                "userName", "Alice",
+                "tripTitle", "Kyoto",
+                "link", "https://trippy.app/dashboard/trips/2"));
+
+        assertThat(html).contains("Alice");
+        assertThat(html).contains("Kyoto");
+        assertThat(html).contains("View Itinerary");
+    }
 }

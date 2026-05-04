@@ -9,11 +9,17 @@ import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.response.AiChatResponse;
+import pse.trippy.aiservice.dto.response.AiUsageResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
+import pse.trippy.aiservice.dto.response.ItineraryGenerationResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.service.AiCacheService;
+import pse.trippy.aiservice.service.AiItineraryService;
 import pse.trippy.aiservice.service.AiService;
+import pse.trippy.aiservice.service.AiUsageService;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/ai")
@@ -21,6 +27,8 @@ import pse.trippy.aiservice.service.AiService;
 public class AiController {
 
     private final AiService aiService;
+    private final AiItineraryService aiItineraryService;
+    private final AiUsageService aiUsageService;
     private final AiCacheService aiCacheService;
 
     /**
@@ -29,8 +37,9 @@ public class AiController {
      */
     @PostMapping("/destination-suggestions")
     public ResponseEntity<DestinationSuggestionResponse> suggestDestinations(
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
             @Valid @RequestBody DestinationSuggestionRequest request) {
-        return ResponseEntity.ok(aiService.suggestDestinations(request));
+        return ResponseEntity.ok(aiService.suggestDestinations(userId, request));
     }
 
     /**
@@ -39,8 +48,9 @@ public class AiController {
      */
     @PostMapping("/travel-advice")
     public ResponseEntity<TravelAdviceResponse> getTravelAdvice(
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
             @Valid @RequestBody TravelAdviceRequest request) {
-        return ResponseEntity.ok(aiService.getTravelAdvice(request));
+        return ResponseEntity.ok(aiService.getTravelAdvice(userId, request));
     }
 
     /**
@@ -49,8 +59,9 @@ public class AiController {
      */
     @PostMapping("/chat")
     public ResponseEntity<AiChatResponse> chat(
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
             @Valid @RequestBody AiChatRequest request) {
-        return ResponseEntity.ok(aiService.chat(request));
+        return ResponseEntity.ok(aiService.chat(userId, request));
     }
 
     /**
@@ -59,8 +70,25 @@ public class AiController {
      */
     @PostMapping("/itineraries")
     public ResponseEntity<ItineraryResponse> generateItinerary(
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId,
             @Valid @RequestBody GenerateItineraryRequest request) {
-        return ResponseEntity.ok(aiService.generateItinerary(request));
+        return ResponseEntity.ok(aiService.generateItinerary(userId, request));
+    }
+
+    /**
+     * POST /ai/itinerary/generate
+     * Public contract behind API Gateway /api prefix.
+     */
+    @PostMapping("/itinerary/generate")
+    public ResponseEntity<ItineraryGenerationResponse> generateTrackedItinerary(
+            @RequestHeader("X-User-Id") UUID userId,
+            @Valid @RequestBody GenerateItineraryRequest request) {
+        return ResponseEntity.ok(aiItineraryService.generateItinerary(userId, request));
+    }
+
+    @GetMapping("/usage/{userId}")
+    public ResponseEntity<AiUsageResponse> getUsage(@PathVariable UUID userId) {
+        return ResponseEntity.ok(aiUsageService.getUsage(userId));
     }
 
     @DeleteMapping("/cache/{type}")

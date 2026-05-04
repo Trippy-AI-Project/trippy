@@ -19,14 +19,23 @@ import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
+import pse.trippy.aiservice.model.entity.AiRequestLog;
+import pse.trippy.aiservice.model.enums.RequestStatus;
+import pse.trippy.aiservice.model.enums.RequestType;
+import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -35,6 +44,8 @@ public class AiService {
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
+    private final AiRequestLogRepository aiRequestLogRepository;
+    private static final UUID UNKNOWN_USER_ID = new UUID(0L, 0L);
 
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
@@ -48,21 +59,19 @@ public class AiService {
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public DestinationSuggestionResponse suggestDestinations(DestinationSuggestionRequest request) {
+        return suggestDestinations(null, request);
+    }
+
+    public DestinationSuggestionResponse suggestDestinations(UUID userId, DestinationSuggestionRequest request) {
         String prompt = buildDestinationPrompt(request);
+        String promptHash = hashPrompt(prompt);
+        long startedAt = System.currentTimeMillis();
+        String rawJson = null;
+        RequestStatus status = RequestStatus.SUCCESS;
         log.info("Requesting destination suggestions");
 
-        String rawJson;
         try {
-            rawJson = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-        } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
-            rawJson = callGroqDirect(prompt);
-        }
-
-        try {
+            rawJson = requestAi(prompt);
             String cleanJson = extractJson(rawJson);
             log.debug("Extracted JSON (first 500 chars): {}", cleanJson.length() > 500 ? cleanJson.substring(0, 500) : cleanJson);
 
@@ -80,54 +89,61 @@ public class AiService {
             }
             return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
         } catch (Exception e) {
+            status = RequestStatus.FAILED;
             log.error("Failed to parse destination suggestions. Raw response (first 1000 chars): {}",
                     rawJson != null && rawJson.length() > 1000 ? rawJson.substring(0, 1000) : rawJson, e);
             return new DestinationSuggestionResponse(List.of(), Instant.now(), false);
+        } finally {
+            logRequest(userId, RequestType.DESTINATION_SUGGESTION, promptHash,
+                    elapsedMs(startedAt), estimateTokens(prompt), estimateTokens(rawJson), status);
         }
     }
 
     public ItineraryResponse generateItinerary(GenerateItineraryRequest request) {
+        return generateItinerary(null, request);
+    }
+
+    public ItineraryResponse generateItinerary(UUID userId, GenerateItineraryRequest request) {
         String prompt = buildItineraryPrompt(request);
+        String promptHash = hashPrompt(prompt);
+        long startedAt = System.currentTimeMillis();
+        String rawJson = null;
+        RequestStatus status = RequestStatus.SUCCESS;
         log.debug("Generating itinerary for destination: {}", request.constraints().destination());
 
-        String rawJson;
         try {
-            rawJson = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-        } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
-            rawJson = callGroqDirect(prompt);
-        }
-
-        try {
+            rawJson = requestAi(prompt);
             ItineraryResponse response = objectMapper.readValue(
                     extractJson(rawJson), ItineraryResponse.class);
             response.setGeneratedAt(Instant.now());
             return response;
         } catch (JsonProcessingException e) {
+            status = RequestStatus.FAILED;
             log.error("Failed to parse itinerary response", e);
             throw new RuntimeException("Failed to generate itinerary. Please try again.", e);
+        } catch (RuntimeException e) {
+            status = RequestStatus.FAILED;
+            throw e;
+        } finally {
+            logRequest(userId, RequestType.ITINERARY_GENERATION, promptHash,
+                    elapsedMs(startedAt), estimateTokens(prompt), estimateTokens(rawJson), status);
         }
     }
 
     public TravelAdviceResponse getTravelAdvice(TravelAdviceRequest request) {
+        return getTravelAdvice(null, request);
+    }
+
+    public TravelAdviceResponse getTravelAdvice(UUID userId, TravelAdviceRequest request) {
         String prompt = buildAdvicePrompt(request);
+        String promptHash = hashPrompt(prompt);
+        long startedAt = System.currentTimeMillis();
+        String rawJson = null;
+        RequestStatus status = RequestStatus.SUCCESS;
         log.debug("Getting travel advice for destination: {}", request.getDestination());
 
-        String rawJson;
         try {
-            rawJson = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-        } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
-            rawJson = callGroqDirect(prompt);
-        }
-
-        try {
+            rawJson = requestAi(prompt);
             TravelAdviceResponse response = objectMapper.readValue(
                     extractJson(rawJson), TravelAdviceResponse.class);
             response.setGeneratedAt(Instant.now());
@@ -139,16 +155,26 @@ public class AiService {
                     .relatedQuestions(List.of())
                     .generatedAt(Instant.now())
                     .build();
+        } catch (RuntimeException e) {
+            status = RequestStatus.FAILED;
+            throw e;
+        } finally {
+            logRequest(userId, RequestType.TRAVEL_ADVICE, promptHash,
+                    elapsedMs(startedAt), estimateTokens(prompt), estimateTokens(rawJson), status);
         }
     }
 
     public AiChatResponse chat(AiChatRequest request) {
+        return chat(null, request);
+    }
+
+    public AiChatResponse chat(UUID userId, AiChatRequest request) {
         String lastMessage = request.messages().get(request.messages().size() - 1).content();
 
         if (request.currentItinerary() != null && !request.currentItinerary().isEmpty()) {
             String prompt = buildItineraryChatPrompt(request, lastMessage);
             try {
-                String rawJson = requestAi(prompt);
+                String rawJson = requestAiLogged(userId, RequestType.CHAT, prompt);
                 JsonNode root = objectMapper.readTree(extractJson(rawJson));
                 List<ItineraryResponse.DayPlan> updatedItinerary = objectMapper.convertValue(
                         root.path("dailyPlan"),
@@ -174,7 +200,7 @@ public class AiService {
 
         String reply;
         try {
-            reply = requestAi(buildGeneralChatPrompt(request));
+            reply = requestAiLogged(userId, RequestType.CHAT, buildGeneralChatPrompt(request));
         } catch (Exception ex) {
             log.warn("AI chat failed, returning local fallback: {}", ex.getMessage());
             reply = "I can help with destination ideas, itinerary changes, food, transport, packing, and budget tips. Try asking for a specific change to your trip.";
@@ -396,6 +422,23 @@ public class AiService {
     // Utility
     // -------------------------------------------------------------------------
 
+    private String requestAiLogged(UUID userId, RequestType requestType, String prompt) {
+        String promptHash = hashPrompt(prompt);
+        long startedAt = System.currentTimeMillis();
+        String rawResponse = null;
+        RequestStatus status = RequestStatus.SUCCESS;
+        try {
+            rawResponse = requestAi(prompt);
+            return rawResponse;
+        } catch (RuntimeException ex) {
+            status = RequestStatus.FAILED;
+            throw ex;
+        } finally {
+            logRequest(userId, requestType, promptHash, elapsedMs(startedAt),
+                    estimateTokens(prompt), estimateTokens(rawResponse), status);
+        }
+    }
+
     private String requestAi(String prompt) {
         try {
             return chatClient.prompt()
@@ -406,6 +449,44 @@ public class AiService {
             log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
             return callGroqDirect(prompt);
         }
+    }
+
+    private void logRequest(UUID userId, RequestType requestType, String promptHash,
+                            long responseTimeMs, int inputTokens, int outputTokens,
+                            RequestStatus status) {
+        try {
+            aiRequestLogRepository.save(AiRequestLog.builder()
+                    .userId(userId != null ? userId : UNKNOWN_USER_ID)
+                    .requestType(requestType)
+                    .promptHash(promptHash)
+                    .responseTimeMs(responseTimeMs)
+                    .inputTokens(inputTokens)
+                    .outputTokens(outputTokens)
+                    .status(status)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("Failed to log AI request metadata: {}", ex.getMessage());
+        }
+    }
+
+    private String hashPrompt(String prompt) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(prompt.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is not available", ex);
+        }
+    }
+
+    private int estimateTokens(String text) {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        return Math.max(1, (int) Math.ceil(text.length() / 4.0));
+    }
+
+    private long elapsedMs(long startedAt) {
+        return System.currentTimeMillis() - startedAt;
     }
 
     private String writeJson(Object value) {

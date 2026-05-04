@@ -13,11 +13,14 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { GlassCard, Button, Badge } from "@/components/ui";
+import { GlassCard, Button } from "@/components/ui";
 import { notificationsApi, type Notification } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const typeIcon: Record<string, typeof Bell> = {
+  TRIP_INVITE: Plane,
+  TRIP_JOINED: Plane,
+  ITINERARY_READY: Plane,
   TRIP_INVITATION: Plane,
   INVITATION_ACCEPTED: Plane,
   INVITATION_DECLINED: Plane,

@@ -110,7 +110,7 @@ export default function Navbar() {
             );
           })}
           <Link
-            href="/dashboard/notifications"
+            href="/notifications"
             onClick={() => setMobileOpen(false)}
             className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface transition-all"
           >

@@ -42,6 +42,7 @@ class AiUsageServiceTest {
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.DESTINATION_SUGGESTION)).thenReturn(30L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.ITINERARY_GENERATION)).thenReturn(8L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.TRAVEL_ADVICE)).thenReturn(4L);
+        when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.CHAT)).thenReturn(0L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.PREFERENCE_CONSOLIDATION)).thenReturn(0L);
         when(aiRequestLogRepository.sumTokensByUserId(userId)).thenReturn(15420L);
         when(aiRequestLogRepository.findTopByUserIdOrderByCreatedAtDesc(userId)).thenReturn(java.util.Optional.of(latest));
@@ -53,6 +54,7 @@ class AiUsageServiceTest {
         assertThat(usage.requestsByType()).containsEntry("DESTINATION_SUGGESTION", 30L);
         assertThat(usage.requestsByType()).containsEntry("ITINERARY_GENERATION", 8L);
         assertThat(usage.requestsByType()).containsEntry("TRAVEL_ADVICE", 4L);
+        assertThat(usage.requestsByType()).doesNotContainKey("CHAT");
         assertThat(usage.requestsByType()).doesNotContainKey("PREFERENCE_CONSOLIDATION");
         assertThat(usage.tokensConsumed()).isEqualTo(15420);
         assertThat(usage.lastUsedAt()).isEqualTo(now);
@@ -66,6 +68,7 @@ class AiUsageServiceTest {
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.DESTINATION_SUGGESTION)).thenReturn(0L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.ITINERARY_GENERATION)).thenReturn(0L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.TRAVEL_ADVICE)).thenReturn(0L);
+        when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.CHAT)).thenReturn(0L);
         when(aiRequestLogRepository.countByUserIdAndRequestType(userId, RequestType.PREFERENCE_CONSOLIDATION)).thenReturn(0L);
         when(aiRequestLogRepository.sumTokensByUserId(userId)).thenReturn(0L);
         when(aiRequestLogRepository.findTopByUserIdOrderByCreatedAtDesc(userId)).thenReturn(java.util.Optional.empty());

@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8"/>
-    <title>Reset Your Password</title>
+    <title>Trip Invitation</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
         .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
@@ -10,6 +10,8 @@
         .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; }
         .header h1 { color: #ffffff; margin: 0; font-size: 28px; }
         .body { padding: 32px; color: #374151; line-height: 1.6; }
+        .trip-card { background: #f0f0ff; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .trip-card h3 { color: #6366f1; margin-top: 0; }
         .btn { display: inline-block; padding: 12px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; }
         .footer { padding: 20px 32px; background: #f9fafb; text-align: center; color: #6b7280; font-size: 13px; }
         .social a { color: #6366f1; text-decoration: none; margin: 0 6px; }
@@ -19,14 +21,16 @@
 <div class="container">
     <div class="header">
         <div class="brand">Trippy</div>
-        <h1>Password Reset</h1>
+        <h1>You're Invited</h1>
     </div>
     <div class="body">
-        <p>Hello, <span th:text="${userName}">User</span>!</p>
-        <p>We received a request to reset your password. Click the button below to choose a new password:</p>
-        <a th:href="${resetLink}" class="btn">Reset Password</a>
-        <p style="margin-top: 24px;">This link is valid for <strong>1 hour</strong>.</p>
-        <p>If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+        <p>Hello, <span th:text="${inviteeName}">Traveler</span>!</p>
+        <p><strong th:text="${inviterName}">Someone</strong> invited you to plan a trip together.</p>
+        <div class="trip-card">
+            <h3 th:text="${tripTitle}">Trip Title</h3>
+            <p>Accept the invite to view the trip, chat with the group, and help shape the itinerary.</p>
+        </div>
+        <a th:href="${link}" class="btn">View Invitation</a>
     </div>
     <div class="footer">
         <p>Trippy helps travel groups plan together.</p>

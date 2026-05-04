@@ -2,14 +2,16 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8"/>
-    <title>Reset Your Password</title>
+    <title>Trip Joined</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
         .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
         .brand { color: #ffffff; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; margin-bottom: 10px; }
-        .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; }
+        .header { background: linear-gradient(135deg, #0ea5e9, #6366f1); padding: 32px; text-align: center; }
         .header h1 { color: #ffffff; margin: 0; font-size: 28px; }
         .body { padding: 32px; color: #374151; line-height: 1.6; }
+        .trip-card { background: #eef6ff; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .trip-card h3 { color: #2563eb; margin-top: 0; }
         .btn { display: inline-block; padding: 12px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; }
         .footer { padding: 20px 32px; background: #f9fafb; text-align: center; color: #6b7280; font-size: 13px; }
         .social a { color: #6366f1; text-decoration: none; margin: 0 6px; }
@@ -19,14 +21,16 @@
 <div class="container">
     <div class="header">
         <div class="brand">Trippy</div>
-        <h1>Password Reset</h1>
+        <h1>Someone Joined</h1>
     </div>
     <div class="body">
-        <p>Hello, <span th:text="${userName}">User</span>!</p>
-        <p>We received a request to reset your password. Click the button below to choose a new password:</p>
-        <a th:href="${resetLink}" class="btn">Reset Password</a>
-        <p style="margin-top: 24px;">This link is valid for <strong>1 hour</strong>.</p>
-        <p>If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+        <p>Hello, <span th:text="${userName}">Traveler</span>!</p>
+        <p><strong th:text="${joinerName}">A traveler</strong> joined your trip.</p>
+        <div class="trip-card">
+            <h3 th:text="${tripTitle}">Trip Title</h3>
+            <p>You can review participants and keep planning with the group.</p>
+        </div>
+        <a th:href="${link}" class="btn">Open Trip</a>
     </div>
     <div class="footer">
         <p>Trippy helps travel groups plan together.</p>

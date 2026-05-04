@@ -17,6 +17,7 @@ import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
+import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,6 +34,9 @@ class AiServiceTest {
     @Mock
     private ChatClient chatClient;
 
+    @Mock
+    private AiRequestLogRepository aiRequestLogRepository;
+
     private AiService aiService;
 
     // Fluent chain mocks
@@ -41,7 +45,7 @@ class AiServiceTest {
 
     @BeforeEach
     void setUp() {
-        aiService = new AiService(chatClient, new ObjectMapper().registerModule(new JavaTimeModule()));
+        aiService = new AiService(chatClient, new ObjectMapper().registerModule(new JavaTimeModule()), aiRequestLogRepository);
 
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callSpec = mock(ChatClient.CallResponseSpec.class);

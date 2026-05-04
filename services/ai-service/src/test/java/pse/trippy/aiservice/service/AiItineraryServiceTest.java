@@ -13,13 +13,14 @@ import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.ItineraryGenerationResponse;
 import pse.trippy.aiservice.model.entity.AiRequestLog;
+import pse.trippy.aiservice.model.entity.GenerationHistory;
 import pse.trippy.aiservice.model.enums.RequestStatus;
 import pse.trippy.aiservice.model.enums.RequestType;
 import pse.trippy.aiservice.repository.AiRequestLogRepository;
+import pse.trippy.aiservice.repository.GenerationHistoryRepository;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,7 +48,7 @@ class AiItineraryServiceTest {
     private AiRequestLogRepository aiRequestLogRepository;
 
     @Mock
-    private AiCacheService aiCacheService;
+    private GenerationHistoryRepository generationHistoryRepository;
 
     private AiItineraryService aiItineraryService;
     private ObjectMapper objectMapper;
@@ -56,7 +57,8 @@ class AiItineraryServiceTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        aiItineraryService = new AiItineraryService(chatClientBuilder, aiRequestLogRepository, objectMapper, aiCacheService);
+        aiItineraryService = new AiItineraryService(
+                chatClientBuilder, aiRequestLogRepository, generationHistoryRepository, objectMapper);
     }
 
     @Test
@@ -104,8 +106,7 @@ class AiItineraryServiceTest {
         when(requestSpec.call()).thenReturn(callResponseSpec);
         when(callResponseSpec.content()).thenReturn(aiResponse);
         when(aiRequestLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(aiCacheService.generateHash(any())).thenReturn("testhash");
-        when(aiCacheService.getCachedResponse("itinerary", "testhash")).thenReturn(Optional.empty());
+        when(generationHistoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ItineraryGenerationResponse response = aiItineraryService.generateItinerary(userId, request);
 
@@ -130,6 +131,14 @@ class AiItineraryServiceTest {
         assertThat(savedLog.getUserId()).isEqualTo(userId);
         assertThat(savedLog.getRequestType()).isEqualTo(RequestType.ITINERARY_GENERATION);
         assertThat(savedLog.getStatus()).isEqualTo(RequestStatus.SUCCESS);
+        assertThat(savedLog.getInputTokens()).isPositive();
+        assertThat(savedLog.getOutputTokens()).isPositive();
+
+        ArgumentCaptor<GenerationHistory> historyCaptor = ArgumentCaptor.forClass(GenerationHistory.class);
+        verify(generationHistoryRepository).save(historyCaptor.capture());
+        assertThat(historyCaptor.getValue().getGenerationId()).isEqualTo(response.generationId());
+        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(RequestStatus.SUCCESS);
+        assertThat(historyCaptor.getValue().getResponseJson()).contains("3-day cultural tour");
     }
 
     @Test
@@ -149,8 +158,7 @@ class AiItineraryServiceTest {
         when(requestSpec.user(any(String.class))).thenReturn(requestSpec);
         when(requestSpec.call()).thenThrow(new RuntimeException("API timeout"));
         when(aiRequestLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(aiCacheService.generateHash(any())).thenReturn("testhash");
-        when(aiCacheService.getCachedResponse("itinerary", "testhash")).thenReturn(Optional.empty());
+        when(generationHistoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         assertThatThrownBy(() -> aiItineraryService.generateItinerary(userId, request))
                 .isInstanceOf(AiServiceUnavailableException.class)
@@ -159,6 +167,10 @@ class AiItineraryServiceTest {
         ArgumentCaptor<AiRequestLog> logCaptor = ArgumentCaptor.forClass(AiRequestLog.class);
         verify(aiRequestLogRepository).save(logCaptor.capture());
         assertThat(logCaptor.getValue().getStatus()).isEqualTo(RequestStatus.FAILED);
+
+        ArgumentCaptor<GenerationHistory> historyCaptor = ArgumentCaptor.forClass(GenerationHistory.class);
+        verify(generationHistoryRepository).save(historyCaptor.capture());
+        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(RequestStatus.FAILED);
     }
 
     @Test

@@ -14,15 +14,19 @@ import pse.trippy.aiservice.dto.request.TravelAdviceRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
+import pse.trippy.aiservice.dto.response.ItineraryGenerationResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.service.AiCacheService;
+import pse.trippy.aiservice.service.AiItineraryService;
 import pse.trippy.aiservice.service.AiService;
+import pse.trippy.aiservice.service.AiUsageService;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -41,6 +45,12 @@ class AiControllerTest {
 
     @MockBean
     private AiService aiService;
+
+    @MockBean
+    private AiItineraryService aiItineraryService;
+
+    @MockBean
+    private AiUsageService aiUsageService;
 
     @MockBean
     private AiCacheService aiCacheService;
@@ -64,7 +74,7 @@ class AiControllerTest {
                 Instant.now(),
                 false);
 
-        when(aiService.suggestDestinations(any())).thenReturn(stubResponse);
+        when(aiService.suggestDestinations(any(), any())).thenReturn(stubResponse);
 
         DestinationSuggestionRequest request = new DestinationSuggestionRequest(
                 null, null, List.of("beach", "culture"), "LOW", null, 7, "Europe", "August",
@@ -91,7 +101,7 @@ class AiControllerTest {
                 .generatedAt(Instant.now())
                 .build();
 
-        when(aiService.getTravelAdvice(any())).thenReturn(stubResponse);
+        when(aiService.getTravelAdvice(any(), any())).thenReturn(stubResponse);
 
         TravelAdviceRequest request = new TravelAdviceRequest();
         request.setQuestion("Best way to travel from Tokyo to Kyoto?");
@@ -139,7 +149,7 @@ class AiControllerTest {
                 .generatedAt(Instant.now())
                 .build();
 
-        when(aiService.generateItinerary(any())).thenReturn(stubResponse);
+        when(aiService.generateItinerary(any(), any())).thenReturn(stubResponse);
 
         GenerateItineraryRequest request = new GenerateItineraryRequest(
                 null,
@@ -154,5 +164,39 @@ class AiControllerTest {
                 .andExpect(jsonPath("$.tripTitle").value("5 Days in Kyoto"))
                 .andExpect(jsonPath("$.dailyPlan[0].dayNumber").value(1))
                 .andExpect(jsonPath("$.packingTips[0]").value("Comfortable shoes"));
+    }
+
+    @Test
+    @DisplayName("POST /ai/itinerary/generate → 200 with generation id")
+    void generateTrackedItinerary_returns200() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID generationId = UUID.randomUUID();
+        UUID tripId = UUID.randomUUID();
+
+        when(aiItineraryService.generateItinerary(any(), any())).thenReturn(
+                new ItineraryGenerationResponse(
+                        generationId,
+                        tripId,
+                        List.of(),
+                        "Kyoto culture trip",
+                        "€800",
+                        Instant.now(),
+                        1200,
+                        false));
+
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                tripId,
+                new TripConstraints("Kyoto, Japan", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5),
+                        null, null, null, BigDecimal.valueOf(1200)),
+                null, null, null);
+
+        mockMvc.perform(post("/ai/itinerary/generate")
+                        .header("X-User-Id", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.generationId").value(generationId.toString()))
+                .andExpect(jsonPath("$.overview").value("Kyoto culture trip"))
+                .andExpect(jsonPath("$.tokensUsed").value(1200));
     }
 }

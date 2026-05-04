@@ -17,6 +17,7 @@ import pse.trippy.notificationservice.model.enums.NotificationType;
 import pse.trippy.notificationservice.repository.NotificationRepository;
 
 import java.util.UUID;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,19 +46,22 @@ class NotificationServiceTest {
     void createNotificationSavesCorrectly() {
         Notification result = notificationService.createNotification(
                 USER_ID,
-                NotificationType.WELCOME,
+                NotificationType.TRIP_INVITE,
                 "Welcome!",
                 "Welcome to Trippy",
-                "https://trippy.app/dashboard");
+                "https://trippy.app/dashboard",
+                Map.of("tripId", "trip-1"));
 
         assertThat(result.getId()).isNotNull();
         assertThat(result.getUserId()).isEqualTo(USER_ID);
-        assertThat(result.getType()).isEqualTo(NotificationType.WELCOME);
+        assertThat(result.getType()).isEqualTo(NotificationType.TRIP_INVITE);
         assertThat(result.getTitle()).isEqualTo("Welcome!");
         assertThat(result.getMessage()).isEqualTo("Welcome to Trippy");
         assertThat(result.getActionUrl()).isEqualTo("https://trippy.app/dashboard");
+        assertThat(result.getMetadata()).containsEntry("tripId", "trip-1");
         assertThat(result.getChannel()).isEqualTo(NotificationChannel.IN_APP);
         assertThat(result.isRead()).isFalse();
+        assertThat(result.getReadAt()).isNull();
         assertThat(result.getCreatedAt()).isNotNull();
     }
 
@@ -97,11 +101,25 @@ class NotificationServiceTest {
         Notification n = notificationService.createNotification(USER_ID,
                 NotificationType.WELCOME, "Welcome", "msg", null);
 
-        notificationService.markAsRead(n.getId());
+        notificationService.markAsRead(n.getId(), USER_ID);
 
         Notification updated = notificationRepository.findById(n.getId()).orElseThrow();
         assertThat(updated.isRead()).isTrue();
+        assertThat(updated.getReadAt()).isNotNull();
         assertThat(notificationService.getUnreadCount(USER_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("markAsRead ignores notifications owned by another user")
+    void markAsReadRequiresOwner() {
+        Notification n = notificationService.createNotification(USER_ID,
+                NotificationType.WELCOME, "Welcome", "msg", null);
+
+        notificationService.markAsRead(n.getId(), UUID.randomUUID());
+
+        Notification updated = notificationRepository.findById(n.getId()).orElseThrow();
+        assertThat(updated.isRead()).isFalse();
+        assertThat(updated.getReadAt()).isNull();
     }
 
     @Test

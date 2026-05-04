@@ -16,6 +16,9 @@ import { notificationsApi, type Notification } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const typeIcon: Record<string, typeof Bell> = {
+  TRIP_INVITE: Plane,
+  TRIP_JOINED: Plane,
+  ITINERARY_READY: Plane,
   TRIP_INVITATION: Plane,
   INVITATION_ACCEPTED: Plane,
   INVITATION_DECLINED: Plane,
@@ -47,7 +50,6 @@ export default function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Poll unread count every 30s
   const fetchUnreadCount = useCallback(async () => {
     try {
       const data = await notificationsApi.unreadCount();
@@ -57,22 +59,34 @@ export default function NotificationBell() {
     }
   }, []);
 
+  const loadRecentNotifications = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      const data = await notificationsApi.list(0, 10);
+      setNotifications(data.content);
+    } catch {
+      setNotifications([]);
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    fetchUnreadCount();
+    const initial = window.setTimeout(fetchUnreadCount, 0);
     const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      window.clearTimeout(initial);
+      clearInterval(interval);
+    };
   }, [fetchUnreadCount]);
 
-  // Load notifications when dropdown opens
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    notificationsApi
-      .list(0, 10)
-      .then((data) => setNotifications(data.content))
-      .catch(() => setNotifications([]))
-      .finally(() => setLoading(false));
-  }, [open]);
+    const interval = setInterval(() => {
+      loadRecentNotifications(false);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loadRecentNotifications, open]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -92,6 +106,14 @@ export default function NotificationBell() {
       setUnreadCount(0);
     } catch {
       // ignore
+    }
+  }
+
+  function handleToggleOpen() {
+    const nextOpen = !open;
+    setOpen(nextOpen);
+    if (nextOpen) {
+      loadRecentNotifications(true);
     }
   }
 
@@ -133,7 +155,7 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       {/* Bell icon with badge */}
       <button
-        onClick={() => setOpen(!open)}
+        onClick={handleToggleOpen}
         className="relative flex items-center justify-center rounded-xl p-2 text-muted hover:text-foreground hover:bg-surface transition-all"
         aria-label="Notifications"
       >
@@ -147,7 +169,7 @@ export default function NotificationBell() {
 
       {/* Dropdown panel */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 glass-strong shadow-2xl z-50 max-h-[28rem] flex flex-col">
+        <div className="fixed inset-x-3 top-16 z-50 flex max-h-[calc(100vh-5rem)] flex-col glass-strong shadow-2xl sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-h-[28rem]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="font-semibold text-sm">Notifications</h3>
@@ -220,7 +242,7 @@ export default function NotificationBell() {
           {/* Footer */}
           <div className="border-t border-border px-4 py-2">
             <Link
-              href="/dashboard/notifications"
+              href="/notifications"
               onClick={() => setOpen(false)}
               className="text-xs text-trippy-400 hover:text-trippy-300 transition-colors"
             >

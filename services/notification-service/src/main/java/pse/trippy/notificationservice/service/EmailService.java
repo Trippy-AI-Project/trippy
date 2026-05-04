@@ -47,7 +47,7 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(htmlBody, true);
+            helper.setText(toPlainText(htmlBody), htmlBody);
 
             mailSender.send(message);
 
@@ -72,5 +72,24 @@ public class EmailService {
                     .errorMessage(e.getMessage())
                     .build());
         }
+    }
+
+    private String toPlainText(String htmlBody) {
+        if (htmlBody == null || htmlBody.isBlank()) {
+            return "";
+        }
+        return htmlBody
+                .replaceAll("(?is)<style.*?</style>", " ")
+                .replaceAll("(?is)<script.*?</script>", " ")
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</p>", "\n\n")
+                .replaceAll("<[^>]+>", " ")
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replaceAll("[ \\t\\x0B\\f\\r]+", " ")
+                .replaceAll("\\n\\s+", "\n")
+                .trim();
     }
 }

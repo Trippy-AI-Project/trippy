@@ -18,10 +18,14 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import pse.trippy.notificationservice.model.enums.NotificationChannel;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -74,9 +78,17 @@ public class Notification {
     @Builder.Default
     private boolean read = false;
 
+    @Column(name = "read_at")
+    private Instant readAt;
+
     @Column(name = "is_deleted", nullable = false)
     @Builder.Default
     private boolean deleted = false;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata")
+    @Builder.Default
+    private Map<String, Object> metadata = new HashMap<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
