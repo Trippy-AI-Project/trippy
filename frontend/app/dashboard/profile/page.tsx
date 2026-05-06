@@ -1,12 +1,22 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { GlassCard, Avatar, Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
-import { Mail, MapPin, Edit } from "lucide-react";
+import { Mail, MapPin, Edit, LogOut } from "lucide-react";
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await logout();
+    router.replace("/login");
+  }
 
   return (
     <div className="space-y-8">
@@ -36,6 +46,23 @@ export default function ProfilePage() {
         <Button variant="secondary" size="sm">
           <Edit size={14} /> Edit
         </Button>
+      </GlassCard>
+
+      <GlassCard className="border-red-500/20">
+        <h3 className="text-base font-semibold">Danger Zone</h3>
+        <p className="mt-1 text-sm text-muted">Sign out of your account on this device.</p>
+        <div className="mt-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="border-red-500/40 text-red-500 hover:bg-red-500/10"
+          >
+            <LogOut size={14} />
+            {loggingOut ? "Signing out…" : "Sign out"}
+          </Button>
+        </div>
       </GlassCard>
     </div>
   );
