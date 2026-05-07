@@ -373,7 +373,8 @@ class AiServiceTest {
             assertThatThrownBy(() -> method.invoke(timeoutService, "prompt", Duration.ofMillis(1)))
                     .isInstanceOf(InvocationTargetException.class)
                     .satisfies(exception -> assertThat(((InvocationTargetException) exception).getCause())
-                            .isInstanceOf(AiServiceTimeoutException.class));
+                            .isInstanceOf(AiServiceTimeoutException.class)
+                            .hasMessage("AI itinerary generation timed out after 1 millisecond"));
             assertThat(recordingExecutor.wasSubmittedTaskCancelled()).isTrue();
         }
     }

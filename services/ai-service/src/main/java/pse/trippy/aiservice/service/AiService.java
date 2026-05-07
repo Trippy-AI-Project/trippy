@@ -860,7 +860,7 @@ public class AiService {
             return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
             future.cancel(true);
-            throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", ex);
+            throw new AiServiceTimeoutException(timeoutMessage(timeout), ex);
         } catch (InterruptedException ex) {
             future.cancel(true);
             Thread.currentThread().interrupt();
@@ -869,12 +869,35 @@ public class AiService {
             Throwable cause = ex.getCause();
             if (cause instanceof RuntimeException runtimeException) {
                 if (isTimeoutException(runtimeException)) {
-                    throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", runtimeException);
+                    throw new AiServiceTimeoutException(timeoutMessage(timeout), runtimeException);
                 }
                 throw runtimeException;
             }
             throw new RuntimeException("AI request failed", cause);
         }
+    }
+
+    private static String timeoutMessage(Duration timeout) {
+        return "AI itinerary generation timed out after " + formatDuration(timeout);
+    }
+
+    private static String formatDuration(Duration timeout) {
+        long seconds = timeout.getSeconds();
+        if (!timeout.isZero() && timeout.toNanosPart() == 0 && seconds > 0) {
+            return seconds + " " + pluralize("second", seconds);
+        }
+
+        long milliseconds = timeout.toMillis();
+        if (milliseconds > 0) {
+            return milliseconds + " " + pluralize("millisecond", milliseconds);
+        }
+
+        long nanoseconds = timeout.toNanos();
+        return nanoseconds + " " + pluralize("nanosecond", nanoseconds);
+    }
+
+    private static String pluralize(String unit, long amount) {
+        return amount == 1 ? unit : unit + "s";
     }
 
     private void sleepBeforeRetry(int attempt) {
@@ -1041,7 +1064,7 @@ public class AiService {
         } catch (AiServiceTimeoutException ex) {
             throw ex;
         } catch (HttpTimeoutException ex) {
-            throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", ex);
+            throw new AiServiceTimeoutException(timeoutMessage(ITINERARY_TIMEOUT), ex);
         } catch (Exception ex) {
             throw new RuntimeException("Direct Groq fallback failed", ex);
         }
