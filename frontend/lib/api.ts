@@ -89,6 +89,7 @@ export interface UserProfile {
   userId: string;
   email: string;
   displayName: string;
+  role: "MEMBER" | "HOST" | "ADMIN" | "USER";
   firstName?: string;
   lastName?: string;
   avatarUrl?: string;
