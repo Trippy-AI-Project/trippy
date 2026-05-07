@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { GlassCard, Avatar, Button } from "@/components/ui";
+import { GlassCard, Avatar, Button, Badge } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
-import { Mail, MapPin, Edit, LogOut } from "lucide-react";
+import { Mail, MapPin, Edit, LogOut, ShieldCheck } from "lucide-react";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -28,7 +28,15 @@ export default function ProfilePage() {
       <GlassCard className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
         <Avatar name={user?.displayName ?? "User"} src={user?.avatarUrl} size="lg" />
         <div className="flex-1 text-center sm:text-left">
-          <h2 className="text-xl font-bold">{user?.displayName ?? "Unknown"}</h2>
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
+            <h2 className="text-xl font-bold">{user?.displayName ?? "Unknown"}</h2>
+            {user?.role && (
+              <Badge variant={user.role === "HOST" ? "accent" : user.role === "ADMIN" ? "danger" : "default"}>
+                <ShieldCheck size={11} className="mr-1" />
+                {user.role}
+              </Badge>
+            )}
+          </div>
           <div className="mt-2 flex flex-col gap-1 text-sm text-muted">
             {user?.email && (
               <p className="flex items-center gap-2 justify-center sm:justify-start">

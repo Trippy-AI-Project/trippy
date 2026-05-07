@@ -6,7 +6,13 @@ package pse.trippy.userservice.model.enums;
  */
 public enum UserRole {
 
-    /** Standard authenticated user. */
+    /** Standard authenticated user — default role on registration. */
+    MEMBER,
+
+    /** User who has created at least one trip. */
+    HOST,
+
+    /** Legacy alias for MEMBER, kept for backwards compatibility. */
     USER,
 
     /** Platform administrator with elevated privileges. */
