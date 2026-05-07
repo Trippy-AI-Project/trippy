@@ -61,7 +61,7 @@ info:
     - **Tables**: 
       - `notifications` - In-app notifications (id, user_id, type, title, body, read, created_at)
       - `notification_preferences` - User preferences (user_id, type, email_enabled, push_enabled)
-      - `email_logs` - Email send history (id, user_id, template, status, sent_at)
+      - `email_logs` - Email send history (id, recipient, subject, template_name, status, sent_at)
       - `push_subscriptions` - FCM/APNs tokens (user_id, device_token, platform)
 
     ## External Dependencies
@@ -159,6 +159,9 @@ components:
     Notification:
       type: object
       properties:
+        id:
+          type: string
+          format: uuid
         notificationId:
           type: string
           format: uuid
@@ -170,6 +173,9 @@ components:
         title:
           type: string
           example: "New trip invitation"
+        message:
+          type: string
+          example: "Alice invited you to join 'Summer in Paris'"
         body:
           type: string
           example: "Alice invited you to join 'Summer in Paris'"
@@ -302,27 +308,25 @@ components:
     SendEmailRequest:
       type: object
       required:
-        - userId
-        - templateId
+        - to
+        - subject
+        - templateName
+        - templateVariables
       properties:
-        userId:
-          type: string
-          format: uuid
-        email:
+        to:
           type: string
           format: email
-          description: Override email (for unregistered users)
-        templateId:
+        subject:
           type: string
-          example: "trip-invitation"
-        templateData:
+          maxLength: 500
+        templateName:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          example: "trip-invite"
+        templateVariables:
           type: object
           additionalProperties: true
           description: Variables for email template
-        priority:
-          type: string
-          enum: ["LOW", "NORMAL", "HIGH"]
-          default: "NORMAL"
 
     SendPushRequest:
       type: object
@@ -410,43 +414,42 @@ components:
     EmailVerificationRequest:
       type: object
       required:
-        - userId
-        - email
+        - to
+        - userName
         - verificationCode
       properties:
-        userId:
-          type: string
-          format: uuid
-        email:
+        to:
           type: string
           format: email
+        userName:
+          type: string
         verificationCode:
           type: string
           example: "123456"
-        expiresIn:
-          type: integer
-          description: Code validity in minutes
-          example: 10
 
     PasswordResetRequest:
       type: object
       required:
-        - email
+        - to
+        - userName
         - resetLink
       properties:
-        userId:
-          type: string
-          format: uuid
-        email:
+        to:
           type: string
           format: email
+        userName:
+          type: string
         resetLink:
           type: string
           format: uri
-        expiresIn:
-          type: integer
-          description: Link validity in minutes
-          example: 60
+
+    EmailSentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
 
     PaymentReceiptRequest:
       type: object
@@ -496,14 +499,44 @@ components:
     NotificationListResponse:
       type: object
       properties:
-        notifications:
+        content:
           type: array
           items:
             $ref: '#/components/schemas/Notification'
-        pagination:
-          $ref: '#/components/schemas/PaginationMeta'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+          description: Zero-based page number
+        numberOfElements:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+        empty:
+          type: boolean
+        sort:
+          type: object
+          additionalProperties: true
+        pageable:
+          type: object
+          additionalProperties: true
+        notifications:
+          type: array
+          deprecated: true
+          description: Deprecated legacy wrapper field; use `content`.
+          items:
+            $ref: '#/components/schemas/Notification'
         unreadCount:
           type: integer
+          deprecated: true
+          description: Deprecated legacy wrapper field; use `/notifications/unread-count`.
 
 # =========================================================
 # PATHS
@@ -559,11 +592,15 @@ paths:
               schema:
                 type: object
                 properties:
+                  count:
+                    type: integer
+                    format: int64
                   unreadCount:
                     type: integer
+                    format: int64
 
   /notifications/{notificationId}/read:
-    post:
+    patch:
       summary: Mark as Read
       operationId: markAsRead
       tags: [Notifications]
@@ -577,12 +614,39 @@ paths:
         '404':
           description: Notification not found
 
-  /notifications/read-all:
     post:
+      summary: Mark as Read (Legacy)
+      operationId: markAsReadPost
+      tags: [Notifications]
+      security: [BearerAuth: []]
+      description: Backward-compatible alias for `PATCH /notifications/{notificationId}/read`.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '200':
+          description: Marked as read
+        '404':
+          description: Notification not found
+
+  /notifications/read-all:
+    patch:
       summary: Mark All as Read
       operationId: markAllAsRead
       tags: [Notifications]
       security: [BearerAuth: []]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: All marked as read
+
+    post:
+      summary: Mark All as Read (Legacy)
+      operationId: markAllAsReadPost
+      tags: [Notifications]
+      security: [BearerAuth: []]
+      description: Backward-compatible alias for `PATCH /notifications/read-all`.
       parameters:
         - $ref: '#/components/parameters/CorrelationId'
       responses:
@@ -727,18 +791,12 @@ paths:
             schema:
               $ref: '#/components/schemas/SendEmailRequest'
       responses:
-        '202':
+        '200':
           description: Email queued for sending
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  emailId:
-                    type: string
-                    format: uuid
-                  status:
-                    $ref: '#/components/schemas/DeliveryStatus'
+                $ref: '#/components/schemas/EmailSentResponse'
 
   /notifications/email/verification:
     post:
@@ -756,8 +814,12 @@ paths:
             schema:
               $ref: '#/components/schemas/EmailVerificationRequest'
       responses:
-        '202':
+        '200':
           description: Email queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailSentResponse'
 
   /notifications/email/password-reset:
     post:
@@ -775,8 +837,12 @@ paths:
             schema:
               $ref: '#/components/schemas/PasswordResetRequest'
       responses:
-        '202':
+        '200':
           description: Email queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailSentResponse'
 
   /notifications/email/welcome:
     post:
@@ -794,21 +860,23 @@ paths:
             schema:
               type: object
               required:
-                - userId
-                - email
-                - displayName
+                - to
+                - userName
               properties:
-                userId:
-                  type: string
-                  format: uuid
-                email:
+                to:
                   type: string
                   format: email
-                displayName:
+                userName:
+                  type: string
+                dashboardUrl:
                   type: string
       responses:
-        '202':
+        '200':
           description: Email queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailSentResponse'
 
   /notifications/email/payment-receipt:
     post:

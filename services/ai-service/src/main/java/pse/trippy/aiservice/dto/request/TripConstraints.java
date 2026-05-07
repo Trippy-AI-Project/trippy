@@ -1,9 +1,10 @@
 package pse.trippy.aiservice.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.Min;
 
 import java.time.LocalDate;
 import java.util.Locale;
@@ -13,15 +14,14 @@ public record TripConstraints(
         String destination,
 
         @NotNull(message = "Start date is required")
-        @FutureOrPresent(message = "Start date must be today or in the future")
         LocalDate startDate,
 
         @NotNull(message = "End date is required")
-        @FutureOrPresent(message = "End date must be today or in the future")
         LocalDate endDate,
 
         String budgetLevel,
 
+        @Valid
         Travelers travelers,
 
         String accommodationType
@@ -38,7 +38,7 @@ public record TripConstraints(
         }
 
         String normalized = budgetLevel.trim().toUpperCase(Locale.ROOT);
-        if (normalized.matches("BUDGET|LOW|MODERATE|MEDIUM|HIGH|PREMIUM|LUXURY")) {
+        if (normalized.matches("BUDGET|ECONOMY|LOW|MODERATE|MEDIUM|HIGH|PREMIUM|LUXURY")) {
             return true;
         }
         if (normalized.contains("-")) {
@@ -57,7 +57,9 @@ public record TripConstraints(
     }
 
     public record Travelers(
+            @Min(value = 1, message = "At least one adult is required")
             int adults,
+            @Min(value = 0, message = "Children cannot be negative")
             int children
     ) {
     }

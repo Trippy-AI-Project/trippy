@@ -54,3 +54,16 @@ CREATE TABLE IF NOT EXISTS notification_schema.device_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_device_tokens_user_id
     ON notification_schema.device_tokens (user_id);
+
+CREATE TABLE IF NOT EXISTS notification_schema.email_logs (
+    id UUID PRIMARY KEY,
+    recipient VARCHAR(255) NOT NULL,
+    subject VARCHAR(500) NOT NULL,
+    template_name VARCHAR(100),
+    status VARCHAR(10) NOT NULL,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    error_message VARCHAR(2000)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_logs_status
+    ON notification_schema.email_logs (status);

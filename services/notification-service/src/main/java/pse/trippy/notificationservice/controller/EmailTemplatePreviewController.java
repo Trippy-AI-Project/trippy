@@ -2,6 +2,7 @@ package pse.trippy.notificationservice.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.notificationservice.service.EmailService;
 
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/notifications/templates")
@@ -18,10 +20,27 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EmailTemplatePreviewController {
 
+    private static final Set<String> PREVIEWABLE_TEMPLATES = Set.of(
+            "email-verification",
+            "itinerary-ready",
+            "password-reset",
+            "payment-failed",
+            "payment-success",
+            "system-notification",
+            "trip-invitation",
+            "trip-invite",
+            "trip-joined",
+            "trip-updated",
+            "welcome"
+    );
+
     private final EmailService emailService;
 
     @GetMapping(value = "/{name}/preview", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> preview(@PathVariable String name) {
+        if (!PREVIEWABLE_TEMPLATES.contains(name)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
         return ResponseEntity.ok(emailService.renderTemplate(name, sampleVariables(name)));
     }
 

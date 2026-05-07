@@ -24,6 +24,7 @@ import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.model.entity.GenerationHistory;
 import pse.trippy.aiservice.repository.GenerationHistoryRepository;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -43,8 +44,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.time.Duration;
@@ -59,11 +61,13 @@ import java.util.stream.Collectors;
 public class AiService {
 
     private static final Duration ITINERARY_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration WEATHER_REQUEST_TIMEOUT = Duration.ofSeconds(5);
     private static final int ITINERARY_MAX_ATTEMPTS = 3;
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final GenerationHistoryRepository generationHistoryRepository;
+    private final ExecutorService aiBlockingExecutor;
 
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
@@ -135,7 +139,7 @@ public class AiService {
             response.setGeneratedAt(Instant.now());
             response.setFallbackUsed(false);
             enrichItinerary(response, request);
-            saveGenerationHistory(request, response, prompt, "SUCCESS");
+            saveGenerationHistory(request, response, prompt, historyStatus(response));
             return response;
         } catch (AiServiceTimeoutException ex) {
             throw ex;
@@ -497,8 +501,9 @@ public class AiService {
         boolean includeTransport = request.preferences() == null || request.preferences().includeTransport();
         LocalDate startDate = request.constraints().startDate();
 
-        for (ItineraryResponse.DayPlan day : response.getDailyPlan()) {
-            int dayNumber = day.getDayNumber() != null ? day.getDayNumber() : 1;
+        for (int i = 0; i < response.getDailyPlan().size(); i++) {
+            ItineraryResponse.DayPlan day = response.getDailyPlan().get(i);
+            int dayNumber = day.getDayNumber() != null ? day.getDayNumber() : i + 1;
             LocalDate date = parseDate(day.getDate())
                     .orElse(startDate.plusDays(Math.max(0, dayNumber - 1L)));
             if (day.getDayNumber() == null) {
@@ -606,10 +611,7 @@ public class AiService {
                     request.constraints().destination(), StandardCharsets.UTF_8);
             String geoUrl = "https://api.openweathermap.org/geo/1.0/direct?q="
                     + encodedDestination + "&limit=1&appid=" + openWeatherApiKey;
-            HttpResponse<String> geoResponse = httpClient.send(
-                    HttpRequest.newBuilder(URI.create(geoUrl)).GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
-            JsonNode geo = objectMapper.readTree(geoResponse.body());
+            JsonNode geo = sendJsonGet(geoUrl, WEATHER_REQUEST_TIMEOUT, "OpenWeather geocoding");
             if (!geo.isArray() || geo.isEmpty()) {
                 return Map.of();
             }
@@ -618,10 +620,8 @@ public class AiService {
             double lon = geo.get(0).path("lon").asDouble();
             String forecastUrl = "https://api.openweathermap.org/data/2.5/forecast?lat="
                     + lat + "&lon=" + lon + "&units=metric&appid=" + openWeatherApiKey;
-            HttpResponse<String> forecastResponse = httpClient.send(
-                    HttpRequest.newBuilder(URI.create(forecastUrl)).GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
-            JsonNode list = objectMapper.readTree(forecastResponse.body()).path("list");
+            JsonNode list = sendJsonGet(forecastUrl, WEATHER_REQUEST_TIMEOUT, "OpenWeather forecast")
+                    .path("list");
             if (!list.isArray()) {
                 return Map.of();
             }
@@ -650,10 +650,30 @@ public class AiService {
                         .build());
             });
             return summaries;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            log.warn("Weather lookup interrupted");
+            return Map.of();
+        } catch (IOException | IllegalArgumentException | IllegalStateException ex) {
+            log.warn("Weather lookup failed: {}", ex.getMessage());
+            return Map.of();
         } catch (Exception ex) {
             log.warn("Weather lookup failed: {}", ex.getMessage());
             return Map.of();
         }
+    }
+
+    private JsonNode sendJsonGet(String url, Duration timeout, String description)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(timeout)
+                .GET()
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalStateException(description + " returned status " + response.statusCode());
+        }
+        return objectMapper.readTree(response.body());
     }
 
     private List<ItineraryResponse.TransportRecommendation> inferTransport(
@@ -835,15 +855,18 @@ public class AiService {
     }
 
     private String requestAiWithTimeout(String prompt, Duration timeout) {
+        Future<String> future = aiBlockingExecutor.submit(() -> requestAi(prompt));
         try {
-            return CompletableFuture.supplyAsync(() -> requestAi(prompt))
-                    .orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
-                    .join();
-        } catch (CompletionException ex) {
+            return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            future.cancel(true);
+            throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", ex);
+        } catch (InterruptedException ex) {
+            future.cancel(true);
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("AI request was interrupted", ex);
+        } catch (ExecutionException ex) {
             Throwable cause = ex.getCause();
-            if (cause instanceof TimeoutException) {
-                throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", cause);
-            }
             if (cause instanceof RuntimeException runtimeException) {
                 if (isTimeoutException(runtimeException)) {
                     throw new AiServiceTimeoutException("AI itinerary generation timed out after 30 seconds", runtimeException);
@@ -944,6 +967,10 @@ public class AiService {
             if (arrEnd > arrStart) return trimmed.substring(arrStart, arrEnd + 1);
         }
         return trimmed;
+    }
+
+    private String historyStatus(ItineraryResponse response) {
+        return Boolean.TRUE.equals(response.getFallbackUsed()) ? "FALLBACK" : "SUCCESS";
     }
 
     private void saveGenerationHistory(GenerateItineraryRequest request, ItineraryResponse response,

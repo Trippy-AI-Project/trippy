@@ -188,6 +188,46 @@ class AiControllerTest {
     }
 
     @Test
+    @DisplayName("POST /ai/itineraries accepts past dates and ECONOMY budget")
+    void generateItinerary_acceptsPastDatesAndEconomyBudget() throws Exception {
+        ItineraryResponse stubResponse = ItineraryResponse.builder()
+                .generationId(UUID.fromString("123e4567-e89b-12d3-a456-426614174002"))
+                .tripTitle("Archived Kyoto Trip")
+                .dailyPlan(List.of())
+                .generatedAt(Instant.now())
+                .build();
+
+        when(aiService.generateItinerary(any())).thenReturn(stubResponse);
+
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                null,
+                new TripConstraints("Kyoto, Japan", LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 5),
+                        "ECONOMY", new TripConstraints.Travelers(1, 0), null),
+                null, null, null);
+
+        mockMvc.perform(post("/ai/itineraries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.generationId").value("123e4567-e89b-12d3-a456-426614174002"));
+    }
+
+    @Test
+    @DisplayName("POST /ai/itineraries rejects invalid traveler counts")
+    void generateItinerary_rejectsInvalidTravelerCounts() throws Exception {
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                null,
+                new TripConstraints("Kyoto, Japan", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5),
+                        "MODERATE", new TripConstraints.Travelers(0, -1), null),
+                null, null, null);
+
+        mockMvc.perform(post("/ai/itineraries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("POST /ai/preferences/consolidate → 200 with consolidated preferences")
     void consolidatePreferences_returns200() throws Exception {
         ConsolidatedPreferencesResponse stubResponse = new ConsolidatedPreferencesResponse(

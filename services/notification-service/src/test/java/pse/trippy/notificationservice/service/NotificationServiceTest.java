@@ -16,6 +16,7 @@ import pse.trippy.notificationservice.model.enums.NotificationChannel;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 import pse.trippy.notificationservice.repository.NotificationRepository;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,7 +56,7 @@ class NotificationServiceTest {
         assertThat(result.getType()).isEqualTo(NotificationType.WELCOME);
         assertThat(result.getTitle()).isEqualTo("Welcome!");
         assertThat(result.getMessage()).isEqualTo("Welcome to Trippy");
-        assertThat(result.getActionUrl()).isEqualTo("https://trippy.app/dashboard");
+        assertThat(result.getActionUrl()).isEqualTo("/dashboard");
         assertThat(result.getChannel()).isEqualTo(NotificationChannel.IN_APP);
         assertThat(result.isRead()).isFalse();
         assertThat(result.getCreatedAt()).isNotNull();
@@ -76,6 +77,59 @@ class NotificationServiceTest {
         assertThat(page.getContent()).hasSize(2);
         assertThat(page.getTotalElements()).isEqualTo(3);
         assertThat(page.getTotalPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("getNotifications bounds invalid pagination input")
+    void getNotificationsBoundsInvalidPagination() {
+        notificationService.createNotification(USER_ID, NotificationType.WELCOME,
+                "Welcome", "msg1", null);
+
+        Page<NotificationResponse> page = notificationService.getNotifications(USER_ID, -1, 0);
+
+        assertThat(page.getNumber()).isZero();
+        assertThat(page.getSize()).isEqualTo(20);
+        assertThat(page.getContent()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("createNotification normalizes safe URLs and drops unsafe action URLs")
+    void createNotificationNormalizesActionUrls() {
+        Notification external = notificationService.createNotification(USER_ID,
+                NotificationType.SYSTEM, "External", "msg", "https://evil.example/phish");
+        Notification script = notificationService.createNotification(USER_ID,
+                NotificationType.SYSTEM, "Script", "msg", "javascript:alert(1)");
+        Notification traversal = notificationService.createNotification(USER_ID,
+                NotificationType.SYSTEM, "Traversal", "msg", "/dashboard/%2e%2e/admin");
+        Notification internal = notificationService.createNotification(USER_ID,
+                NotificationType.SYSTEM, "Internal", "msg", "/dashboard/trips/1?tab=chat");
+        Notification appAbsolute = notificationService.createNotification(USER_ID,
+                NotificationType.SYSTEM, "Absolute", "msg", "https://trippy.app/dashboard");
+
+        assertThat(external.getActionUrl()).isNull();
+        assertThat(script.getActionUrl()).isNull();
+        assertThat(traversal.getActionUrl()).isNull();
+        assertThat(internal.getActionUrl()).isEqualTo("/dashboard/trips/1?tab=chat");
+        assertThat(appAbsolute.getActionUrl()).isEqualTo("/dashboard");
+    }
+
+    @Test
+    @DisplayName("createNotification copies metadata defensively")
+    void createNotificationCopiesMetadataDefensively() {
+        Map<String, Object> metadata = new java.util.HashMap<>();
+        metadata.put("tripId", "trip-1");
+
+        Notification result = notificationService.createNotification(
+                USER_ID,
+                NotificationType.TRIP_INVITE,
+                "Trip",
+                "Join",
+                "/dashboard",
+                metadata);
+        metadata.put("email", "alice@test.com");
+
+        assertThat(result.getMetadata()).containsEntry("tripId", "trip-1");
+        assertThat(result.getMetadata()).doesNotContainKey("email");
     }
 
     @Test

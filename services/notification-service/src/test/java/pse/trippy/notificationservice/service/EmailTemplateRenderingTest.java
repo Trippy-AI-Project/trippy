@@ -13,6 +13,7 @@ import org.thymeleaf.context.Context;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -179,5 +180,12 @@ class EmailTemplateRenderingTest {
         assertThat(text).contains("Mira");
         assertThat(text).contains("Berlin Weekend");
         assertThat(text).doesNotContain("<html");
+    }
+
+    @Test
+    @DisplayName("renderTemplate rejects unsafe template names")
+    void renderTemplateRejectsUnsafeTemplateNames() {
+        assertThatThrownBy(() -> emailService.renderTemplate("../welcome", Map.of()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
