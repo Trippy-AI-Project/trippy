@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import pse.trippy.userservice.model.enums.UserRole;
 
 import java.util.UUID;
 
@@ -27,6 +28,7 @@ public class UserProfileDto {
     private String bio;
     private String country;
     private String phoneNumber;
+    private UserRole role;
     private boolean emailVerified;
     private boolean phoneVerified;
     private boolean isVerifiedHost;
