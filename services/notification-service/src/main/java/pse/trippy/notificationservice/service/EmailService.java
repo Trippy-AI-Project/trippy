@@ -16,11 +16,14 @@ import pse.trippy.notificationservice.model.enums.EmailStatus;
 import pse.trippy.notificationservice.repository.EmailLogRepository;
 
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class EmailService {
+
+    private static final Pattern SAFE_TEMPLATE_NAME = Pattern.compile("[a-z0-9-]+");
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
@@ -32,14 +35,14 @@ public class EmailService {
         Context context = new Context();
         context.setVariables(variables);
 
-        String htmlBody = templateEngine.process("email/" + templateName, context);
+        String htmlBody = templateEngine.process(templatePath(templateName), context);
         sendHtmlEmail(to, subject, templateName, htmlBody);
     }
 
     public String renderTemplate(String templateName, Map<String, Object> variables) {
         Context context = new Context();
         context.setVariables(variables);
-        return templateEngine.process("email/" + templateName, context);
+        return templateEngine.process(templatePath(templateName), context);
     }
 
     public String renderPlainText(String templateName, Map<String, Object> variables) {
@@ -90,5 +93,12 @@ public class EmailService {
                 .replaceAll("\\n\\s+", "\n")
                 .trim();
         return HtmlUtils.htmlUnescape(withoutTags);
+    }
+
+    private String templatePath(String templateName) {
+        if (templateName == null || !SAFE_TEMPLATE_NAME.matcher(templateName).matches()) {
+            throw new IllegalArgumentException("Invalid email template name");
+        }
+        return "email/" + templateName;
     }
 }

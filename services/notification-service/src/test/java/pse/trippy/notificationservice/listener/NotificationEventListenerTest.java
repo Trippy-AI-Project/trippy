@@ -137,7 +137,7 @@ class NotificationEventListenerTest {
                 eq(NotificationType.PASSWORD_RESET),
                 eq("Password Reset Requested"),
                 eq("Use the password reset link we sent to update your Trippy password."),
-                eq("https://trippy.app/reset?token=abc"),
+                eq("/login"),
                 any());
     }
 
@@ -209,6 +209,88 @@ class NotificationEventListenerTest {
                 any(),
                 any(),
                 any());
+    }
+
+    @Test
+    @DisplayName("malformed first UUID does not block valid fallback UUID")
+    void malformedUuidFallsBackToNextCandidate() {
+        UUID inviteeUserId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+        Map<String, Object> payload = Map.of(
+                "tripId", "223e4567-e89b-12d3-a456-426614174000",
+                "tripTitle", "Summer in Barcelona",
+                "inviterName", "Jane",
+                "inviteeId", "not-a-uuid",
+                "inviteeUserId", inviteeUserId.toString(),
+                "inviteeEmail", "bob@test.com",
+                "inviteeName", "Bob");
+
+        listener.handleTripInvitation(payload);
+
+        verify(notificationService).createNotification(
+                eq(inviteeUserId),
+                eq(NotificationType.TRIP_INVITE),
+                eq("Trip Invitation"),
+                eq("Jane invited you to Summer in Barcelona"),
+                eq("/dashboard/trips/223e4567-e89b-12d3-a456-426614174000"),
+                any());
+    }
+
+    @Test
+    @DisplayName("notification metadata stores only allowed non-sensitive keys")
+    void metadataExcludesSensitiveEventPayload() {
+        UUID userId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+        Map<String, Object> payload = Map.of(
+                "userId", userId.toString(),
+                "email", "alice@test.com",
+                "userName", "Alice",
+                "resetLink", "https://trippy.app/reset?token=abc",
+                "verificationToken", "secret-token");
+
+        listener.handleEvent(payload, "user.password.reset");
+
+        ArgumentCaptor<Map<String, Object>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(notificationService).createNotification(
+                eq(userId),
+                eq(NotificationType.PASSWORD_RESET),
+                eq("Password Reset Requested"),
+                eq("Use the password reset link we sent to update your Trippy password."),
+                eq("/login"),
+                metadataCaptor.capture());
+
+        assertThat(metadataCaptor.getValue()).isNull();
+    }
+
+    @Test
+    @DisplayName("trip invite metadata allowlist excludes names and email addresses")
+    void tripInviteMetadataAllowlistExcludesNamesAndEmails() {
+        UUID inviteeId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+        Map<String, Object> payload = Map.of(
+                "tripId", "223e4567-e89b-12d3-a456-426614174000",
+                "tripTitle", "Summer in Barcelona",
+                "destination", "Barcelona",
+                "role", "EDITOR",
+                "inviterName", "Jane",
+                "inviteeId", inviteeId.toString(),
+                "inviteeEmail", "bob@test.com",
+                "inviteeName", "Bob");
+
+        listener.handleTripInvitation(payload);
+
+        ArgumentCaptor<Map<String, Object>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(notificationService).createNotification(
+                eq(inviteeId),
+                eq(NotificationType.TRIP_INVITE),
+                eq("Trip Invitation"),
+                eq("Jane invited you to Summer in Barcelona"),
+                eq("/dashboard/trips/223e4567-e89b-12d3-a456-426614174000"),
+                metadataCaptor.capture());
+
+        assertThat(metadataCaptor.getValue())
+                .containsEntry("tripId", "223e4567-e89b-12d3-a456-426614174000")
+                .containsEntry("tripTitle", "Summer in Barcelona")
+                .containsEntry("destination", "Barcelona")
+                .containsEntry("role", "EDITOR")
+                .doesNotContainKeys("inviteeEmail", "inviteeName", "inviterName");
     }
 
     @Test

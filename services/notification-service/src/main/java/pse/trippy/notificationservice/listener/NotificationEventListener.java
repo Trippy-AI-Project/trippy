@@ -67,7 +67,7 @@ public class NotificationEventListener {
                         "Verify your email",
                         "Use the verification code we emailed to activate your Trippy account.",
                         "/verify-email",
-                        metadata(map, "userId"));
+                        metadata(map));
             }
         }
     }
@@ -91,7 +91,7 @@ public class NotificationEventListener {
                     "Welcome to Trippy!",
                     "Your email is verified and your account is ready.",
                     DASHBOARD_URL,
-                    metadata(map, "userId")));
+                    metadata(map)));
         }
     }
 
@@ -114,8 +114,8 @@ public class NotificationEventListener {
                     NotificationType.PASSWORD_RESET,
                     "Password Reset Requested",
                     "Use the password reset link we sent to update your Trippy password.",
-                    resetLink,
-                    metadata(map, "userId", "recipientUserId")));
+                    "/login",
+                    metadata(map)));
         }
     }
 
@@ -143,7 +143,7 @@ public class NotificationEventListener {
                             "Trip Invitation",
                             inviterName + " invited you to " + tripTitle,
                             tripActionUrl(map),
-                            metadata(map, "inviteeId", "inviteeUserId", "participantId", "userId")));
+                            metadata(map, "tripId", "tripTitle", "destination", "role")));
         }
     }
 
@@ -175,7 +175,7 @@ public class NotificationEventListener {
                             "Traveler Joined",
                             inviteeName + " joined " + tripTitle,
                             tripActionUrl(map),
-                            metadata(map, "inviterId", "userId", "recipientUserId")));
+                            metadata(map, "tripId", "tripTitle", "destination")));
         }
     }
 
@@ -202,7 +202,7 @@ public class NotificationEventListener {
                     "Trip Updated",
                     "The trip " + tripTitle + " has been updated",
                     tripActionUrl(map),
-                    metadata(map, "userId")));
+                    metadata(map, "tripId", "tripTitle", "destination", "updatedFields")));
         }
     }
 
@@ -229,7 +229,7 @@ public class NotificationEventListener {
                     "Payment Successful",
                     "Your payment of " + amount + " EUR for " + planName + " was successful",
                     DASHBOARD_URL,
-                    metadata(map, "userId")));
+                    metadata(map, "paymentId", "transactionId", "amount", "planName")));
         }
     }
 
@@ -252,7 +252,7 @@ public class NotificationEventListener {
                     "Payment Failed",
                     "Your payment could not be processed. Please check your payment details.",
                     DASHBOARD_URL,
-                    metadata(map, "userId")));
+                    metadata(map, "paymentId", "transactionId", "planName", "failureCode")));
         }
     }
 
@@ -277,7 +277,7 @@ public class NotificationEventListener {
                             "Itinerary Ready",
                             "Your itinerary for " + tripTitle + " is ready to review.",
                             tripUrl,
-                            metadata(map, "userId", "ownerId", "recipientUserId")));
+                            metadata(map, "tripId", "tripTitle", "destination", "generationId")));
         }
     }
 
@@ -303,7 +303,7 @@ public class NotificationEventListener {
                             title,
                             message,
                             actionUrl,
-                            metadata(map, "userId", "recipientUserId")));
+                            metadata(map, "category", "severity")));
         }
     }
 
@@ -325,8 +325,7 @@ public class NotificationEventListener {
             try {
                 return Optional.of(UUID.fromString(value.toString()));
             } catch (IllegalArgumentException ex) {
-                log.warn("Skipping notification event with malformed UUID in {}: {}", fieldName, value);
-                return Optional.empty();
+                log.warn("Skipping malformed UUID in {}: {}", fieldName, value);
             }
         }
         return Optional.empty();
@@ -353,15 +352,13 @@ public class NotificationEventListener {
                 : DASHBOARD_URL;
     }
 
-    private Map<String, Object> metadata(Map<?, ?> map, String... userIdKeys) {
+    private Map<String, Object> metadata(Map<?, ?> map, String... allowedKeys) {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-            if (entry.getKey() != null && entry.getValue() != null) {
-                metadata.put(entry.getKey().toString(), entry.getValue());
+        for (String key : allowedKeys) {
+            Object value = map.get(key);
+            if (value != null) {
+                metadata.put(key, value);
             }
-        }
-        for (String userIdKey : userIdKeys) {
-            metadata.remove(userIdKey);
         }
         return metadata.isEmpty() ? null : metadata;
     }

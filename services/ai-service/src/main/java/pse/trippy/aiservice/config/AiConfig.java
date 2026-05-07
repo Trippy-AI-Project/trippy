@@ -7,6 +7,10 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
 @Configuration
 public class AiConfig {
 
@@ -26,5 +30,15 @@ public class AiConfig {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         return mapper;
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService aiBlockingExecutor() {
+        AtomicInteger threadNumber = new AtomicInteger(1);
+        return Executors.newFixedThreadPool(4, task -> {
+            Thread thread = new Thread(task, "ai-blocking-" + threadNumber.getAndIncrement());
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 }

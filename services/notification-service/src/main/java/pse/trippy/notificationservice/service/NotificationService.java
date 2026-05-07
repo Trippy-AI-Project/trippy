@@ -12,7 +12,13 @@ import pse.trippy.notificationservice.model.enums.NotificationChannel;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 import pse.trippy.notificationservice.repository.NotificationRepository;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +27,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
+
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 50;
+    private static final String APP_HOST = "trippy.app";
 
     private final NotificationRepository notificationRepository;
 
@@ -39,8 +49,8 @@ public class NotificationService {
                 .type(type)
                 .title(title)
                 .message(message)
-                .actionUrl(actionUrl)
-                .metadata(metadata)
+                .actionUrl(normalizeActionUrl(actionUrl))
+                .metadata(metadata == null ? new HashMap<>() : new HashMap<>(metadata))
                 .channel(NotificationChannel.IN_APP)
                 .read(false)
                 .build();
@@ -60,7 +70,7 @@ public class NotificationService {
                                                        boolean unreadOnly, NotificationType type) {
         PageRequest pageRequest = PageRequest.of(
                 Math.max(page, 0),
-                Math.max(1, Math.min(size, 50)));
+                boundedPageSize(size));
 
         Page<Notification> notifications;
         if (type != null && unreadOnly) {
@@ -153,5 +163,62 @@ public class NotificationService {
                 n.getCreatedAt(),
                 n.getReadAt()
         );
+    }
+
+    private int boundedPageSize(int requestedSize) {
+        if (requestedSize <= 0) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(requestedSize, MAX_PAGE_SIZE);
+    }
+
+    private String normalizeActionUrl(String actionUrl) {
+        if (actionUrl == null || actionUrl.isBlank()) {
+            return null;
+        }
+
+        String trimmed = actionUrl.trim();
+        try {
+            URI uri = new URI(trimmed);
+            if (uri.isAbsolute()) {
+                if (!"https".equalsIgnoreCase(uri.getScheme())
+                        || !APP_HOST.equalsIgnoreCase(uri.getHost())) {
+                    log.warn("Dropping unsafe notification action URL host: {}", trimmed);
+                    return null;
+                }
+                return normalizeInternalPath(uri);
+            }
+
+            if (trimmed.startsWith("//")) {
+                log.warn("Dropping protocol-relative notification action URL: {}", trimmed);
+                return null;
+            }
+            return normalizeInternalPath(uri);
+        } catch (URISyntaxException | IllegalArgumentException ex) {
+            log.warn("Dropping invalid notification action URL: {}", trimmed);
+            return null;
+        }
+    }
+
+    private String normalizeInternalPath(URI uri) {
+        String path = uri.getRawPath();
+        if (path == null || path.isBlank() || !path.startsWith("/") || containsParentTraversal(path)) {
+            log.warn("Dropping unsafe notification action path: {}", path);
+            return null;
+        }
+
+        StringBuilder normalized = new StringBuilder(path);
+        if (uri.getRawQuery() != null) {
+            normalized.append('?').append(uri.getRawQuery());
+        }
+        if (uri.getRawFragment() != null) {
+            normalized.append('#').append(uri.getRawFragment());
+        }
+        return normalized.toString();
+    }
+
+    private boolean containsParentTraversal(String path) {
+        String decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8);
+        return Arrays.asList(decodedPath.split("/")).contains("..");
     }
 }

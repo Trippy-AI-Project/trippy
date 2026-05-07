@@ -741,6 +741,40 @@ paths:
         '503':
           description: AI provider unavailable
 
+  /ai/itinerary/generate:
+    post:
+      summary: "[Internal] Generate Itinerary Alias"
+      operationId: internalGenerateItineraryAlias
+      tags: [Internal]
+      security: [ServiceAuth: []]
+      description: |
+        **Consumer**: Trip Service
+
+        Long-term alias for `/ai/itineraries` used by existing frontend and service integrations.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateItineraryRequest'
+      responses:
+        '200':
+          description: Itinerary generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraryResponse'
+        '408':
+          description: Request timeout (AI took too long)
+        '429':
+          description: User quota exceeded
+        '500':
+          description: AI service error
+        '503':
+          description: AI provider unavailable
+
   /ai/preferences/consolidate:
     post:
       summary: "[Internal] Consolidate Group Preferences"

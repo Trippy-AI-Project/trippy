@@ -2,11 +2,13 @@ package pse.trippy.aiservice.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
@@ -22,10 +24,21 @@ import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.model.entity.GenerationHistory;
 import pse.trippy.aiservice.repository.GenerationHistoryRepository;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -44,6 +57,7 @@ class AiServiceTest {
     private GenerationHistoryRepository generationHistoryRepository;
 
     private AiService aiService;
+    private ExecutorService aiBlockingExecutor;
 
     // Fluent chain mocks
     private ChatClient.ChatClientRequestSpec requestSpec;
@@ -51,10 +65,12 @@ class AiServiceTest {
 
     @BeforeEach
     void setUp() {
+        aiBlockingExecutor = Executors.newSingleThreadExecutor();
         aiService = new AiService(
                 chatClient,
                 new ObjectMapper().registerModule(new JavaTimeModule()),
-                generationHistoryRepository);
+                generationHistoryRepository,
+                aiBlockingExecutor);
 
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callSpec = mock(ChatClient.CallResponseSpec.class);
@@ -62,6 +78,11 @@ class AiServiceTest {
         lenient().when(chatClient.prompt()).thenReturn(requestSpec);
         lenient().when(requestSpec.user(anyString())).thenReturn(requestSpec);
         lenient().when(requestSpec.call()).thenReturn(callSpec);
+    }
+
+    @AfterEach
+    void tearDown() {
+        aiBlockingExecutor.shutdownNow();
     }
 
     // =========================================================================
@@ -241,7 +262,10 @@ class AiServiceTest {
             assertThat(response.getPackingTips()).contains("Comfortable walking shoes");
             assertThat(response.getGeneratedAt()).isNotNull();
             assertThat(response.getGenerationId()).isNotNull();
-            verify(generationHistoryRepository).save(any(GenerationHistory.class));
+
+            GenerationHistory history = captureGenerationHistory();
+            assertThat(history.getStatus()).isEqualTo("SUCCESS");
+            assertThat(history.isFallbackUsed()).isFalse();
         }
 
         @Test
@@ -263,7 +287,94 @@ class AiServiceTest {
             assertThat(response.getDailyPlan()).hasSize(5);
             assertThat(response.getDailyPlan().get(0).getWeather().getCondition())
                     .isEqualTo("Forecast unavailable");
-            verify(generationHistoryRepository).save(any(GenerationHistory.class));
+
+            GenerationHistory history = captureGenerationHistory();
+            assertThat(history.getStatus()).isEqualTo("FALLBACK");
+            assertThat(history.isFallbackUsed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("uses iteration index when AI omits day numbers")
+        void usesIterationIndexWhenDayNumbersAreMissing() {
+            String groqJson = """
+                    {
+                      "tripTitle": "Kyoto",
+                      "summary": "Two quiet days",
+                      "dailyPlan": [
+                        {
+                          "title": "Arrival",
+                          "activities": []
+                        },
+                        {
+                          "title": "Temples",
+                          "activities": []
+                        }
+                      ]
+                    }
+                    """;
+            when(callSpec.content()).thenReturn(groqJson);
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getFallbackUsed()).isFalse();
+            assertThat(response.getDailyPlan()).hasSize(2);
+            assertThat(response.getDailyPlan().get(0).getDayNumber()).isEqualTo(1);
+            assertThat(response.getDailyPlan().get(0).getDate()).isEqualTo("2026-09-01");
+            assertThat(response.getDailyPlan().get(1).getDayNumber()).isEqualTo(2);
+            assertThat(response.getDailyPlan().get(1).getDate()).isEqualTo("2026-09-02");
+        }
+
+        @Test
+        @DisplayName("records fallback history status when AI returns an empty itinerary")
+        void recordsFallbackStatusWhenAiReturnsEmptyItinerary() {
+            String groqJson = """
+                    {
+                      "tripTitle": "Empty Kyoto",
+                      "summary": "No days",
+                      "dailyPlan": []
+                    }
+                    """;
+            when(callSpec.content()).thenReturn(groqJson);
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 3),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getFallbackUsed()).isTrue();
+            assertThat(response.getDailyPlan()).hasSize(3);
+
+            GenerationHistory history = captureGenerationHistory();
+            assertThat(history.getStatus()).isEqualTo("FALLBACK");
+            assertThat(history.isFallbackUsed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("cancels blocking AI task when timeout expires")
+        void cancelsBlockingAiTaskWhenTimeoutExpires() throws Exception {
+            RecordingExecutorService recordingExecutor = new RecordingExecutorService();
+            AiService timeoutService = new AiService(
+                    chatClient,
+                    new ObjectMapper().registerModule(new JavaTimeModule()),
+                    generationHistoryRepository,
+                    recordingExecutor);
+            Method method = AiService.class.getDeclaredMethod("requestAiWithTimeout", String.class, Duration.class);
+            method.setAccessible(true);
+
+            assertThatThrownBy(() -> method.invoke(timeoutService, "prompt", Duration.ofMillis(1)))
+                    .isInstanceOf(InvocationTargetException.class)
+                    .satisfies(exception -> assertThat(((InvocationTargetException) exception).getCause())
+                            .isInstanceOf(AiServiceTimeoutException.class));
+            assertThat(recordingExecutor.wasSubmittedTaskCancelled()).isTrue();
         }
     }
 
@@ -299,6 +410,60 @@ class AiServiceTest {
             assertThat(response.mustSeeConsensus()).contains("Louvre");
             assertThat(response.conflicts()).hasSize(1);
             assertThat(response.suggestedPrompt()).contains("moderate budget");
+        }
+    }
+
+    private GenerationHistory captureGenerationHistory() {
+        ArgumentCaptor<GenerationHistory> captor = ArgumentCaptor.forClass(GenerationHistory.class);
+        verify(generationHistoryRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    private static final class RecordingExecutorService extends AbstractExecutorService {
+
+        private FutureTask<?> submittedTask;
+        private boolean shutdown;
+
+        @Override
+        protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+            FutureTask<T> task = new FutureTask<>(callable);
+            submittedTask = task;
+            return task;
+        }
+
+        @Override
+        public void shutdown() {
+            shutdown = true;
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            shutdown = true;
+            return List.of();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            // Keep submitted tasks pending so requestAiWithTimeout exercises cancellation.
+        }
+
+        private boolean wasSubmittedTaskCancelled() {
+            return submittedTask != null && submittedTask.isCancelled();
         }
     }
 }
