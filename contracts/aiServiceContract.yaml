@@ -390,6 +390,10 @@ components:
         - tripTitle
         - dailyPlan
       properties:
+        generationId:
+          type: string
+          format: uuid
+          description: Unique identifier for this itinerary generation.
         tripTitle:
           type: string
           example: "5 Days of Culture in Kyoto"
@@ -732,8 +736,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ItineraryResponse'
-        '408':
-          description: Request timeout (AI took too long)
+        '504':
+          description: Gateway timeout (AI took too long)
         '429':
           description: User quota exceeded
         '500':
@@ -766,8 +770,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ItineraryResponse'
-        '408':
-          description: Request timeout (AI took too long)
+        '504':
+          description: Gateway timeout (AI took too long)
         '429':
           description: User quota exceeded
         '500':
