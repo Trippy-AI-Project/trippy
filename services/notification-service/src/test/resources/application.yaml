@@ -7,7 +7,7 @@ spring:
   main:
     banner-mode: "off"
   datasource:
-    url: "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+    url: "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS notification_schema"
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
@@ -17,29 +17,21 @@ spring:
       ddl-auto: create-drop
     properties:
       hibernate:
+        default_schema: notification_schema
         dialect: org.hibernate.dialect.H2Dialect
         show_sql: false
-  flyway:
-    enabled: false
-  cache:
-    type: none
   autoconfigure:
     exclude:
-      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
-
-spring.ai:
-  openai:
-    api-key: test-key
-    base-url: https://api.groq.com/openai
-    chat:
-      options:
-        model: llama-3.3-70b-versatile
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
+  rabbitmq:
+    host: localhost
+    port: 0
 
 logging:
   level:
     root: WARN
-    pse.trippy.aiservice: INFO
+    pse.trippy.notificationservice: INFO
     org.springframework: WARN
     org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLogger: "OFF"
     org.hibernate: WARN

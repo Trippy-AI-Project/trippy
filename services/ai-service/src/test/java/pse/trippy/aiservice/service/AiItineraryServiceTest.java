@@ -259,6 +259,34 @@ class AiItineraryServiceTest {
     }
 
     @Test
+    void parseResponse_usesSequentialDayNumberWhenAiOmitsIt() {
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                UUID.randomUUID(),
+                new TripConstraints("Rome, Italy", LocalDate.of(2025, 4, 10), LocalDate.of(2025, 4, 11),
+                        null, null, null),
+                null, null, null
+        );
+
+        String aiResponse = """
+                {
+                  "overview": "Rome highlights",
+                  "days": [
+                    {
+                      "title": "Arrival",
+                      "activities": []
+                    }
+                  ]
+                }
+                """;
+
+        ItineraryGenerationResponse response = aiItineraryService.parseResponse(aiResponse, request);
+
+        assertThat(response.days()).hasSize(1);
+        assertThat(response.days().get(0).dayNumber()).isEqualTo(1);
+        assertThat(response.days().get(0).date()).isEqualTo(LocalDate.of(2025, 4, 10));
+    }
+
+    @Test
     void parseResponse_invalidJson_throwsException() {
         GenerateItineraryRequest request = new GenerateItineraryRequest(
                 UUID.randomUUID(),
@@ -270,6 +298,20 @@ class AiItineraryServiceTest {
         String invalidResponse = "This is not valid JSON at all";
 
         assertThatThrownBy(() -> aiItineraryService.parseResponse(invalidResponse, request))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasMessageContaining("Failed to process AI response");
+    }
+
+    @Test
+    void parseResponse_emptyResponse_throwsException() {
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                UUID.randomUUID(),
+                new TripConstraints("London, UK", LocalDate.of(2025, 5, 1), LocalDate.of(2025, 5, 2),
+                        null, null, null),
+                null, null, null
+        );
+
+        assertThatThrownBy(() -> aiItineraryService.parseResponse(null, request))
                 .isInstanceOf(AiServiceUnavailableException.class)
                 .hasMessageContaining("Failed to process AI response");
     }
