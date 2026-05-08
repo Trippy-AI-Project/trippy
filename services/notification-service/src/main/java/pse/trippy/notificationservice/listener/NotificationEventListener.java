@@ -21,7 +21,9 @@ import java.util.UUID;
 @Slf4j
 public class NotificationEventListener {
 
-    private static final String DASHBOARD_URL = "https://trippy.app/dashboard";
+    private static final String APP_BASE_URL = "https://trippy.app";
+    private static final String DASHBOARD_PATH = "/dashboard";
+    private static final String DASHBOARD_URL = APP_BASE_URL + DASHBOARD_PATH;
 
     private final EmailService emailService;
     private final NotificationService notificationService;
@@ -145,8 +147,8 @@ public class NotificationEventListener {
                             "inviterName", inviterName,
                             "tripTitle", tripTitle,
                             "tripName", tripTitle,
-                            "dashboardUrl", actionUrl,
-                            "link", actionUrl));
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
             createNotification(inviteeId, NotificationType.TRIP_INVITE,
                     "Trip Invitation",
@@ -176,12 +178,14 @@ public class NotificationEventListener {
             sendTemplate(email, joinerName + " joined " + tripTitle,
                     "trip-joined",
                     variables("userName", userName,
+                            "inviterName", userName,
+                            "inviteeName", joinerName,
                             "joinerName", joinerName,
                             "participantName", joinerName,
                             "tripTitle", tripTitle,
                             "tripName", tripTitle,
-                            "dashboardUrl", actionUrl,
-                            "link", actionUrl));
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
             createNotification(userId, NotificationType.TRIP_JOINED,
                     "Trip Joined",
@@ -208,7 +212,7 @@ public class NotificationEventListener {
                     variables("userName", userName,
                             "tripTitle", tripTitle,
                             "updatedBy", updatedBy,
-                            "dashboardUrl", actionUrl));
+                            "dashboardUrl", emailUrl(actionUrl)));
 
             createNotification(userId, NotificationType.TRIP_UPDATED,
                     "Trip Updated",
@@ -234,8 +238,8 @@ public class NotificationEventListener {
                     variables("userName", userName,
                             "amount", amount,
                             "planName", planName,
-                            "dashboardUrl", actionUrl,
-                            "link", actionUrl));
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
             createNotification(userId, NotificationType.PAYMENT_SUCCESS,
                     "Payment Successful",
@@ -257,8 +261,8 @@ public class NotificationEventListener {
             sendTemplate(email, "Payment could not be processed",
                     "payment-failed",
                     variables("userName", userName,
-                            "dashboardUrl", actionUrl,
-                            "link", actionUrl));
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
             createNotification(userId, NotificationType.PAYMENT_FAILED,
                     "Payment Failed",
@@ -276,6 +280,7 @@ public class NotificationEventListener {
             String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "your trip");
             String tripId = text(map, "tripId");
             String generationId = text(map, "generationId");
+            String destination = fallback(text(map, "destination"), tripTitle);
             String actionUrl = fallback(text(map, "actionUrl", "link"), tripUrl(tripId));
 
             log.info("Processing notification event type=ai.itinerary.generated recipient={}",
@@ -286,8 +291,10 @@ public class NotificationEventListener {
                             "tripTitle", tripTitle,
                             "tripName", tripTitle,
                             "generationId", generationId,
-                            "dashboardUrl", actionUrl,
-                            "link", actionUrl));
+                            "destination", destination,
+                            "tripUrl", emailUrl(actionUrl),
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
             createNotification(userId, NotificationType.ITINERARY_READY,
                     "Itinerary Ready",
@@ -312,8 +319,8 @@ public class NotificationEventListener {
                     variables("userName", userName,
                             "title", title,
                             "message", message,
-                            "actionUrl", actionUrl,
-                            "link", actionUrl));
+                            "actionUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
             createNotification(userId, NotificationType.SYSTEM,
                     title,
@@ -344,8 +351,27 @@ public class NotificationEventListener {
 
     private String tripUrl(String tripId) {
         return tripId == null || tripId.isBlank()
-                ? "/dashboard"
+                ? DASHBOARD_PATH
                 : "/dashboard/trips/" + tripId;
+    }
+
+    private String emailUrl(String actionUrl) {
+        if (actionUrl == null || actionUrl.isBlank()) {
+            return DASHBOARD_URL;
+        }
+
+        String trimmed = actionUrl.trim();
+        if (trimmed.equals(APP_BASE_URL) || trimmed.startsWith(APP_BASE_URL + "/")) {
+            return trimmed;
+        } else if (trimmed.startsWith("https://") || trimmed.startsWith("http://")
+                || trimmed.startsWith("//")) {
+            log.warn("Falling back to dashboard email URL because action URL is not internal");
+            return DASHBOARD_URL;
+        }
+        if (trimmed.startsWith("/")) {
+            return APP_BASE_URL + trimmed;
+        }
+        return APP_BASE_URL + "/" + trimmed;
     }
 
     private String fallback(String value, String fallback) {

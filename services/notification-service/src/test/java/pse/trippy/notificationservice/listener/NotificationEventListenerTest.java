@@ -155,11 +155,22 @@ class NotificationEventListenerTest {
                 "tripTitle", "Kyoto Spring",
                 "destination", "Kyoto"), "ai.itinerary.generated");
 
+        ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
         verify(emailService).sendTemplateEmail(
                 eq("alice@test.com"),
                 eq("Your Trippy itinerary is ready"),
                 eq("itinerary-ready"),
-                any());
+                varsCaptor.capture());
+        assertThat(varsCaptor.getValue())
+                .containsEntry("userName", "Alice")
+                .containsEntry("tripTitle", "Kyoto Spring")
+                .containsEntry("destination", "Kyoto")
+                .containsEntry("tripUrl",
+                        "https://trippy.app/dashboard/trips/223e4567-e89b-12d3-a456-426614174000")
+                .containsEntry("dashboardUrl",
+                        "https://trippy.app/dashboard/trips/223e4567-e89b-12d3-a456-426614174000")
+                .containsEntry("link",
+                        "https://trippy.app/dashboard/trips/223e4567-e89b-12d3-a456-426614174000");
         verify(notificationService).createNotification(
                 eq(userId),
                 eq(NotificationType.ITINERARY_READY),
@@ -402,11 +413,17 @@ class NotificationEventListenerTest {
 
         listener.handleEvent(payload, "trip.participant.joined");
 
+        ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
         verify(emailService).sendTemplateEmail(
                 eq("owner@test.com"),
                 eq("Sam joined Lisbon Weekend"),
                 eq("trip-joined"),
-                any());
+                varsCaptor.capture());
+        assertThat(varsCaptor.getValue())
+                .containsEntry("inviterName", "Owner")
+                .containsEntry("inviteeName", "Sam")
+                .containsEntry("dashboardUrl", "https://trippy.app/dashboard/trips/trip-uuid")
+                .containsEntry("link", "https://trippy.app/dashboard/trips/trip-uuid");
         verify(notificationService).createNotification(
                 eq(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")),
                 eq(NotificationType.TRIP_JOINED),
