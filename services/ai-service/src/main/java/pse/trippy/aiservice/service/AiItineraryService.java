@@ -203,11 +203,15 @@ public class AiItineraryService {
             List<DayPlanResponse> days = new ArrayList<>();
             JsonNode daysNode = root.get("days");
             if (daysNode != null && daysNode.isArray()) {
+                LocalDate startDate = request.constraints().startDate();
+                long tripDurationDays = Math.max(1L,
+                        ChronoUnit.DAYS.between(startDate, request.constraints().endDate()) + 1);
                 for (JsonNode dayNode : daysNode) {
                     int fallbackDayNumber = days.size() + 1;
-                    int dayNumber = getPositiveIntOrDefault(dayNode, "dayNumber", fallbackDayNumber);
+                    int rawDayNumber = getPositiveIntOrDefault(dayNode, "dayNumber", fallbackDayNumber);
+                    int dayNumber = (int) Math.min(rawDayNumber, tripDurationDays);
                     String title = dayNode.path("title").asText("");
-                    LocalDate date = request.constraints().startDate().plusDays(dayNumber - 1L);
+                    LocalDate date = startDate.plusDays(dayNumber - 1L);
 
                     List<ActivityResponse> activities = new ArrayList<>();
                     JsonNode activitiesNode = dayNode.get("activities");
@@ -242,7 +246,7 @@ public class AiItineraryService {
                     false
             );
 
-        } catch (JsonProcessingException | IllegalArgumentException ex) {
+        } catch (JsonProcessingException | RuntimeException ex) {
             log.warn("Failed to parse AI itinerary response error={}", LogSanitizer.safeError(ex));
             throw new AiServiceUnavailableException("Failed to process AI response. Please try again.");
         }

@@ -287,6 +287,35 @@ class AiItineraryServiceTest {
     }
 
     @Test
+    void parseResponse_clampsOutOfRangeDayNumberToTripDuration() {
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+                UUID.randomUUID(),
+                new TripConstraints("Rome, Italy", LocalDate.of(2025, 4, 10), LocalDate.of(2025, 4, 11),
+                        null, null, null),
+                null, null, null
+        );
+
+        String aiResponse = """
+                {
+                  "overview": "Rome highlights",
+                  "days": [
+                    {
+                      "dayNumber": 9999,
+                      "title": "Ancient Rome",
+                      "activities": []
+                    }
+                  ]
+                }
+                """;
+
+        ItineraryGenerationResponse response = aiItineraryService.parseResponse(aiResponse, request);
+
+        assertThat(response.days()).hasSize(1);
+        assertThat(response.days().get(0).dayNumber()).isEqualTo(2);
+        assertThat(response.days().get(0).date()).isEqualTo(LocalDate.of(2025, 4, 11));
+    }
+
+    @Test
     void parseResponse_invalidJson_throwsException() {
         GenerateItineraryRequest request = new GenerateItineraryRequest(
                 UUID.randomUUID(),

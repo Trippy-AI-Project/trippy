@@ -346,7 +346,8 @@ public class NotificationEventListener {
         if (parsedUserId == null) {
             return;
         }
-        notificationService.createNotification(parsedUserId, type, title, message, actionUrl, metadata);
+        notificationService.createNotification(parsedUserId, type, title, message,
+                inAppActionUrl(actionUrl), metadata);
     }
 
     private String tripUrl(String tripId) {
@@ -361,7 +362,9 @@ public class NotificationEventListener {
         }
 
         String trimmed = actionUrl.trim();
-        if (trimmed.equals(APP_BASE_URL) || trimmed.startsWith(APP_BASE_URL + "/")) {
+        if (trimmed.equals(APP_BASE_URL) || trimmed.equals(APP_BASE_URL + "/")) {
+            return DASHBOARD_URL;
+        } else if (trimmed.startsWith(APP_BASE_URL + "/")) {
             return trimmed;
         } else if (trimmed.startsWith("https://") || trimmed.startsWith("http://")
                 || trimmed.startsWith("//")) {
@@ -372,6 +375,18 @@ public class NotificationEventListener {
             return APP_BASE_URL + trimmed;
         }
         return APP_BASE_URL + "/" + trimmed;
+    }
+
+    private String inAppActionUrl(String actionUrl) {
+        if (actionUrl == null || actionUrl.isBlank()) {
+            return actionUrl;
+        }
+
+        String trimmed = actionUrl.trim();
+        if (trimmed.equals(APP_BASE_URL) || trimmed.equals(APP_BASE_URL + "/")) {
+            return DASHBOARD_PATH;
+        }
+        return trimmed;
     }
 
     private String fallback(String value, String fallback) {
