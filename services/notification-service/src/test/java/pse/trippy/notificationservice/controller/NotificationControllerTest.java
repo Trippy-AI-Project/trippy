@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -45,7 +46,11 @@ class NotificationControllerTest {
         ResponseEntity<?> response = controller.getNotifications(userId, 0, 10, false, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isInstanceOf(PageImpl.class);
+        assertThat(response.getBody()).isInstanceOf(Page.class);
+        @SuppressWarnings("unchecked")
+        Page<NotificationResponse> body = (Page<NotificationResponse>) response.getBody();
+        assertThat(body.getTotalElements()).isEqualTo(1);
+        assertThat(body.getContent()).containsExactly(notification);
         verify(notificationService).getNotifications(userId, 0, 10, false, null);
     }
 
