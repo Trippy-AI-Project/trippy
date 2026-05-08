@@ -4,6 +4,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -13,6 +14,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 import pse.trippy.notificationservice.model.entity.EmailLog;
 import pse.trippy.notificationservice.model.enums.EmailStatus;
+import pse.trippy.notificationservice.logging.LogSanitizer;
 import pse.trippy.notificationservice.repository.EmailLogRepository;
 
 import java.util.Map;
@@ -24,6 +26,7 @@ import java.util.regex.Pattern;
 public class EmailService {
 
     private static final Pattern SAFE_TEMPLATE_NAME = Pattern.compile("[a-z0-9-]+");
+    private static final int MAX_ERROR_MESSAGE_LENGTH = 2000;
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
@@ -32,11 +35,17 @@ public class EmailService {
     @Async("emailExecutor")
     public void sendTemplateEmail(String to, String subject, String templateName,
                                   Map<String, Object> variables) {
-        Context context = new Context();
-        context.setVariables(variables);
+        try {
+            Context context = new Context();
+            context.setVariables(variables == null ? Map.of() : variables);
 
-        String htmlBody = templateEngine.process(templatePath(templateName), context);
-        sendHtmlEmail(to, subject, templateName, htmlBody);
+            String htmlBody = templateEngine.process(templatePath(templateName), context);
+            sendHtmlEmail(to, subject, templateName, htmlBody);
+        } catch (RuntimeException ex) {
+            log.error("Failed to render email recipient={} template={} error={}",
+                    LogSanitizer.maskEmail(to), LogSanitizer.safeDetail(templateName), LogSanitizer.safeError(ex));
+            persistEmailLog(to, subject, templateName, EmailStatus.FAILED, errorMessage(ex));
+        }
     }
 
     public String renderTemplate(String templateName, Map<String, Object> variables) {
@@ -59,27 +68,42 @@ public class EmailService {
 
             mailSender.send(message);
 
-            emailLogRepository.save(EmailLog.builder()
-                    .recipient(to)
-                    .subject(subject)
-                    .templateName(templateName)
-                    .status(EmailStatus.SENT)
-                    .build());
+            persistEmailLog(to, subject, templateName, EmailStatus.SENT, null);
 
-            log.info("Email sent to {} with template {}", to, templateName);
+            log.info("Email sent recipient={} template={}", LogSanitizer.maskEmail(to), templateName);
 
-        } catch (MessagingException e) {
-            log.error("Failed to send email to {} with template {}: {}",
-                    to, templateName, e.getMessage());
+        } catch (MessagingException | MailException e) {
+            log.error("Failed to send email recipient={} template={} error={}",
+                    LogSanitizer.maskEmail(to), templateName, LogSanitizer.safeError(e));
 
-            emailLogRepository.save(EmailLog.builder()
-                    .recipient(to)
-                    .subject(subject)
-                    .templateName(templateName)
-                    .status(EmailStatus.FAILED)
-                    .errorMessage(e.getMessage())
-                    .build());
+            persistEmailLog(to, subject, templateName, EmailStatus.FAILED, errorMessage(e));
         }
+    }
+
+    private void persistEmailLog(String to, String subject, String templateName,
+                                 EmailStatus status, String errorMessage) {
+        try {
+            emailLogRepository.save(EmailLog.builder()
+                    .recipient(to)
+                    .subject(subject)
+                    .templateName(templateName)
+                    .status(status)
+                    .errorMessage(errorMessage)
+                    .build());
+        } catch (RuntimeException ex) {
+            log.warn("Failed to persist email log recipient={} template={} status={} error={}",
+                    LogSanitizer.maskEmail(to), LogSanitizer.safeDetail(templateName), status, LogSanitizer.safeError(ex));
+        }
+    }
+
+    private String errorMessage(Throwable throwable) {
+        String message = throwable.getMessage();
+        if (message == null || message.isBlank()) {
+            message = throwable.getClass().getSimpleName();
+        }
+        return message.length() <= MAX_ERROR_MESSAGE_LENGTH
+                ? message
+                : message.substring(0, MAX_ERROR_MESSAGE_LENGTH);
     }
 
     private String toPlainText(String htmlBody) {

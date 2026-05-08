@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("NotificationEventListener")
@@ -305,7 +306,7 @@ class NotificationEventListenerTest {
                 "tripTitle", "Kyoto Spring",
                 "destination", "Kyoto");
 
-        listener.handleItineraryReady(payload);
+        listener.handleItineraryGenerated(payload);
 
         verify(emailService).sendTemplateEmail(
                 eq("alice@test.com"),
@@ -336,5 +337,157 @@ class NotificationEventListenerTest {
                 eq("Verify your Trippy account"),
                 eq("email-verification"),
                 any());
+    }
+
+    @Test
+    @DisplayName("payment.completed event triggers email and notification")
+    void paymentCompletedTriggersEmailAndNotification() {
+        Map<String, Object> payload = Map.of(
+                "userId", "123e4567-e89b-12d3-a456-426614174000",
+                "email", "alice@test.com",
+                "userName", "Alice",
+                "amount", "29.00",
+                "planName", "Premium");
+
+        listener.handleEvent(payload, "payment.completed");
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Payment successful - 29.00 EUR for Premium"),
+                eq("payment-success"),
+                any());
+        verify(notificationService).createNotification(
+                eq(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")),
+                eq(NotificationType.PAYMENT_SUCCESS),
+                eq("Payment Successful"),
+                eq("Your payment of 29.00 EUR for Premium was successful"),
+                eq("/dashboard/payments"),
+                any());
+    }
+
+    @Test
+    @DisplayName("payment.failed event triggers email and notification")
+    void paymentFailedTriggersEmailAndNotification() {
+        Map<String, Object> payload = Map.of(
+                "userId", "123e4567-e89b-12d3-a456-426614174000",
+                "email", "alice@test.com",
+                "userName", "Alice");
+
+        listener.handleEvent(payload, "payment.failed");
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Payment could not be processed"),
+                eq("payment-failed"),
+                any());
+        verify(notificationService).createNotification(
+                eq(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")),
+                eq(NotificationType.PAYMENT_FAILED),
+                eq("Payment Failed"),
+                eq("Your payment could not be processed. Please check your payment details."),
+                eq("/dashboard/payments"),
+                any());
+    }
+
+    @Test
+    @DisplayName("trip.participant.joined event triggers joined notification")
+    void tripParticipantJoinedTriggersJoinedNotification() {
+        Map<String, Object> payload = Map.of(
+                "tripId", "trip-uuid",
+                "tripTitle", "Lisbon Weekend",
+                "ownerEmail", "owner@test.com",
+                "ownerId", "123e4567-e89b-12d3-a456-426614174000",
+                "inviterName", "Owner",
+                "participantName", "Sam");
+
+        listener.handleEvent(payload, "trip.participant.joined");
+
+        verify(emailService).sendTemplateEmail(
+                eq("owner@test.com"),
+                eq("Sam joined Lisbon Weekend"),
+                eq("trip-joined"),
+                any());
+        verify(notificationService).createNotification(
+                eq(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")),
+                eq(NotificationType.TRIP_JOINED),
+                eq("Trip Joined"),
+                eq("Sam joined Lisbon Weekend"),
+                eq("/dashboard/trips/trip-uuid"),
+                any());
+    }
+
+    @Test
+    @DisplayName("trip.updated event triggers trip-updated notification")
+    void tripUpdatedTriggersNotification() {
+        Map<String, Object> payload = Map.of(
+                "userId", "123e4567-e89b-12d3-a456-426614174000",
+                "email", "alice@test.com",
+                "userName", "Alice",
+                "tripId", "trip-uuid",
+                "tripTitle", "Lisbon Weekend",
+                "updatedBy", "Sam");
+
+        listener.handleEvent(payload, "trip.updated");
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Trip updated: Lisbon Weekend"),
+                eq("trip-updated"),
+                any());
+        verify(notificationService).createNotification(
+                eq(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")),
+                eq(NotificationType.TRIP_UPDATED),
+                eq("Trip Updated"),
+                eq("The trip Lisbon Weekend has been updated"),
+                eq("/dashboard/trips/trip-uuid"),
+                any());
+    }
+
+    @Test
+    @DisplayName("unknown routing key is ignored")
+    void unknownRoutingKeyDoesNothing() {
+        listener.handleEvent(Map.of("email", "alice@test.com"), "unknown.event");
+
+        verifyNoInteractions(emailService, notificationService);
+    }
+
+    @Test
+    @DisplayName("missing recipient email skips email but keeps in-app notification")
+    void missingEmailSkipsEmailButKeepsNotification() {
+        Map<String, Object> payload = Map.of(
+                "userId", "123e4567-e89b-12d3-a456-426614174000",
+                "displayName", "Alice",
+                "verificationToken", "123456");
+
+        listener.handleUserRegistered(payload);
+
+        verify(emailService, never()).sendTemplateEmail(any(), any(), any(), any());
+        verify(notificationService).createNotification(
+                eq(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")),
+                eq(NotificationType.EMAIL_VERIFICATION),
+                eq("Verify your email"),
+                eq("Use the verification code we emailed to activate your Trippy account."),
+                eq("/verify-email"),
+                any());
+    }
+
+    @Test
+    @DisplayName("invalid UUID skips in-app notification")
+    void invalidUuidSkipsInAppNotification() {
+        Map<String, Object> payload = Map.of(
+                "userId", "not-a-uuid",
+                "email", "alice@test.com",
+                "userName", "Alice",
+                "amount", "29.00",
+                "planName", "Premium");
+
+        listener.handleEvent(payload, "payment.completed");
+
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Payment successful - 29.00 EUR for Premium"),
+                eq("payment-success"),
+                any());
+        verify(notificationService, never()).createNotification(any(), any(), any(), any(), any(), any());
     }
 }

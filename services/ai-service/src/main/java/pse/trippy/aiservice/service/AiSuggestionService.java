@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
+import pse.trippy.aiservice.logging.LogSanitizer;
 import pse.trippy.aiservice.model.entity.AiRequestLog;
 import pse.trippy.aiservice.model.enums.RequestStatus;
 import pse.trippy.aiservice.model.enums.RequestType;
@@ -42,10 +43,12 @@ public class AiSuggestionService {
             try {
                 List<DestinationSuggestion> suggestions = objectMapper.readValue(
                         cached.get(), new TypeReference<>() {});
-                log.info("Returning cached suggestion response for user {}", userId);
+                log.info("Returning cached AI suggestion response userId={} requestHash={}",
+                        userId, LogSanitizer.shortHash(requestHash));
                 return new DestinationSuggestionResponse(suggestions, Instant.now(), true);
             } catch (Exception ex) {
-                log.warn("Failed to parse cached response, falling through to AI: {}", ex.getMessage());
+                log.warn("Failed to parse cached AI suggestion response requestHash={} error={}",
+                        LogSanitizer.shortHash(requestHash), LogSanitizer.safeError(ex));
             }
         }
 
@@ -71,7 +74,8 @@ public class AiSuggestionService {
                 String jsonToCache = objectMapper.writeValueAsString(suggestions);
                 aiCacheService.cacheResponse(CACHE_TYPE, requestHash, jsonToCache, CACHE_TTL);
             } catch (Exception ex) {
-                log.warn("Failed to cache suggestion response: {}", ex.getMessage());
+                log.warn("Failed to cache AI suggestion response requestHash={} error={}",
+                        LogSanitizer.shortHash(requestHash), LogSanitizer.safeError(ex));
             }
 
             return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
@@ -79,27 +83,31 @@ public class AiSuggestionService {
         } catch (Exception ex) {
             long responseTimeMs = System.currentTimeMillis() - startTime;
             logRequest(userId, RequestType.DESTINATION_SUGGESTION, promptHash, responseTimeMs, RequestStatus.FAILED);
-            log.error("AI API call failed for user {}: {}", userId, ex.getMessage());
+            log.error("AI suggestion request failed userId={} promptHash={} durationMs={} error={}",
+                    userId, LogSanitizer.shortHash(promptHash), responseTimeMs, LogSanitizer.safeError(ex));
             throw new AiServiceUnavailableException("AI service is currently unavailable. Please try again later.");
         }
     }
 
     String buildPrompt(DestinationSuggestionRequest request) {
-        return String.format("""
-                You are a travel expert. Suggest 3-5 travel destinations based on these preferences:
-                
-                User Request: %s
-                Requested City: %s
-                Interests: %s
-                Budget: %s
-                Travel Style: %s
-                Duration: %d days
-                Travelers: %s
-                Dietary Requirements: %s
-                Preferences: %s
-                Custom Notes: %s
-                Region: %s
-                Month: %s
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are a travel expert. Suggest 3-5 travel destinations based on these preferences:\n\n");
+        appendLine(sb, "User Request", request.prompt() != null ? request.prompt() : "none");
+        appendLine(sb, "Requested City", request.city() != null ? request.city() : "none");
+        appendLine(sb, "Interests", request.interests() != null && !request.interests().isEmpty()
+                ? String.join(", ", request.interests())
+                : "any");
+        appendLine(sb, "Budget", request.budget());
+        appendLine(sb, "Travel Style", request.travelStyle() != null ? request.travelStyle() : "any");
+        appendLine(sb, "Duration", request.duration() + " days");
+        appendLine(sb, "Travelers", request.people() != null ? request.people() : "not specified");
+        appendLine(sb, "Dietary Requirements", request.diet() != null ? request.diet() : "none");
+        appendLine(sb, "Preferences", request.preferences() != null ? request.preferences() : "none");
+        appendLine(sb, "Custom Notes", request.customNotes() != null ? request.customNotes() : "none");
+        appendLine(sb, "Region", request.region() != null ? request.region() : "worldwide");
+        appendLine(sb, "Month", request.month() != null ? request.month() : "any time");
+
+        sb.append("""
                 
                 Return your response as either a JSON array or a JSON object with a "suggestions" array.
                 Use objects containing:
@@ -112,22 +120,12 @@ public class AiSuggestionService {
                 - "matchScore": how well this matches the preferences (0.0 to 1.0)
                 
                 Return ONLY JSON, no markdown and no other text.
-                """,
-                request.prompt() != null ? request.prompt() : "none",
-                request.city() != null ? request.city() : "none",
-                request.interests() != null && !request.interests().isEmpty()
-                        ? String.join(", ", request.interests())
-                        : "any",
-                request.budget(),
-                request.travelStyle() != null ? request.travelStyle() : "any",
-                request.duration(),
-                request.people() != null ? request.people() : "not specified",
-                request.diet() != null ? request.diet() : "none",
-                request.preferences() != null ? request.preferences() : "none",
-                request.customNotes() != null ? request.customNotes() : "none",
-                request.region() != null ? request.region() : "worldwide",
-                request.month() != null ? request.month() : "any time"
-        );
+                """);
+        return sb.toString();
+    }
+
+    private static void appendLine(StringBuilder sb, String label, Object value) {
+        sb.append(label).append(": ").append(value).append('\n');
     }
 
     List<DestinationSuggestion> parseResponse(String aiResponse) {
@@ -142,7 +140,7 @@ public class AiSuggestionService {
             }
             return objectMapper.readValue(cleaned, new TypeReference<>() {});
         } catch (Exception ex) {
-            log.error("Failed to parse AI response: {}", ex.getMessage());
+            log.warn("Failed to parse AI suggestion response error={}", LogSanitizer.safeError(ex));
             throw new AiServiceUnavailableException("Failed to process AI response. Please try again.");
         }
     }
@@ -159,7 +157,7 @@ public class AiSuggestionService {
                     .build();
             aiRequestLogRepository.save(logEntry);
         } catch (Exception ex) {
-            log.error("Failed to log AI request: {}", ex.getMessage());
+            log.warn("Failed to persist AI request metadata error={}", LogSanitizer.safeError(ex));
         }
     }
 

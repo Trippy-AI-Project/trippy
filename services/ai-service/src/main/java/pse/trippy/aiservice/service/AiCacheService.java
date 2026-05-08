@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import pse.trippy.aiservice.logging.LogSanitizer;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -30,13 +31,14 @@ public class AiCacheService {
             String key = buildKey(type, requestHash);
             String value = redisTemplate.opsForValue().get(key);
             if (value != null) {
-                log.debug("Cache hit for key: {}", key);
+                log.debug("AI cache hit type={} hash={}", type, LogSanitizer.shortHash(requestHash));
                 return Optional.of(value);
             }
-            log.debug("Cache miss for key: {}", key);
+            log.debug("AI cache miss type={} hash={}", type, LogSanitizer.shortHash(requestHash));
             return Optional.empty();
         } catch (Exception ex) {
-            log.warn("Redis read failed for type={}, hash={}: {}", type, requestHash, ex.getMessage());
+            log.warn("Redis read failed type={} hash={} error={}",
+                    type, LogSanitizer.shortHash(requestHash), LogSanitizer.safeError(ex));
             return Optional.empty();
         }
     }
@@ -45,9 +47,11 @@ public class AiCacheService {
         try {
             String key = buildKey(type, requestHash);
             redisTemplate.opsForValue().set(key, jsonResponse, ttl);
-            log.debug("Cached response for key: {} with TTL: {}", key, ttl);
+            log.debug("AI response cached type={} hash={} ttl={}",
+                    type, LogSanitizer.shortHash(requestHash), ttl);
         } catch (Exception ex) {
-            log.warn("Redis write failed for type={}, hash={}: {}", type, requestHash, ex.getMessage());
+            log.warn("Redis write failed type={} hash={} error={}",
+                    type, LogSanitizer.shortHash(requestHash), LogSanitizer.safeError(ex));
         }
     }
 
@@ -60,7 +64,7 @@ public class AiCacheService {
                 log.info("Evicted {} cache entries for type: {}", keys.size(), type);
             }
         } catch (Exception ex) {
-            log.warn("Redis eviction failed for type={}: {}", type, ex.getMessage());
+            log.warn("Redis eviction failed type={} error={}", type, LogSanitizer.safeError(ex));
         }
     }
 
@@ -71,7 +75,7 @@ public class AiCacheService {
             byte[] hash = digest.digest(json.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (JsonProcessingException | NoSuchAlgorithmException ex) {
-            log.warn("Hash generation failed: {}", ex.getMessage());
+            log.warn("Hash generation failed error={}", LogSanitizer.safeError(ex));
             return "unknown";
         }
     }
