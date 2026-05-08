@@ -449,6 +449,38 @@ class NotificationEventListenerTest {
     }
 
     @Test
+    @DisplayName("system notification normalizes base action URL for email and in-app links")
+    void systemNotificationNormalizesBaseActionUrl() {
+        UUID userId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+        Map<String, Object> payload = Map.of(
+                "userId", userId.toString(),
+                "email", "alice@test.com",
+                "title", "Heads up",
+                "message", "System maintenance planned",
+                "actionUrl", "https://trippy.app");
+
+        listener.handleSystemNotification(payload);
+
+        ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(emailService).sendTemplateEmail(
+                eq("alice@test.com"),
+                eq("Heads up"),
+                eq("system-notification"),
+                varsCaptor.capture());
+        assertThat(varsCaptor.getValue())
+                .containsEntry("actionUrl", "https://trippy.app/dashboard")
+                .containsEntry("link", "https://trippy.app/dashboard");
+
+        verify(notificationService).createNotification(
+                eq(userId),
+                eq(NotificationType.SYSTEM),
+                eq("Heads up"),
+                eq("System maintenance planned"),
+                eq("/dashboard"),
+                any());
+    }
+
+    @Test
     @DisplayName("missing recipient email skips email but keeps in-app notification")
     void missingEmailSkipsEmailButKeepsNotification() {
         Map<String, Object> payload = Map.of(
