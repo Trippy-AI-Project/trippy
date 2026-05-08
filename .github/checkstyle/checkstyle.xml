@@ -8,7 +8,10 @@
     </module>
     <module name="NewlineAtEndOfFile"/>
     <module name="TreeWalker">
-        <module name="AvoidStarImport"/>
+        <module name="AvoidStarImport">
+            <property name="excludes"
+                      value="jakarta.persistence,org.springframework.test.web.servlet.result.MockMvcResultMatchers"/>
+        </module>
         <module name="UnusedImports"/>
     </module>
 </module>
