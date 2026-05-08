@@ -19,6 +19,7 @@ import pse.trippy.aiservice.model.enums.RequestType;
 import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
 import java.time.Duration;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -204,8 +205,10 @@ public class AiItineraryService {
             JsonNode daysNode = root.get("days");
             if (daysNode != null && daysNode.isArray()) {
                 LocalDate startDate = request.constraints().startDate();
-                long tripDurationDays = Math.max(1L,
-                        ChronoUnit.DAYS.between(startDate, request.constraints().endDate()) + 1);
+                long tripDurationDays = ChronoUnit.DAYS.between(startDate, request.constraints().endDate()) + 1;
+                if (tripDurationDays < 1) {
+                    throw new IllegalArgumentException("Trip end date must not be before start date");
+                }
                 for (JsonNode dayNode : daysNode) {
                     int fallbackDayNumber = days.size() + 1;
                     int rawDayNumber = getPositiveIntOrDefault(dayNode, "dayNumber", fallbackDayNumber);
@@ -246,7 +249,7 @@ public class AiItineraryService {
                     false
             );
 
-        } catch (JsonProcessingException | RuntimeException ex) {
+        } catch (JsonProcessingException | IllegalArgumentException | DateTimeException | ArithmeticException ex) {
             log.warn("Failed to parse AI itinerary response error={}", LogSanitizer.safeError(ex));
             throw new AiServiceUnavailableException("Failed to process AI response. Please try again.");
         }

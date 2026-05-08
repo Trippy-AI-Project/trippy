@@ -386,6 +386,9 @@ public class NotificationEventListener {
         if (trimmed.equals(APP_BASE_URL) || trimmed.equals(APP_BASE_URL + "/")) {
             return DASHBOARD_PATH;
         }
+        if (trimmed.startsWith(APP_BASE_URL + "/")) {
+            return trimmed.substring(APP_BASE_URL.length());
+        }
         return trimmed;
     }
 
