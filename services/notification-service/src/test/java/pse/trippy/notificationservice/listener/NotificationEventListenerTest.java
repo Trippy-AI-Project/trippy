@@ -401,36 +401,16 @@ class NotificationEventListenerTest {
     }
 
     @Test
-    @DisplayName("trip.participant.joined event triggers joined notification")
-    void tripParticipantJoinedTriggersJoinedNotification() {
+    @DisplayName("trip.participant.joined event is ignored without recipient context")
+    void tripParticipantJoinedIsIgnoredWithoutRecipientContext() {
         Map<String, Object> payload = Map.of(
-                "tripId", "trip-uuid",
-                "tripTitle", "Lisbon Weekend",
-                "ownerEmail", "owner@test.com",
-                "ownerId", "123e4567-e89b-12d3-a456-426614174000",
-                "inviterName", "Owner",
-                "participantName", "Sam");
+                "eventType", "trip.participant.joined",
+                "tripId", "223e4567-e89b-12d3-a456-426614174000",
+                "userId", "123e4567-e89b-12d3-a456-426614174000");
 
         listener.handleEvent(payload, "trip.participant.joined");
 
-        ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(emailService).sendTemplateEmail(
-                eq("owner@test.com"),
-                eq("Sam joined Lisbon Weekend"),
-                eq("trip-joined"),
-                varsCaptor.capture());
-        assertThat(varsCaptor.getValue())
-                .containsEntry("inviterName", "Owner")
-                .containsEntry("inviteeName", "Sam")
-                .containsEntry("dashboardUrl", "https://trippy.app/dashboard/trips/trip-uuid")
-                .containsEntry("link", "https://trippy.app/dashboard/trips/trip-uuid");
-        verify(notificationService).createNotification(
-                eq(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")),
-                eq(NotificationType.TRIP_JOINED),
-                eq("Trip Joined"),
-                eq("Sam joined Lisbon Weekend"),
-                eq("/dashboard/trips/trip-uuid"),
-                any());
+        verifyNoInteractions(emailService, notificationService);
     }
 
     @Test

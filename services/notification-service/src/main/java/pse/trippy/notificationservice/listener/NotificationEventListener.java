@@ -53,7 +53,7 @@ public class NotificationEventListener {
             case "user.email.verified" -> handleUserEmailVerified(payload);
             case "user.password.reset" -> handlePasswordReset(payload);
             case "trip.invitation.created", "trip.participant.invited" -> handleTripInvitation(payload);
-            case "trip.invitation.accepted", "trip.joined", "trip.participant.joined" -> handleTripJoined(payload);
+            case "trip.invitation.accepted", "trip.joined" -> handleTripJoined(payload);
             case "trip.updated" -> handleTripUpdated(payload);
             case "payment.completed" -> handlePaymentCompleted(payload);
             case "payment.failed" -> handlePaymentFailed(payload);
