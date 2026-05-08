@@ -148,7 +148,7 @@ public class AiService {
         } catch (Exception ex) {
             log.warn("AI itinerary generation failed, returning fallback itinerary error={}",
                     LogSanitizer.safeError(ex));
-            ItineraryResponse fallback = buildFallbackItinerary(request, LogSanitizer.safeDetail(ex.getMessage()));
+            ItineraryResponse fallback = buildFallbackItinerary(request, ex.getMessage());
             fallback.setGenerationId(generationId);
             saveGenerationHistory(request, fallback, prompt, "FALLBACK");
             return fallback;
