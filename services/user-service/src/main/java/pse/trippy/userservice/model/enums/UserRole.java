@@ -12,7 +12,12 @@ public enum UserRole {
     /** User who has created at least one trip. */
     HOST,
 
-    /** Legacy alias for MEMBER, kept for backwards compatibility. */
+    /**
+     * Deprecated: previously the default role before MEMBER was introduced.
+     * Treated equivalently to MEMBER in all role checks.
+     * Kept for DB backwards compatibility — do not use for new records.
+     */
+    @Deprecated
     USER,
 
     /** Platform administrator with elevated privileges. */
