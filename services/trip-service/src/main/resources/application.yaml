@@ -26,6 +26,12 @@ spring:
       hibernate:
         format_sql: true
         default_schema: trip_schema
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${MQ_USERNAME}
+    password: ${MQ_PASSWORD}
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:trippy}
 
 server:
   port: 8082
