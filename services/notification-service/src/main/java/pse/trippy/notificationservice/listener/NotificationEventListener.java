@@ -70,6 +70,13 @@ public class NotificationEventListener {
             String userId = text(map, "userId");
             String verificationToken = text(map, "verificationToken", "verificationCode", "token");
 
+            if (verificationToken == null || verificationToken.isBlank()) {
+                log.warn("Skipping notification event type=user.registered due to missing verification token recipient={} userId={}",
+                        LogSanitizer.maskEmail(email),
+                        LogSanitizer.safeDetail(userId));
+                return;
+            }
+
             log.info("Processing notification event type=user.registered recipient={}",
                     LogSanitizer.maskEmail(email));
             sendTemplate(email, "Verify your Trippy account", "email-verification",
