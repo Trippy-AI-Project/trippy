@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pse.trippy.paymentservice.dto.request.CheckoutRequest;
 import pse.trippy.paymentservice.dto.response.CheckoutResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
+import pse.trippy.paymentservice.dto.response.TransactionResponse;
 import pse.trippy.paymentservice.exception.InvalidPlanException;
 import pse.trippy.paymentservice.model.entity.Transaction;
 import pse.trippy.paymentservice.model.enums.PlanType;
@@ -74,5 +75,22 @@ public class PaymentService {
         } catch (IllegalArgumentException e) {
             throw new InvalidPlanException(planId);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransactionResponse> getTransactions(UUID userId) {
+        return transactionRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(t -> new TransactionResponse(
+                        t.getId(),
+                        t.getUserId(),
+                        t.getAmount(),
+                        t.getCurrency(),
+                        t.getPlanId().name(),
+                        t.getStatus().name(),
+                        t.getPlanId().getDisplayName() + " subscription",
+                        t.getCreatedAt()
+                ))
+                .toList();
     }
 }

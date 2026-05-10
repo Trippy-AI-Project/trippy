@@ -23,7 +23,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/payments/plans",
+                                "/payments/webhook",
                                 "/actuator/health",
+                                "/actuator/health/**",
+                                "/actuator/info",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()

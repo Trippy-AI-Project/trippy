@@ -25,3 +25,5 @@ spring:
 stripe:
   api:
     key: sk_test_placeholder
+  webhook:
+    secret: whsec_test_placeholder

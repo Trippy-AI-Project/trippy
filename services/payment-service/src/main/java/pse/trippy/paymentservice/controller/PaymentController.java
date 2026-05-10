@@ -19,6 +19,7 @@ import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
 import pse.trippy.paymentservice.dto.response.PaymentMethodResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.dto.response.SubscriptionResponse;
+import pse.trippy.paymentservice.dto.response.TransactionResponse;
 import pse.trippy.paymentservice.service.PaymentMethodService;
 import pse.trippy.paymentservice.service.PaymentService;
 import pse.trippy.paymentservice.service.SubscriptionService;
@@ -60,6 +61,13 @@ public class PaymentController {
             @Valid @RequestBody CancelSubscriptionRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
         SubscriptionResponse response = subscriptionService.cancelSubscription(userId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/transactions")
+    public ResponseEntity<List<TransactionResponse>> getTransactions(
+            @RequestHeader("X-User-Id") UUID userId) {
+        List<TransactionResponse> response = paymentService.getTransactions(userId);
         return ResponseEntity.ok(response);
     }
 
