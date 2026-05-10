@@ -462,6 +462,7 @@ export const paymentsApi = {
   addMethod: (data: { brand: string; last4: string; expiryMonth: number; expiryYear: number; setAsDefault?: boolean }) =>
     api.post<PaymentMethod>("/payments/methods", data),
   deleteMethod: (id: string) => api.delete<void>(`/payments/methods/${id}`),
+  getTransactions: () => api.get<TransactionRecord[]>("/payments/transactions"),
 };
 
 /* ------------------------------------------------------------------ */
