@@ -35,17 +35,14 @@ public class TripEventListener {
      */
     @RabbitListener(queues = RabbitMqConfig.TRIP_CREATED_QUEUE)
     public void onTripCreated(Map<String, Object> event) {
-        try {
-            String createdBy = (String) event.get("createdBy");
-            if (createdBy == null) {
-                log.warn("trip.created event missing 'createdBy' field: {}", event);
-                return;
-            }
-            UUID userId = UUID.fromString(createdBy);
-            userService.upgradeToHost(userId);
-            log.info("Processed trip.created event: userId={} promoted to HOST", userId);
-        } catch (Exception ex) {
-            log.error("Failed to process trip.created event: {}", event, ex);
+        String createdBy = (String) event.get("createdBy");
+        if (createdBy == null) {
+            log.warn("trip.created event missing 'createdBy' field: {}", event);
+            return; // malformed message — ack and discard, no point retrying
         }
+        // Let exceptions propagate so the listener container can retry / route to DLQ
+        UUID userId = UUID.fromString(createdBy);
+        userService.upgradeToHost(userId);
+        log.info("Processed trip.created event: userId={} promoted to HOST", userId);
     }
 }
