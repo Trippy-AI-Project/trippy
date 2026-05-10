@@ -21,6 +21,7 @@ import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
+import pse.trippy.aiservice.logging.LogSanitizer;
 import pse.trippy.aiservice.model.entity.GenerationHistory;
 import pse.trippy.aiservice.repository.GenerationHistoryRepository;
 
@@ -96,13 +97,14 @@ public class AiService {
                     .call()
                     .content();
         } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
+            log.warn("Spring AI call failed, falling back to direct Groq API error={}",
+                    LogSanitizer.safeError(ex));
             rawJson = callGroqDirect(prompt);
         }
 
         try {
             String cleanJson = extractJson(rawJson);
-            log.debug("Extracted JSON (first 500 chars): {}", cleanJson.length() > 500 ? cleanJson.substring(0, 500) : cleanJson);
+            log.debug("Extracted destination suggestion JSON chars={}", cleanJson.length());
 
             List<DestinationSuggestion> suggestions;
             if (cleanJson.strip().startsWith("[")) {
@@ -117,9 +119,9 @@ public class AiService {
                 suggestions = List.of();
             }
             return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
-        } catch (Exception e) {
-            log.error("Failed to parse destination suggestions. Raw response (first 1000 chars): {}",
-                    rawJson != null && rawJson.length() > 1000 ? rawJson.substring(0, 1000) : rawJson, e);
+        } catch (Exception ex) {
+            log.warn("Failed to parse destination suggestions responseChars={} error={}",
+                    rawJson == null ? 0 : rawJson.length(), LogSanitizer.safeError(ex));
             return new DestinationSuggestionResponse(List.of(), Instant.now(), false);
         }
     }
@@ -144,7 +146,8 @@ public class AiService {
         } catch (AiServiceTimeoutException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.warn("AI itinerary generation failed, returning fallback itinerary: {}", ex.getMessage());
+            log.warn("AI itinerary generation failed, returning fallback itinerary error={}",
+                    LogSanitizer.safeError(ex));
             ItineraryResponse fallback = buildFallbackItinerary(request, ex.getMessage());
             fallback.setGenerationId(generationId);
             saveGenerationHistory(request, fallback, prompt, "FALLBACK");
@@ -163,7 +166,8 @@ public class AiService {
                     .call()
                     .content();
         } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
+            log.warn("Spring AI call failed, falling back to direct Groq API error={}",
+                    LogSanitizer.safeError(ex));
             rawJson = callGroqDirect(prompt);
         }
 
@@ -208,7 +212,8 @@ public class AiService {
                             true);
                 }
             } catch (Exception ex) {
-                log.warn("AI itinerary chat update failed, falling back to conversational answer: {}", ex.getMessage());
+                log.warn("AI itinerary chat update failed, falling back to conversational answer error={}",
+                        LogSanitizer.safeError(ex));
             }
         }
 
@@ -216,7 +221,7 @@ public class AiService {
         try {
             reply = requestAi(buildGeneralChatPrompt(request));
         } catch (Exception ex) {
-            log.warn("AI chat failed, returning local fallback: {}", ex.getMessage());
+            log.warn("AI chat failed, returning local fallback error={}", LogSanitizer.safeError(ex));
             reply = "I can help with destination ideas, itinerary changes, food, transport, packing, and budget tips. Try asking for a specific change to your trip.";
         }
 
@@ -655,10 +660,10 @@ public class AiService {
             log.warn("Weather lookup interrupted");
             return Map.of();
         } catch (IOException | IllegalArgumentException | IllegalStateException ex) {
-            log.warn("Weather lookup failed: {}", ex.getMessage());
+            log.warn("Weather lookup failed error={}", LogSanitizer.safeError(ex));
             return Map.of();
         } catch (Exception ex) {
-            log.warn("Weather lookup failed: {}", ex.getMessage());
+            log.warn("Weather lookup failed error={}", LogSanitizer.safeError(ex));
             return Map.of();
         }
     }
@@ -951,7 +956,8 @@ public class AiService {
                     .call()
                     .content();
         } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API: {}", ex.getMessage());
+            log.warn("Spring AI call failed, falling back to direct Groq API error={}",
+                    LogSanitizer.safeError(ex));
             return callGroqDirect(prompt);
         }
     }
@@ -1014,7 +1020,7 @@ public class AiService {
                     .build();
             generationHistoryRepository.save(history);
         } catch (Exception ex) {
-            log.warn("Failed to persist itinerary generation history: {}", ex.getMessage());
+            log.warn("Failed to persist itinerary generation history error={}", LogSanitizer.safeError(ex));
         }
     }
 
@@ -1052,7 +1058,7 @@ public class AiService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new RuntimeException("Groq API returned status " + response.statusCode() + ": " + response.body());
+                throw new IllegalStateException("Groq API returned status " + response.statusCode());
             }
 
             JsonNode root = objectMapper.readTree(response.body());
