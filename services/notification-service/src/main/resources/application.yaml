@@ -65,3 +65,5 @@ management:
 logging:
   level:
     pse.trippy.notificationservice: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator: ERROR

@@ -1,5 +1,6 @@
 package pse.trippy.aiservice.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -11,12 +12,14 @@ import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.ActivityResponse;
 import pse.trippy.aiservice.dto.response.DayPlanResponse;
 import pse.trippy.aiservice.dto.response.ItineraryGenerationResponse;
+import pse.trippy.aiservice.logging.LogSanitizer;
 import pse.trippy.aiservice.model.entity.AiRequestLog;
 import pse.trippy.aiservice.model.enums.RequestStatus;
 import pse.trippy.aiservice.model.enums.RequestType;
 import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
 import java.time.Duration;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -57,8 +60,9 @@ public class AiItineraryService {
                         cachedResponse.tokensUsed(),
                         true
                 );
-            } catch (Exception ex) {
-                log.warn("Failed to parse cached itinerary response, falling through to AI: {}", ex.getMessage());
+            } catch (JsonProcessingException | IllegalArgumentException ex) {
+                log.warn("Failed to parse cached itinerary response, falling through to AI error={}",
+                        LogSanitizer.safeError(ex));
             }
         }
 
@@ -83,8 +87,8 @@ public class AiItineraryService {
             try {
                 String jsonToCache = objectMapper.writeValueAsString(response);
                 aiCacheService.cacheResponse(CACHE_TYPE, requestHash, jsonToCache, CACHE_TTL);
-            } catch (Exception ex) {
-                log.warn("Failed to cache itinerary response: {}", ex.getMessage());
+            } catch (JsonProcessingException | IllegalArgumentException ex) {
+                log.warn("Failed to cache itinerary response error={}", LogSanitizer.safeError(ex));
             }
 
             return response;
@@ -92,7 +96,8 @@ public class AiItineraryService {
         } catch (Exception ex) {
             long responseTimeMs = System.currentTimeMillis() - startTime;
             logRequest(userId, promptHash, responseTimeMs, RequestStatus.FAILED);
-            log.error("AI itinerary generation failed for user {}: {}", userId, ex.getMessage());
+            log.error("AI itinerary generation failed userId={} promptHash={} durationMs={} error={}",
+                    userId, LogSanitizer.shortHash(promptHash), responseTimeMs, LogSanitizer.safeError(ex));
             throw new AiServiceUnavailableException("AI service is currently unavailable. Please try again later.");
         }
     }
@@ -103,38 +108,41 @@ public class AiItineraryService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("You are an expert travel planner. Generate a detailed day-by-day itinerary.\n\n");
-        sb.append(String.format("Destination: %s\n", constraints.destination()));
-        sb.append(String.format("Start Date: %s\n", constraints.startDate()));
-        sb.append(String.format("End Date: %s\n", constraints.endDate()));
-        sb.append(String.format("Number of Days: %d\n", days));
+        appendLine(sb, "Destination", constraints.destination());
+        appendLine(sb, "Start Date", constraints.startDate());
+        appendLine(sb, "End Date", constraints.endDate());
+        appendLine(sb, "Number of Days", days);
 
         if (constraints.budgetLevel() != null) {
-            sb.append(String.format("Budget Level: %s\n", constraints.budgetLevel()));
+            appendLine(sb, "Budget Level", constraints.budgetLevel());
         }
         if (constraints.travelers() != null) {
-            sb.append(String.format("Travelers: %d adults, %d children\n",
-                    constraints.travelers().adults(), constraints.travelers().children()));
+            sb.append("Travelers: ")
+                    .append(constraints.travelers().adults())
+                    .append(" adults, ")
+                    .append(constraints.travelers().children())
+                    .append(" children\n");
         }
         if (constraints.accommodationType() != null) {
-            sb.append(String.format("Accommodation: %s\n", constraints.accommodationType()));
+            appendLine(sb, "Accommodation", constraints.accommodationType());
         }
         if (request.tone() != null) {
-            sb.append(String.format("Tone/Style: %s\n", request.tone()));
+            appendLine(sb, "Tone/Style", request.tone());
         }
         if (request.userPrompt() != null && !request.userPrompt().isBlank()) {
-            sb.append(String.format("Special Requests: %s\n", request.userPrompt()));
+            appendLine(sb, "Special Requests", request.userPrompt());
         }
 
         if (request.preferences() != null) {
             var prefs = request.preferences();
             if (prefs.pacePreference() != null) {
-                sb.append(String.format("Pace: %s\n", prefs.pacePreference()));
+                appendLine(sb, "Pace", prefs.pacePreference());
             }
             if (prefs.mustSeeAttractions() != null && !prefs.mustSeeAttractions().isEmpty()) {
-                sb.append(String.format("Must-See: %s\n", String.join(", ", prefs.mustSeeAttractions())));
+                appendLine(sb, "Must-See", String.join(", ", prefs.mustSeeAttractions()));
             }
             if (prefs.avoidAttractions() != null && !prefs.avoidAttractions().isEmpty()) {
-                sb.append(String.format("Avoid: %s\n", String.join(", ", prefs.avoidAttractions())));
+                appendLine(sb, "Avoid", String.join(", ", prefs.avoidAttractions()));
             }
         }
 
@@ -172,7 +180,16 @@ public class AiItineraryService {
         return sb.toString();
     }
 
+    private static void appendLine(StringBuilder sb, String label, Object value) {
+        sb.append(label).append(": ").append(value).append('\n');
+    }
+
     ItineraryGenerationResponse parseResponse(String aiResponse, GenerateItineraryRequest request) {
+        if (aiResponse == null || aiResponse.isBlank()) {
+            log.warn("AI itinerary response was empty");
+            throw new AiServiceUnavailableException("Failed to process AI response. Please try again.");
+        }
+
         try {
             String cleaned = aiResponse.strip();
             if (cleaned.startsWith("```")) {
@@ -187,10 +204,17 @@ public class AiItineraryService {
             List<DayPlanResponse> days = new ArrayList<>();
             JsonNode daysNode = root.get("days");
             if (daysNode != null && daysNode.isArray()) {
+                LocalDate startDate = request.constraints().startDate();
+                long tripDurationDays = ChronoUnit.DAYS.between(startDate, request.constraints().endDate()) + 1;
+                if (tripDurationDays < 1) {
+                    throw new IllegalArgumentException("Trip end date must not be before start date");
+                }
                 for (JsonNode dayNode : daysNode) {
-                    int dayNumber = dayNode.get("dayNumber").asInt();
-                    String title = dayNode.has("title") ? dayNode.get("title").asText() : "";
-                    LocalDate date = request.constraints().startDate().plusDays(dayNumber - 1L);
+                    int fallbackDayNumber = days.size() + 1;
+                    int rawDayNumber = getPositiveIntOrDefault(dayNode, "dayNumber", fallbackDayNumber);
+                    int dayNumber = (int) Math.min(rawDayNumber, tripDurationDays);
+                    String title = dayNode.path("title").asText("");
+                    LocalDate date = startDate.plusDays(dayNumber - 1L);
 
                     List<ActivityResponse> activities = new ArrayList<>();
                     JsonNode activitiesNode = dayNode.get("activities");
@@ -225,10 +249,15 @@ public class AiItineraryService {
                     false
             );
 
-        } catch (Exception ex) {
-            log.error("Failed to parse AI itinerary response: {}", ex.getMessage());
+        } catch (JsonProcessingException | IllegalArgumentException | DateTimeException | ArithmeticException ex) {
+            log.warn("Failed to parse AI itinerary response error={}", LogSanitizer.safeError(ex));
             throw new AiServiceUnavailableException("Failed to process AI response. Please try again.");
         }
+    }
+
+    private int getPositiveIntOrDefault(JsonNode node, String field, int defaultValue) {
+        int value = node.path(field).asInt(defaultValue);
+        return value > 0 ? value : defaultValue;
     }
 
     private String getTextOrNull(JsonNode node, String field) {
@@ -245,8 +274,8 @@ public class AiItineraryService {
                     .status(status)
                     .build();
             aiRequestLogRepository.save(logEntry);
-        } catch (Exception ex) {
-            log.error("Failed to log AI request: {}", ex.getMessage());
+        } catch (RuntimeException ex) {
+            log.warn("Failed to persist AI request metadata error={}", LogSanitizer.safeError(ex));
         }
     }
 
