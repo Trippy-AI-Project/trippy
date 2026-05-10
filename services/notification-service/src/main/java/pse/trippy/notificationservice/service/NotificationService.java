@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pse.trippy.notificationservice.dto.response.NotificationResponse;
+import pse.trippy.notificationservice.logging.LogSanitizer;
 import pse.trippy.notificationservice.model.entity.Notification;
 import pse.trippy.notificationservice.model.enums.NotificationChannel;
 import pse.trippy.notificationservice.model.enums.NotificationType;
@@ -183,19 +184,19 @@ public class NotificationService {
             if (uri.isAbsolute()) {
                 if (!"https".equalsIgnoreCase(uri.getScheme())
                         || !APP_HOST.equalsIgnoreCase(uri.getHost())) {
-                    log.warn("Dropping unsafe notification action URL host: {}", trimmed);
+                    log.warn("Dropping unsafe notification action URL reason=external-or-non-https");
                     return null;
                 }
                 return normalizeInternalPath(uri);
             }
 
             if (trimmed.startsWith("//")) {
-                log.warn("Dropping protocol-relative notification action URL: {}", trimmed);
+                log.warn("Dropping unsafe notification action URL reason=protocol-relative");
                 return null;
             }
             return normalizeInternalPath(uri);
         } catch (URISyntaxException | IllegalArgumentException ex) {
-            log.warn("Dropping invalid notification action URL: {}", trimmed);
+            log.warn("Dropping invalid notification action URL error={}", LogSanitizer.safeError(ex));
             return null;
         }
     }
@@ -203,7 +204,7 @@ public class NotificationService {
     private String normalizeInternalPath(URI uri) {
         String path = uri.getRawPath();
         if (path == null || path.isBlank() || !path.startsWith("/") || containsParentTraversal(path)) {
-            log.warn("Dropping unsafe notification action path: {}", path);
+            log.warn("Dropping unsafe notification action URL reason=invalid-path");
             return null;
         }
 

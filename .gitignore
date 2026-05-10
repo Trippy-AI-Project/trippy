@@ -39,5 +39,16 @@ build/
 !.env.template
 !.env.sample
 
+### Generated quality/runtime artifacts ###
+.scannerwork/
+.sonar/
+dependency-check-report.*
+dependency-check-data/
+logs/
+*.log
+
 ### Personal Responsibility Docs ###
 xano*
+
+### Local Codex Skills ###
+.codex/
