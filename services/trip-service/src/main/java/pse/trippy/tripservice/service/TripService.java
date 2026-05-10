@@ -43,6 +43,8 @@ public class TripService {
 
     @Transactional
     public TripResponse createTrip(CreateTripRequest request, UUID userId) {
+        log.info("Creating trip: title='{}', destination='{}', visibility={}, requestedBy={}",
+                request.title(), request.destination(), request.visibility(), userId);
         validateDates(request.startDate(), request.endDate());
 
         Trip trip = Trip.builder()
@@ -68,6 +70,9 @@ public class TripService {
                 .build();
         participantRepository.save(owner);
 
+        log.info("Trip created successfully: tripId={}, title='{}', destination='{}', createdBy={}",
+                trip.getId(), trip.getTitle(), trip.getDestination(), userId);
+
         // Notify user-service so it can upgrade the creator's role to HOST
         publishTripCreatedEvent(trip.getId(), userId);
 
@@ -76,8 +81,12 @@ public class TripService {
 
     @Transactional(readOnly = true)
     public TripPageResponse listMyTrips(UUID userId, int page, int size) {
+        log.debug("Listing trips for user={}, page={}, size={}", userId, page, size);
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "startDate"));
         Page<Trip> tripPage = tripRepository.findTripsByParticipantUserId(userId, pageRequest);
+
+        log.info("Listed {} trip(s) for user={} (page {}/{})",
+                tripPage.getNumberOfElements(), userId, page + 1, tripPage.getTotalPages());
 
         List<TripResponse> trips = tripPage.getContent().stream()
                 .map(this::toTripResponse)
@@ -95,6 +104,7 @@ public class TripService {
 
     @Transactional(readOnly = true)
     public TripDetailResponse getTripDetail(UUID tripId, UUID userId) {
+        log.debug("Fetching trip detail: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
         ensureParticipant(tripId, userId);
 
@@ -107,6 +117,7 @@ public class TripService {
 
     @Transactional
     public TripResponse updateTrip(UUID tripId, UpdateTripRequest request, UUID userId) {
+        log.info("Updating trip: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
         ensureOwner(tripId, userId);
 
@@ -142,15 +153,18 @@ public class TripService {
         }
 
         trip = tripRepository.save(trip);
+        log.info("Trip updated: tripId={}, title='{}', updatedBy={}", trip.getId(), trip.getTitle(), userId);
         return toTripResponse(trip);
     }
 
     @Transactional
     public void deleteTrip(UUID tripId, UUID userId) {
+        log.info("Deleting (cancelling) trip: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
         ensureOwner(tripId, userId);
         trip.setStatus(TripStatus.CANCELLED);
         tripRepository.save(trip);
+        log.info("Trip cancelled: tripId={}, title='{}', deletedBy={}", tripId, trip.getTitle(), userId);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────

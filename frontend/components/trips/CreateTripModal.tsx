@@ -204,7 +204,16 @@ export default function CreateTripModal({
               </div>
 
               {/* ── Form body ─────────────────────────────────── */}
-              <form onSubmit={handleSubmit} className="px-7 pb-7 pt-5">
+              <form
+                onSubmit={handleSubmit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && step < STEP_COUNT - 1) {
+                    e.preventDefault();
+                    if (canAdvance) setStep((s) => s + 1);
+                  }
+                }}
+                className="px-7 pb-7 pt-5"
+              >
                 <AnimatePresence mode="wait">
                   {step === 0 && (
                     <motion.div
