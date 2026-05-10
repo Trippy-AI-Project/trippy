@@ -359,6 +359,7 @@ export interface CreateTripRequest {
   startDate?: string;
   endDate?: string;
   visibility?: string;
+  budgetLevel?: "ECONOMY" | "MODERATE" | "LUXURY";
 }
 
 export const tripsApi = {
