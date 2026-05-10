@@ -45,7 +45,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/auth/**",
             "/.well-known/**",
             "/health",
-            "/actuator/health"
+            "/actuator/health",
+            "/actuator/health/**",
+            "/actuator/info"
+    );
+
+    private static final List<String> ADMIN_ONLY_PATHS = List.of(
+            "/actuator/metrics",
+            "/actuator/metrics/**",
+            "/actuator/gateway",
+            "/actuator/gateway/**",
+            "/services/*/actuator/**"
     );
 
     private final JwksClient jwksClient;
@@ -101,6 +111,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         return unauthorized(exchange);
                     }
 
+                    if (isAdminOnlyPath(path) && !"ADMIN".equalsIgnoreCase(role)) {
+                        log.debug("Non-admin user {} tried to access admin path: {}", userId, path);
+                        return forbidden(exchange);
+                    }
+
                     ServerWebExchange mutated = exchange.mutate()
                             .request(exchange.getRequest().mutate()
                                     .header("X-User-Id",    userId)
@@ -151,6 +166,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return PUBLIC_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path));
     }
 
+    private boolean isAdminOnlyPath(String path) {
+        return ADMIN_ONLY_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path));
+    }
+
     private Mono<Boolean> isBlacklisted(String jti, String userId) {
         return redisTemplate.hasKey(TOKEN_BLACKLIST_PREFIX + jti)
                 .flatMap(tokenBlacklisted -> {
@@ -170,6 +189,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        return exchange.getResponse().setComplete();
+    }
+
+    private Mono<Void> forbidden(ServerWebExchange exchange) {
+        exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
         return exchange.getResponse().setComplete();
     }
 

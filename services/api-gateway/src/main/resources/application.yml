@@ -77,9 +77,59 @@ spring:
           predicates:
             - Path=/payments/**
 
+        # Actuator Routes for Downstream Services
+        - id: user-service-actuator
+          uri: http://localhost:8081
+          predicates:
+            - Path=/services/user-service/actuator/**
+          filters:
+            - StripPrefix=2
+
+        - id: trip-service-actuator
+          uri: http://localhost:8082
+          predicates:
+            - Path=/services/trip-service/actuator/**
+          filters:
+            - StripPrefix=2
+
+        - id: chat-service-actuator
+          uri: http://localhost:8083
+          predicates:
+            - Path=/services/chat-service/actuator/**
+          filters:
+            - StripPrefix=2
+
+        - id: ai-service-actuator
+          uri: http://localhost:8084
+          predicates:
+            - Path=/services/ai-service/actuator/**
+          filters:
+            - StripPrefix=2
+
+        - id: notification-service-actuator
+          uri: http://localhost:8085
+          predicates:
+            - Path=/services/notification-service/actuator/**
+          filters:
+            - StripPrefix=2
+
+        - id: payment-service-actuator
+          uri: http://localhost:8086
+          predicates:
+            - Path=/services/payment-service/actuator/**
+          filters:
+            - StripPrefix=2
+
 trippy:
   gateway:
     jwks-uri: http://user-service:8081/.well-known/jwks.json
+    downstream-services:
+      user-service: http://localhost:8081
+      trip-service: http://localhost:8082
+      chat-service: http://localhost:8083
+      ai-service: http://localhost:8084
+      notification-service: http://localhost:8085
+      payment-service: http://localhost:8086
 
 management:
   endpoints:
@@ -89,10 +139,18 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      probes:
+        enabled: true
     gateway:
       enabled: true
   health:
     defaults:
+      enabled: true
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+    redis:
       enabled: true
 
 info:
