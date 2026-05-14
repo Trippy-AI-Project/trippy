@@ -10,11 +10,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import pse.trippy.paymentservice.config.GatewayHeaderAuthenticationFilter;
 import pse.trippy.paymentservice.config.SecurityConfig;
 import pse.trippy.paymentservice.dto.request.CheckoutRequest;
 import pse.trippy.paymentservice.dto.response.CheckoutResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
+import pse.trippy.paymentservice.service.PaymentMethodService;
 import pse.trippy.paymentservice.service.PaymentService;
+import pse.trippy.paymentservice.service.SubscriptionService;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PaymentController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, GatewayHeaderAuthenticationFilter.class})
 @DisplayName("PaymentController")
 class PaymentControllerTest {
 
@@ -42,6 +45,12 @@ class PaymentControllerTest {
 
     @MockBean
     private PaymentService paymentService;
+
+    @MockBean
+    private SubscriptionService subscriptionService;
+
+    @MockBean
+    private PaymentMethodService paymentMethodService;
 
     @Test
     @DisplayName("GET /payments/plans returns plan list (no auth required)")
@@ -74,7 +83,6 @@ class PaymentControllerTest {
     }
 
     @Test
-    @WithMockUser
     @DisplayName("POST /payments/checkout returns transaction on success")
     void checkoutReturnsOk() throws Exception {
         UUID txnId = UUID.randomUUID();
@@ -98,9 +106,9 @@ class PaymentControllerTest {
                 .build();
 
         mockMvc.perform(post("/payments/checkout")
-                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-User-Id", userId.toString())
+                        .header("X-User-Role", "USER")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transactionId").value(txnId.toString()))
@@ -121,7 +129,6 @@ class PaymentControllerTest {
 
         mockMvc.perform(post("/payments/checkout")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", UUID.randomUUID().toString())
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
     }

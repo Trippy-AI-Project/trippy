@@ -46,7 +46,7 @@ const PLANS: PlanInfo[] = [
   },
   {
     id: "premium",
-    planId: "premium_monthly",
+    planId: "PREMIUM",
     name: "Premium",
     price: 9.99,
     interval: "month",
@@ -64,7 +64,7 @@ const PLANS: PlanInfo[] = [
   },
   {
     id: "pro",
-    planId: "enterprise_monthly",
+    planId: "ENTERPRISE",
     name: "Pro",
     price: 29.99,
     interval: "month",

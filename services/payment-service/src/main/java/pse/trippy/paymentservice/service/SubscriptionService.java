@@ -165,7 +165,7 @@ public class SubscriptionService {
                     "timestamp", Instant.now().toString()
             );
             rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.PAYMENT_EXCHANGE,
+                    RabbitMQConfig.TRIPPY_EVENTS_EXCHANGE,
                     "payment.subscription.activated",
                     event);
             log.info("Published payment.subscription.activated event for user {}", userId);
