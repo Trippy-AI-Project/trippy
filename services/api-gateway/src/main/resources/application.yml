@@ -35,17 +35,17 @@ spring:
           predicates:
             - Path=/.well-known/**
 
-        # Trip Service Routes
-        - id: trips-route
-          uri: http://localhost:8082
-          predicates:
-            - Path=/trips/**
-
         # Chat Service Routes (REST) - /trips/{tripId}/chat/**
         - id: trips-chat-route
           uri: http://localhost:8083
           predicates:
             - Path=/trips/{tripId}/chat/**
+
+        # Trip Service Routes
+        - id: trips-route
+          uri: http://localhost:8082
+          predicates:
+            - Path=/trips/**
 
         # Chat Service Routes (REST) - /chats/**
         - id: chats-route
