@@ -1,0 +1,100 @@
+{
+  "vhosts": [
+    {
+      "name": "trippy"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "trippy_mq",
+      "vhost": "trippy",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "trippy.events",
+      "vhost": "trippy",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "trippy.notifications",
+      "vhost": "trippy",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "trippy.dlx",
+      "vhost": "trippy",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "notification.email",
+      "vhost": "trippy",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "trippy.dlx"
+      }
+    },
+    {
+      "name": "notification.push",
+      "vhost": "trippy",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "trippy.dlx"
+      }
+    },
+    {
+      "name": "chat.messages",
+      "vhost": "trippy",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "trippy.dlx"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.email",
+      "destination_type": "queue",
+      "routing_key": "notification.email.#",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.notifications",
+      "vhost": "trippy",
+      "destination": "notification.push",
+      "destination_type": "queue",
+      "routing_key": "notification.push.#",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "chat.messages",
+      "destination_type": "queue",
+      "routing_key": "chat.message.#",
+      "arguments": {}
+    }
+  ]
+}
