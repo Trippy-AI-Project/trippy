@@ -125,6 +125,7 @@ public class ChatMessageService {
                 .fileUrl(stored.fileUrl())
                 .fileSize(stored.fileSize())
                 .contentType(stored.contentType())
+                .thumbnailUrl(stored.thumbnailUrl())
                 .build());
 
         log.info("File message {} with attachment {} persisted in room {} for trip {}",
@@ -155,7 +156,8 @@ public class ChatMessageService {
                         attachment.getFileName(),
                         attachment.getFileUrl(),
                         attachment.getFileSize(),
-                        attachment.getContentType());
+                        attachment.getContentType(),
+                        attachment.getThumbnailUrl());
 
         return ChatMessageResponse.builder()
                 .id(msg.getId())
