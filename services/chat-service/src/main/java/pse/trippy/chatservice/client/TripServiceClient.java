@@ -39,8 +39,8 @@ public class TripServiceClient {
             ResponseEntity<Void> response = restTemplate.getForEntity(url, Void.class);
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            log.warn("Failed to verify participant tripId={} userId={}: {}",
-                    tripId, userId, e.getMessage());
+            log.warn("Failed to verify participant tripId={} userId={}",
+                    tripId, userId, e);
             return false;
         }
     }

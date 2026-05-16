@@ -104,6 +104,7 @@ public class ChatMessageController {
             @PathVariable UUID tripId,
             @PathVariable String filename) {
 
+        validateFilename(filename);
         String filePath = tripId + "/" + filename;
         Resource resource = fileStorageService.getFile(filePath);
 
@@ -118,6 +119,7 @@ public class ChatMessageController {
             @PathVariable UUID tripId,
             @PathVariable String filename) {
 
+        validateFilename(filename);
         String filePath = tripId + "/thumbs/" + filename;
         Resource resource = fileStorageService.getFile(filePath);
 
@@ -126,5 +128,11 @@ public class ChatMessageController {
                         "inline; filename=\"" + resource.getFilename() + "\"")
                 .header(HttpHeaders.CONTENT_TYPE, "image/jpeg")
                 .body(resource);
+    }
+
+    private void validateFilename(String filename) {
+        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
+            throw new IllegalArgumentException("Invalid filename");
+        }
     }
 }

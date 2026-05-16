@@ -189,7 +189,7 @@ public class FileStorageService {
             }
             return tripId + "/" + THUMBNAIL_SUBDIR + "/" + thumbName;
         } catch (IOException | RuntimeException e) {
-            log.warn("Failed to generate thumbnail for {}: {}", source, e.getMessage());
+            log.warn("Failed to generate thumbnail for {}", source, e);
             return null;
         }
     }

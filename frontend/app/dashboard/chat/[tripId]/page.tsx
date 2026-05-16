@@ -140,7 +140,7 @@ export default function ChatPage() {
     if (!file) return;
 
     try {
-      const msg = await chatApi.uploadFile(tripId, file);
+      const msg = await chatApi.uploadFile(tripId, file, user?.userId ?? "", user?.displayName ?? "Anonymous");
       setMessages((prev) => [...prev, msg]);
       scrollToBottom();
       addToast("File uploaded", "success");

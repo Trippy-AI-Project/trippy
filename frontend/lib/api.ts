@@ -482,6 +482,7 @@ export interface ChatMessage {
     fileUrl: string;
     fileSize: number;
     contentType: string;
+    thumbnailUrl?: string;
   };
   createdAt: string;
   edited: boolean;
@@ -500,10 +501,11 @@ export const chatApi = {
     api.get<ChatMessagePage>(`/trips/${tripId}/chat/messages?page=${page}&size=${size}`),
   sendMessage: (tripId: string, content: string) =>
     api.post<ChatMessage>(`/trips/${tripId}/chat/messages`, { content }),
-  uploadFile: async (tripId: string, file: File): Promise<ChatMessage> => {
+  uploadFile: async (tripId: string, file: File, senderId: string, senderDisplayName: string): Promise<ChatMessage> => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("senderId", "");
+    formData.append("senderId", senderId);
+    formData.append("senderDisplayName", senderDisplayName);
     const token = getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
