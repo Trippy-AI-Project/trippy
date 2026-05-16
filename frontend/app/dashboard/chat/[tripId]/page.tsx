@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8080/ws/chat";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8080/ws";
 
 export default function ChatPage() {
   const params = useParams();
@@ -51,10 +51,10 @@ export default function ChatPage() {
     if (!tripId) return;
     setLoading(true);
     Promise.all([
-      chatApi.getMessages(tripId).catch(() => ({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 50 })),
+      chatApi.getMessages(tripId).catch(() => ({ messages: [], page: 0, size: 50, totalMessages: 0, hasMore: false })),
       chatApi.getParticipants(tripId).catch(() => []),
     ]).then(([msgData, parts]) => {
-      setMessages(msgData.content.reverse());
+      setMessages(msgData.messages.reverse());
       setParticipants(parts);
       setLoading(false);
       setTimeout(scrollToBottom, 100);
@@ -80,7 +80,7 @@ export default function ChatPage() {
             const chatMsg: ChatMessage = JSON.parse(msg.body);
             setMessages((prev) => {
               // Avoid duplicates
-              if (prev.some((m) => m.messageId === chatMsg.messageId)) return prev;
+              if (prev.some((m) => m.id === chatMsg.id)) return prev;
               return [...prev, chatMsg];
             });
             setTimeout(scrollToBottom, 50);
@@ -206,7 +206,7 @@ export default function ChatPage() {
 
               if (isSystem) {
                 return (
-                  <div key={msg.messageId} className="text-center">
+                  <div key={msg.id} className="text-center">
                     <span className="text-xs text-muted italic">{msg.content}</span>
                   </div>
                 );
@@ -214,13 +214,12 @@ export default function ChatPage() {
 
               return (
                 <div
-                  key={msg.messageId}
+                  key={msg.id}
                   className={cn("flex gap-2", isOwn ? "flex-row-reverse" : "flex-row")}
                 >
                   {!isOwn && (
                     <Avatar
-                      name={msg.senderName ?? "User"}
-                      src={msg.senderAvatarUrl}
+                      name={msg.senderDisplayName ?? "User"}
                       size="sm"
                     />
                   )}
@@ -234,7 +233,7 @@ export default function ChatPage() {
                   >
                     {!isOwn && (
                       <p className="text-xs font-medium text-trippy-400 mb-0.5">
-                        {msg.senderName ?? "Unknown"}
+                        {msg.senderDisplayName ?? "Unknown"}
                       </p>
                     )}
 
@@ -276,7 +275,7 @@ export default function ChatPage() {
                         isOwn ? "text-white/60" : "text-muted",
                       )}
                     >
-                      {formatTime(msg.sentAt)}
+                      {formatTime(msg.createdAt)}
                     </p>
                   </div>
                 </div>

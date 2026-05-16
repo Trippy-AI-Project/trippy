@@ -469,11 +469,9 @@ export const paymentsApi = {
 /* ------------------------------------------------------------------ */
 
 export interface ChatMessage {
-  messageId: string;
-  tripId: string;
+  id: string;
   senderId: string;
-  senderName?: string;
-  senderAvatarUrl?: string;
+  senderDisplayName?: string;
   type: "TEXT" | "IMAGE" | "FILE" | "SYSTEM";
   content: string;
   attachment?: {
@@ -483,24 +481,23 @@ export interface ChatMessage {
     fileSize: number;
     contentType: string;
   };
-  sentAt: string;
-  isEdited: boolean;
-  isDeleted: boolean;
+  createdAt: string;
+  edited: boolean;
 }
 
 export interface ChatMessagePage {
-  content: ChatMessage[];
-  totalElements: number;
-  totalPages: number;
-  number: number;
+  messages: ChatMessage[];
+  page: number;
   size: number;
+  totalMessages: number;
+  hasMore: boolean;
 }
 
 export const chatApi = {
   getMessages: (tripId: string, page = 0, size = 50) =>
-    api.get<ChatMessagePage>(`/chats/${tripId}/messages?page=${page}&size=${size}`),
+    api.get<ChatMessagePage>(`/trips/${tripId}/chat/messages?page=${page}&size=${size}`),
   sendMessage: (tripId: string, content: string) =>
-    api.post<ChatMessage>(`/chats/${tripId}/messages`, { content }),
+    api.post<ChatMessage>(`/trips/${tripId}/chat/messages`, { content }),
   uploadFile: async (tripId: string, file: File): Promise<ChatMessage> => {
     const formData = new FormData();
     formData.append("file", file);
@@ -508,7 +505,7 @@ export const chatApi = {
     const token = getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE_URL}/chats/${tripId}/messages/file`, {
+    const res = await fetch(`${API_BASE_URL}/trips/${tripId}/chat/messages/file`, {
       method: "POST",
       headers,
       body: formData,
