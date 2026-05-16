@@ -100,7 +100,7 @@ public class AuthService {
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .displayName(request.getDisplayName())
-                .role(UserRole.USER)
+                .role(UserRole.MEMBER)
                 .plan(SubscriptionPlan.FREE)
                 .emailVerified(true)
                 .build();
@@ -146,6 +146,7 @@ public class AuthService {
                 .bio(user.getBio())
                 .phoneNumber(user.getPhoneNumber())
                 .emailVerified(user.isEmailVerified())
+                .role(user.getRole())
                 .build();
 
         return LoginResponse.builder()

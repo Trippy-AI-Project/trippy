@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Baseline: API DTOs intentionally expose collection fields for JSON serialization contracts. -->
+    <Match>
+        <Class name="~pse\.trippy\.aiservice\.dto\..*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~pse\.trippy\.notificationservice\.dto\..*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Baseline: notification metadata is stored as a JSON-backed JPA map and kept mutable for ORM binding. -->
+    <Match>
+        <Class name="~pse\.trippy\.notificationservice\.model\.entity\.Notification(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Baseline: Spring-managed collaborators are injected and retained by controllers/services. -->
+    <Match>
+        <Class name="~pse\.trippy\.aiservice\.(controller|service)\..*"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~pse\.trippy\.notificationservice\.(controller|listener|service)\..*"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>

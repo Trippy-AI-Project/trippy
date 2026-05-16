@@ -10,7 +10,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,6 +20,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,9 +36,7 @@ import java.util.UUID;
 )
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
-@AllArgsConstructor
 public class GenerationHistory {
 
     @Id
@@ -68,19 +67,19 @@ public class GenerationHistory {
     private String promptHash;
 
     @Column(name = "fallback_used", nullable = false)
-    @Builder.Default
     private boolean fallbackUsed = false;
 
     @Column(name = "status", nullable = false, length = 20)
-    @Builder.Default
     private String status = "SUCCESS";
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "request_payload")
+    @Setter(AccessLevel.NONE)
     private Map<String, Object> requestPayload;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "response_payload")
+    @Setter(AccessLevel.NONE)
     private Map<String, Object> responsePayload;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -89,5 +88,58 @@ public class GenerationHistory {
     @PrePersist
     public void prePersist() {
         this.createdAt = Instant.now();
+    }
+
+    @Builder
+    private GenerationHistory(UUID id, UUID generationId, UUID tripId, String destination,
+                              LocalDate startDate, LocalDate endDate, String promptHash,
+                              boolean fallbackUsed, String status,
+                              Map<String, Object> requestPayload,
+                              Map<String, Object> responsePayload,
+                              Instant createdAt) {
+        this.id = id;
+        this.generationId = generationId;
+        this.tripId = tripId;
+        this.destination = destination;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.promptHash = promptHash;
+        this.fallbackUsed = fallbackUsed;
+        this.status = status == null ? "SUCCESS" : status;
+        setRequestPayload(requestPayload);
+        setResponsePayload(responsePayload);
+        this.createdAt = createdAt;
+    }
+
+    public Map<String, Object> getRequestPayload() {
+        return copyPayload(requestPayload);
+    }
+
+    public void setRequestPayload(Map<String, Object> requestPayload) {
+        this.requestPayload = copyPayload(requestPayload);
+    }
+
+    public Map<String, Object> getResponsePayload() {
+        return copyPayload(responsePayload);
+    }
+
+    public void setResponsePayload(Map<String, Object> responsePayload) {
+        this.responsePayload = copyPayload(responsePayload);
+    }
+
+    public static class GenerationHistoryBuilder {
+        public GenerationHistoryBuilder requestPayload(Map<String, Object> requestPayload) {
+            this.requestPayload = copyPayload(requestPayload);
+            return this;
+        }
+
+        public GenerationHistoryBuilder responsePayload(Map<String, Object> responsePayload) {
+            this.responsePayload = copyPayload(responsePayload);
+            return this;
+        }
+    }
+
+    private static Map<String, Object> copyPayload(Map<String, Object> payload) {
+        return payload == null ? null : new LinkedHashMap<>(payload);
     }
 }

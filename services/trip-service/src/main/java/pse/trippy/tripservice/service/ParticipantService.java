@@ -1,6 +1,7 @@
 package pse.trippy.tripservice.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ParticipantService {
 
@@ -33,6 +35,7 @@ public class ParticipantService {
 
     @Transactional
     public ParticipantActionResponse inviteParticipant(UUID tripId, InviteParticipantRequest request, UUID inviterId) {
+        log.info("Inviting user {} to trip {} by inviter {}", request.userId(), tripId, inviterId);
         Trip trip = findTripOrThrow(tripId);
         ensureOwner(tripId, inviterId);
 
@@ -54,6 +57,7 @@ public class ParticipantService {
                 .build();
         participant = participantRepository.save(participant);
 
+        log.info("User {} invited to trip {} successfully", request.userId(), tripId);
         publishEvent("trip.participant.invited", tripId, request.userId());
 
         return new ParticipantActionResponse("Participant invited successfully", toResponse(participant));
@@ -61,6 +65,7 @@ public class ParticipantService {
 
     @Transactional
     public ParticipantActionResponse acceptInvite(UUID tripId, UUID userId) {
+        log.info("User {} accepting invite for trip {}", userId, tripId);
         findTripOrThrow(tripId);
 
         Participant participant = participantRepository.findByTripIdAndUserId(tripId, userId)
@@ -74,6 +79,7 @@ public class ParticipantService {
         participant.setJoinedAt(Instant.now());
         participant = participantRepository.save(participant);
 
+        log.info("User {} joined trip {} successfully", userId, tripId);
         publishEvent("trip.participant.joined", tripId, userId);
 
         return new ParticipantActionResponse("Invitation accepted successfully", toResponse(participant));
@@ -81,6 +87,7 @@ public class ParticipantService {
 
     @Transactional
     public ParticipantActionResponse declineInvite(UUID tripId, UUID userId) {
+        log.info("User {} declining invite for trip {}", userId, tripId);
         findTripOrThrow(tripId);
 
         Participant participant = participantRepository.findByTripIdAndUserId(tripId, userId)
@@ -93,6 +100,7 @@ public class ParticipantService {
         participant.setStatus(ParticipantStatus.DECLINED);
         participant = participantRepository.save(participant);
 
+        log.info("User {} declined invite for trip {}", userId, tripId);
         publishEvent("trip.participant.declined", tripId, userId);
 
         return new ParticipantActionResponse("Invitation declined successfully", toResponse(participant));
@@ -100,6 +108,7 @@ public class ParticipantService {
 
     @Transactional
     public void leaveTrip(UUID tripId, UUID userId) {
+        log.info("User {} leaving trip {}", userId, tripId);
         findTripOrThrow(tripId);
 
         Participant participant = participantRepository.findByTripIdAndUserId(tripId, userId)
@@ -111,6 +120,7 @@ public class ParticipantService {
 
         participantRepository.delete(participant);
 
+        log.info("User {} left trip {} successfully", userId, tripId);
         publishEvent("trip.participant.left", tripId, userId);
     }
 
