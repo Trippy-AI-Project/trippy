@@ -66,15 +66,20 @@ export default function ChatPage() {
     if (!tripId) return;
 
     const token = getAccessToken();
+    const connectHeaders: Record<string, string> = {};
+    if (token) connectHeaders["Authorization"] = `Bearer ${token}`;
+    if (user?.userId) connectHeaders["X-User-Id"] = user.userId;
+    if (user?.displayName) connectHeaders["X-User-DisplayName"] = user.displayName;
+
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
-      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+      connectHeaders,
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
       onConnect: () => {
         setConnected(true);
-        // Subscribe to messages
+        // Subscribe to messages (pass user headers for backend auth interceptor)
         client.subscribe(`/topic/trips/${tripId}/messages`, (msg) => {
           try {
             const chatMsg: ChatMessage = JSON.parse(msg.body);
@@ -87,7 +92,7 @@ export default function ChatPage() {
           } catch {
             // ignore parse errors
           }
-        });
+        }, connectHeaders);
       },
       onDisconnect: () => setConnected(false),
       onStompError: () => setConnected(false),
@@ -100,7 +105,7 @@ export default function ChatPage() {
       client.deactivate();
       stompRef.current = null;
     };
-  }, [tripId, scrollToBottom]);
+  }, [tripId, scrollToBottom, user?.userId, user?.displayName]);
 
   async function handleSend(e: FormEvent) {
     e.preventDefault();
