@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   CreditCard,
+  UserCircle,
 } from "lucide-react";
 import { useState } from "react";
 import Logo from "@/components/Logo";
@@ -23,6 +24,7 @@ const navLinks = [
   { href: "/dashboard/chat", label: "Chat", icon: MessageSquare },
   { href: "/dashboard/payments", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/profile", label: "Profile", icon: UserCircle },
 ];
 
 export default function Navbar() {
@@ -69,12 +71,14 @@ export default function Navbar() {
         {/* Right side */}
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <Avatar
-            name={user?.displayName ?? "User"}
-            src={user?.avatarUrl}
-            size="sm"
-            className="cursor-pointer"
-          />
+          <Link href="/dashboard/profile">
+            <Avatar
+              name={user?.displayName ?? "User"}
+              src={user?.avatarUrl}
+              size="sm"
+              className="cursor-pointer hover:ring-2 hover:ring-trippy-400/50 rounded-full transition-all"
+            />
+          </Link>
 
           {/* Mobile hamburger */}
           <button

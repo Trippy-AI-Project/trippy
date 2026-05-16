@@ -79,7 +79,7 @@ spring:
 
 trippy:
   gateway:
-    jwks-uri: http://user-service:8081/.well-known/jwks.json
+    jwks-uri: ${JWKS_URI:http://localhost:8081/.well-known/jwks.json}
 
 management:
   endpoints:
