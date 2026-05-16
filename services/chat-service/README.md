@@ -2,7 +2,9 @@
 
 Real-time, per-trip group chat for the Trippy platform. Built on Spring Boot 3 +
 Spring WebSocket (STOMP) with PostgreSQL persistence and a RabbitMQ-relayed
-broker, exposed via the API Gateway under `/ws/chat` and `/chats`, `/trips/*/chat/*`.
+broker. The service registers its STOMP/SockJS endpoint at `/ws`; through the
+API Gateway the WebSocket path is `/ws/**`. REST endpoints are exposed under
+`/trips/*/chat/*` and `/chats/*`.
 
 ---
 
@@ -13,9 +15,9 @@ broker, exposed via the API Gateway under `/ws/chat` and `/chats`, `/trips/*/cha
 - **Participant verification** on subscribe (calls trip-service to confirm the
   user belongs to the trip before letting them subscribe to `/topic/trips/{id}/messages`).
 - **System messages** ("X joined/left the chat") broadcast on connect/disconnect.
-- **Online-presence broadcast** on `/topic/trips/{id}/participants`.
+- **Participant presence queries** via `GET /chats/{tripId}/participants`.
 - **Attachments** (10 MB limit, image/PDF/Office types) with auto-generated
-  200x200 JPEG thumbnails for images.
+  200×200 JPEG thumbnails for images.
 
 ## Tech stack
 
@@ -35,18 +37,15 @@ shown in parentheses.
 
 | Variable                                 | Purpose                                         |
 |------------------------------------------|-------------------------------------------------|
-| `SPRING_DATASOURCE_URL`                  | Postgres JDBC URL                               |
-| `SPRING_DATASOURCE_USERNAME`             | DB user                                         |
-| `SPRING_DATASOURCE_PASSWORD`             | DB password                                     |
-| `SPRING_RABBITMQ_HOST`                   | RabbitMQ broker host                            |
-| `SPRING_RABBITMQ_PORT`                   | AMQP port (5672)                                |
-| `SPRING_RABBITMQ_USERNAME` / `_PASSWORD` | RabbitMQ creds                                  |
-| `SPRING_RABBITMQ_VIRTUAL_HOST`           | RabbitMQ vhost (`/`)                            |
-| `STOMP_RELAY_HOST` / `STOMP_RELAY_PORT`  | STOMP relay (`localhost:61613`)                 |
-| `SPRING_DATA_REDIS_HOST` / `_PORT`       | Redis (optional, presence cache extension)      |
-| `TRIPPY_CHAT_UPLOAD_DIR`                 | Attachment storage root (`./uploads/chat`)      |
-| `TRIP_SERVICE_URL`                       | Base URL for trip-service participant check     |
-| `JWT_SECRET`                             | Shared secret for verifying gateway-issued JWTs |
+| `POSTGRES_HOST` / `POSTGRES_PORT`        | Postgres host (`localhost`) and port (`5434`)    |
+| `POSTGRES_DB`                            | Database name (`trippy_db`)                     |
+| `DB_USERNAME` / `DB_PASSWORD`            | Postgres credentials                            |
+| `RABBITMQ_HOST` / `RABBITMQ_PORT`        | RabbitMQ broker host (`localhost`) / AMQP port (`5672`) |
+| `MQ_USERNAME` / `MQ_PASSWORD`            | RabbitMQ credentials                            |
+| `RABBITMQ_DEFAULT_VHOST`                 | RabbitMQ vhost (`trippy`)                       |
+| STOMP relay port                         | Fixed to `61613` in `WebSocketConfig`           |
+| `TRIP_SERVICE_URL`                       | Base URL for trip-service participant check (`http://localhost:8082`) |
+| `trippy.chat.upload-dir`                 | Attachment storage root (`./uploads/chat`)      |
 
 ## Run it
 
@@ -54,9 +53,8 @@ shown in parentheses.
 
 ```bash
 cd infra/docker
-./setup.sh                # builds all service images
-docker compose up -d chat-service
-docker compose logs -f chat-service
+docker compose up -d --build
+docker compose logs -f
 ```
 
 ### Standalone (against already-running infra)
@@ -81,7 +79,7 @@ curl http://localhost:8083/actuator/health
 | POST   | `/trips/{tripId}/chat/messages/file`       | Upload image/file (multipart, ≤ 10 MB) |
 | GET    | `/chats/{tripId}/attachments`              | List all attachments for a trip        |
 | GET    | `/chats/files/{tripId}/{filename}`         | Download an original attachment        |
-| GET    | `/chats/files/{tripId}/thumbs/{filename}`  | Download an image thumbnail (200x200)  |
+| GET    | `/chats/files/{tripId}/thumbs/{filename}`  | Download an image thumbnail (200×200)  |
 | GET    | `/chats/{tripId}/participants`             | Currently connected user IDs           |
 | GET    | `/actuator/health`                         | Liveness + readiness                   |
 
@@ -92,8 +90,8 @@ Upload failure modes (returned via `GlobalExceptionHandler`):
 
 ## WebSocket / STOMP
 
-Endpoint (through the gateway): **`ws://localhost:8080/ws/chat`** (SockJS or
-native WebSocket). Direct: `ws://localhost:8083/ws/chat`.
+Endpoint (through the gateway): **`ws://localhost:8080/ws`** (SockJS).
+Direct: `ws://localhost:8083/ws`.
 
 | Direction | Destination                              | Payload                     |
 |-----------|------------------------------------------|-----------------------------|
@@ -103,13 +101,14 @@ native WebSocket). Direct: `ws://localhost:8083/ws/chat`.
 
 The `WebSocketAuthChannelInterceptor` rejects SUBSCRIBE frames for users who
 are not participants of the trip, throwing `MessageDeliveryException`. Clients
-must include the JWT in the CONNECT headers (`Authorization: Bearer …`).
+must include `X-User-Id` and `X-User-DisplayName` as STOMP CONNECT headers
+(the API Gateway extracts these from the validated JWT and forwards them).
 
 ## Domain entities
 
 - `ChatRoom` — one per trip (`chat_schema.chat_rooms`)
-- `ChatMessage` — `(id, chat_room_id, sender_id, sender_display_name, content, message_type, created_at)`
-- `MessageAttachment` — `(id, message_id, file_name, file_url, file_size, content_type, thumbnail_url)`
+- `ChatMessage` — `(id, room_id, sender_id, sender_display_name, content, message_type, deleted, created_at, edited_at)`
+- `MessageAttachment` — `(id, message_id, file_name, file_url, file_size, content_type)`
 
 ## Events consumed (RabbitMQ)
 
@@ -121,12 +120,13 @@ must include the JWT in the CONNECT headers (`Authorization: Bearer …`).
 
 ## How to verify it works locally
 
-1. `docker compose up -d` and wait for `chat-service` to be healthy.
-2. `curl -i http://localhost:8083/actuator/health` → expect `200 UP`.
-3. Open `http://localhost:3000/dashboard/chat/{tripId}` in the frontend with a
+1. Start infrastructure: `cd infra/docker && docker compose up -d`.
+2. Start chat-service: `./mvnw -pl services/chat-service spring-boot:run`.
+3. `curl -i http://localhost:8083/actuator/health` → expect `200 UP`.
+4. Open `http://localhost:3000/dashboard/chat/{tripId}` in the frontend with a
    logged-in user that participates in the trip; observe live message flow and
    the "X joined the chat" system message.
-4. Upload an image → `GET /chats/{tripId}/attachments` shows `thumbnailUrl`.
-5. Try uploading a `.exe` → expect HTTP **415**. Upload a >10 MB file → **413**.
-6. Subscribe to `/topic/trips/{id}/participants` in two browsers — closing one
-   tab should produce an updated participant set in the other.
+5. Upload an image → `GET /chats/{tripId}/attachments` lists the attachment.
+6. Try uploading a `.exe` → expect HTTP **415**. Upload a >10 MB file → **413**.
+7. Open in two browsers — closing one tab should produce a *"left the chat"*
+   system message in the other.
