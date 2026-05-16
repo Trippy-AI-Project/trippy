@@ -2,16 +2,18 @@ package pse.trippy.notificationservice.listener;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
+import pse.trippy.notificationservice.logging.CorrelationIds;
+import pse.trippy.notificationservice.logging.LogSanitizer;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 import pse.trippy.notificationservice.service.EmailService;
 import pse.trippy.notificationservice.service.NotificationService;
 
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -19,7 +21,9 @@ import java.util.UUID;
 @Slf4j
 public class NotificationEventListener {
 
-    private static final String DASHBOARD_URL = "https://trippy.app/dashboard";
+    private static final String APP_BASE_URL = "https://trippy.app";
+    private static final String DASHBOARD_PATH = "/dashboard";
+    private static final String DASHBOARD_URL = APP_BASE_URL + DASHBOARD_PATH;
 
     private final EmailService emailService;
     private final NotificationService notificationService;
@@ -27,9 +31,23 @@ public class NotificationEventListener {
     @RabbitListener(queues = "notification.events",
             messageConverter = "jsonMessageConverter")
     public void handleEvent(Object payload,
-                            @Header("amqp_receivedRoutingKey") String routingKey) {
-        log.info("Received event with routing key: {}", routingKey);
+                            @Header(name = "amqp_receivedRoutingKey") String routingKey,
+                            @Header(name = CorrelationIds.HEADER_NAME, required = false) String correlationId) {
+        String resolvedCorrelationId = CorrelationIds.resolve(correlationId);
+        MDC.put(CorrelationIds.MDC_KEY, resolvedCorrelationId);
+        try {
+            log.info("Received notification event routingKey={}", LogSanitizer.safeDetail(routingKey));
+            dispatchEvent(payload, routingKey);
+        } finally {
+            MDC.remove(CorrelationIds.MDC_KEY);
+        }
+    }
 
+    void handleEvent(Object payload, String routingKey) {
+        handleEvent(payload, routingKey, null);
+    }
+
+    private void dispatchEvent(Object payload, String routingKey) {
         switch (routingKey) {
             case "user.registered" -> handleUserRegistered(payload);
             case "user.email.verified" -> handleUserEmailVerified(payload);
@@ -39,111 +57,112 @@ public class NotificationEventListener {
             case "trip.updated" -> handleTripUpdated(payload);
             case "payment.completed" -> handlePaymentCompleted(payload);
             case "payment.failed" -> handlePaymentFailed(payload);
-            case "ai.itinerary.ready", "ai.itinerary.generated", "itinerary.ready" -> handleItineraryReady(payload);
+            case "ai.itinerary.ready", "ai.itinerary.generated", "itinerary.ready" -> handleItineraryGenerated(payload);
             case "system.notification" -> handleSystemNotification(payload);
-            default -> log.warn("Unknown routing key: {}", routingKey);
+            default -> log.warn("Unknown notification event routingKey={}", LogSanitizer.safeDetail(routingKey));
         }
     }
 
     void handleUserRegistered(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String email = stringValue(map, "email");
-            String displayName = defaultString(stringValue(map, "displayName"), "Traveler");
-            String verificationToken = stringValue(map, "verificationToken");
+            String email = text(map, "email");
+            String displayName = text(map, "displayName", "userName", "name");
+            String userId = text(map, "userId");
+            String verificationToken = text(map, "verificationToken", "verificationCode", "token");
 
-            log.info("Processing user.registered for {}", email);
-            sendTemplateEmail(
-                    email,
-                    "Verify your Trippy account",
-                    "email-verification",
-                    Map.of("userName", displayName,
-                            "verificationCode", defaultString(verificationToken, "")));
-
-            Optional<UUID> userId = uuidValue(map, "userId");
-            if (userId.isPresent() && verificationToken != null) {
-                notificationService.createNotification(
-                        userId.get(),
-                        NotificationType.EMAIL_VERIFICATION,
-                        "Verify your email",
-                        "Use the verification code we emailed to activate your Trippy account.",
-                        "/verify-email",
-                        metadata(map));
+            if (verificationToken == null || verificationToken.isBlank()) {
+                log.warn("Skipping notification event type=user.registered due to missing verification token recipient={} userId={}",
+                        LogSanitizer.maskEmail(email),
+                        LogSanitizer.safeDetail(userId));
+                return;
             }
+
+            log.info("Processing notification event type=user.registered recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, "Verify your Trippy account", "email-verification",
+                    variables("userName", fallback(displayName, "Traveler"),
+                            "verificationCode", verificationToken));
+
+            createNotification(userId, NotificationType.EMAIL_VERIFICATION,
+                    "Verify your email",
+                    "Use the verification code we emailed to activate your Trippy account.",
+                    "/verify-email",
+                    metadata(map, "userId"));
         }
     }
 
     void handleUserEmailVerified(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String email = stringValue(map, "email");
-            String displayName = defaultString(stringValue(map, "displayName"), "Traveler");
+            String email = text(map, "email");
+            String displayName = text(map, "displayName", "userName", "name");
+            String userId = text(map, "userId");
+            String resolvedDisplayName = fallback(displayName, "Traveler");
 
-            log.info("Processing user.email.verified for {}", email);
-            sendTemplateEmail(
-                    email,
-                    "Welcome to Trippy!",
-                    "welcome",
-                    Map.of("userName", displayName,
+            log.info("Processing notification event type=user.email.verified recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, "Welcome to Trippy!", "welcome",
+                    variables("userName", resolvedDisplayName,
                             "dashboardUrl", DASHBOARD_URL));
 
-            uuidValue(map, "userId").ifPresent(userId -> notificationService.createNotification(
-                    userId,
-                    NotificationType.WELCOME,
+            createNotification(userId, NotificationType.WELCOME,
                     "Welcome to Trippy!",
                     "Your email is verified and your account is ready.",
-                    DASHBOARD_URL,
-                    metadata(map)));
+                    "/dashboard",
+                    metadata(map, "userId"));
         }
     }
 
     void handlePasswordReset(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String email = stringValue(map, "email", "userEmail", "recipientEmail");
-            String userName = defaultString(stringValue(map, "userName", "displayName"), "Traveler");
-            String resetLink = defaultString(stringValue(map, "resetLink", "passwordResetUrl"), DASHBOARD_URL);
+            String email = text(map, "email");
+            String userName = fallback(text(map, "userName", "displayName", "name"), "Traveler");
+            String userId = validUuidText(map, "userId", "recipientUserId");
+            String resetLink = fallback(text(map, "resetLink", "passwordResetUrl", "link"), DASHBOARD_URL);
 
-            log.info("Processing user.password.reset for {}", email);
-            sendTemplateEmail(
-                    email,
-                    "Reset your Trippy password",
-                    "password-reset",
-                    Map.of("userName", userName,
+            log.info("Processing notification event type=user.password.reset recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, "Reset your Trippy password", "password-reset",
+                    variables("userName", userName,
                             "resetLink", resetLink));
 
-            uuidValue(map, "userId", "recipientUserId").ifPresent(userId -> notificationService.createNotification(
-                    userId,
-                    NotificationType.PASSWORD_RESET,
+            createNotification(userId, NotificationType.PASSWORD_RESET,
                     "Password Reset Requested",
                     "Use the password reset link we sent to update your Trippy password.",
                     "/login",
-                    metadata(map)));
+                    null);
         }
     }
 
     void handleTripInvitation(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String inviteeEmail = stringValue(map, "inviteeEmail", "participantEmail", "email");
-            String inviteeName = defaultString(stringValue(map, "inviteeName", "participantName", "userName"), "Traveler");
-            String inviterName = defaultString(stringValue(map, "inviterName"), "Someone");
-            String tripTitle = defaultString(stringValue(map, "tripTitle"), "your trip");
+            String inviteeEmail = text(map, "inviteeEmail", "participantEmail", "email");
+            String inviteeName = fallback(
+                    text(map, "inviteeName", "participantName", "userName", "displayName"),
+                    "Traveler");
+            String inviterName = fallback(text(map, "inviterName", "actorName"), "Someone");
+            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
+            String inviteeId = validUuidText(map, "inviteeId", "inviteeUserId", "participantId", "userId");
+            String tripId = text(map, "tripId");
+            String actionUrl = fallback(text(map, "actionUrl", "inviteLink", "link"), tripUrl(tripId));
 
-            log.info("Processing trip.invitation.created for {}", inviteeEmail);
-            sendTemplateEmail(
-                    inviteeEmail,
-                    inviterName + " invited you to " + tripTitle,
+            log.info("Processing notification event type=trip.invitation recipient={}",
+                    LogSanitizer.maskEmail(inviteeEmail));
+            sendTemplate(inviteeEmail, inviterName + " invited you to " + tripTitle,
                     "trip-invite",
-                    Map.of("inviteeName", inviteeName,
+                    variables("inviteeName", inviteeName,
+                            "userName", inviteeName,
                             "inviterName", inviterName,
                             "tripTitle", tripTitle,
-                            "dashboardUrl", DASHBOARD_URL));
+                            "tripName", tripTitle,
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
-            uuidValue(map, "inviteeId", "inviteeUserId", "participantId", "userId").ifPresent(inviteeId ->
-                    notificationService.createNotification(
-                            inviteeId,
-                            NotificationType.TRIP_INVITE,
-                            "Trip Invitation",
-                            inviterName + " invited you to " + tripTitle,
-                            tripActionUrl(map),
-                            metadata(map, "tripId", "tripTitle", "destination", "role")));
+            createNotification(inviteeId, NotificationType.TRIP_INVITE,
+                    "Trip Invitation",
+                    inviterName + " invited you to " + tripTitle,
+                    actionUrl,
+                    metadata(map, "tripId", "tripTitle", "destination", "role",
+                            "inviterId", "inviteeId", "inviteeUserId", "participantId"));
         }
     }
 
@@ -153,213 +172,293 @@ public class NotificationEventListener {
 
     void handleTripJoined(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String inviterEmail = stringValue(map, "inviterEmail");
-            String inviterName = defaultString(stringValue(map, "inviterName"), "Traveler");
-            String inviteeName = defaultString(stringValue(map, "inviteeName"), "Someone");
-            String tripTitle = defaultString(stringValue(map, "tripTitle"), "your trip");
+            String email = text(map, "inviterEmail", "email", "ownerEmail");
+            String userName = fallback(text(map, "inviterName", "userName", "displayName"), "Traveler");
+            String joinerName = fallback(text(map, "inviteeName", "participantName", "joinedBy"), "A traveler");
+            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "your trip");
+            String userId = text(map, "inviterId", "ownerId", "userId");
+            String tripId = text(map, "tripId");
+            String actionUrl = fallback(text(map, "actionUrl", "link"), tripUrl(tripId));
 
-            log.info("Processing trip.joined for {}", inviterEmail);
-            sendTemplateEmail(
-                    inviterEmail,
-                    inviteeName + " joined " + tripTitle,
+            log.info("Processing notification event type=trip.joined recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, joinerName + " joined " + tripTitle,
                     "trip-joined",
-                    Map.of("inviterName", inviterName,
-                            "inviteeName", inviteeName,
+                    variables("userName", userName,
+                            "inviterName", userName,
+                            "inviteeName", joinerName,
+                            "joinerName", joinerName,
+                            "participantName", joinerName,
                             "tripTitle", tripTitle,
-                            "dashboardUrl", DASHBOARD_URL));
+                            "tripName", tripTitle,
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
-            uuidValue(map, "inviterId", "userId", "recipientUserId").ifPresent(inviterId ->
-                    notificationService.createNotification(
-                            inviterId,
-                            NotificationType.TRIP_JOINED,
-                            "Traveler Joined",
-                            inviteeName + " joined " + tripTitle,
-                            tripActionUrl(map),
-                            metadata(map, "tripId", "tripTitle", "destination")));
+            createNotification(userId, NotificationType.TRIP_JOINED,
+                    "Trip Joined",
+                    joinerName + " joined " + tripTitle,
+                    actionUrl,
+                    metadata(map, "tripId", "inviteeId", "participantId"));
         }
     }
 
     void handleTripUpdated(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String email = stringValue(map, "email");
-            String userName = defaultString(stringValue(map, "userName"), "Traveler");
-            String tripTitle = defaultString(stringValue(map, "tripTitle"), "your trip");
-            String updatedBy = defaultString(stringValue(map, "updatedBy"), "");
+            String email = text(map, "email");
+            String userName = fallback(text(map, "userName", "displayName"), "Traveler");
+            String userId = text(map, "userId");
+            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "your trip");
+            String updatedBy = fallback(text(map, "updatedBy", "actorName"), "");
+            String tripId = text(map, "tripId");
+            String actionUrl = fallback(text(map, "actionUrl", "link"), tripUrl(tripId));
 
-            log.info("Processing trip.updated for {}", email);
-            sendTemplateEmail(
-                    email,
-                    "Trip updated: " + tripTitle,
+            log.info("Processing notification event type=trip.updated recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, "Trip updated: " + tripTitle,
                     "trip-updated",
-                    Map.of("userName", userName,
+                    variables("userName", userName,
                             "tripTitle", tripTitle,
                             "updatedBy", updatedBy,
-                            "dashboardUrl", DASHBOARD_URL));
+                            "dashboardUrl", emailUrl(actionUrl)));
 
-            uuidValue(map, "userId").ifPresent(userId -> notificationService.createNotification(
-                    userId,
-                    NotificationType.TRIP_UPDATED,
+            createNotification(userId, NotificationType.TRIP_UPDATED,
                     "Trip Updated",
                     "The trip " + tripTitle + " has been updated",
-                    tripActionUrl(map),
-                    metadata(map, "tripId", "tripTitle", "destination", "updatedFields")));
+                    actionUrl,
+                    metadata(map, "tripId", "updatedBy"));
         }
     }
 
     void handlePaymentCompleted(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String email = stringValue(map, "email");
-            String userName = defaultString(stringValue(map, "userName"), "Traveler");
-            String amount = defaultString(stringValue(map, "amount"), "");
-            String planName = defaultString(stringValue(map, "planName"), "Trippy");
+            String email = text(map, "email");
+            String userName = fallback(text(map, "userName", "displayName"), "Traveler");
+            String userId = text(map, "userId");
+            String amount = fallback(text(map, "amount"), "0.00");
+            String planName = fallback(text(map, "planName", "plan"), "Trippy plan");
+            String actionUrl = fallback(text(map, "actionUrl", "link"), "/dashboard/payments");
 
-            log.info("Processing payment.completed for {}", email);
-            sendTemplateEmail(
-                    email,
-                    "Payment successful - " + amount + " EUR for " + planName,
+            log.info("Processing notification event type=payment.completed recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, "Payment successful - " + amount + " EUR for " + planName,
                     "payment-success",
-                    Map.of("userName", userName,
+                    variables("userName", userName,
                             "amount", amount,
                             "planName", planName,
-                            "dashboardUrl", DASHBOARD_URL));
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
-            uuidValue(map, "userId").ifPresent(userId -> notificationService.createNotification(
-                    userId,
-                    NotificationType.PAYMENT_SUCCESS,
+            createNotification(userId, NotificationType.PAYMENT_SUCCESS,
                     "Payment Successful",
                     "Your payment of " + amount + " EUR for " + planName + " was successful",
-                    DASHBOARD_URL,
-                    metadata(map, "paymentId", "transactionId", "amount", "planName")));
+                    actionUrl,
+                    metadata(map, "paymentId", "transactionId", "planName", "amount"));
         }
     }
 
     void handlePaymentFailed(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String email = stringValue(map, "email");
-            String userName = defaultString(stringValue(map, "userName"), "Traveler");
+            String email = text(map, "email");
+            String userName = fallback(text(map, "userName", "displayName"), "Traveler");
+            String userId = text(map, "userId");
+            String actionUrl = fallback(text(map, "actionUrl", "link"), "/dashboard/payments");
 
-            log.info("Processing payment.failed for {}", email);
-            sendTemplateEmail(
-                    email,
-                    "Payment could not be processed",
+            log.info("Processing notification event type=payment.failed recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, "Payment could not be processed",
                     "payment-failed",
-                    Map.of("userName", userName,
-                            "dashboardUrl", DASHBOARD_URL));
+                    variables("userName", userName,
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
-            uuidValue(map, "userId").ifPresent(userId -> notificationService.createNotification(
-                    userId,
-                    NotificationType.PAYMENT_FAILED,
+            createNotification(userId, NotificationType.PAYMENT_FAILED,
                     "Payment Failed",
                     "Your payment could not be processed. Please check your payment details.",
-                    DASHBOARD_URL,
-                    metadata(map, "paymentId", "transactionId", "planName", "failureCode")));
+                    actionUrl,
+                    metadata(map, "paymentId", "transactionId"));
         }
     }
 
-    void handleItineraryReady(Object payload) {
+    void handleItineraryGenerated(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String tripTitle = defaultString(stringValue(map, "tripTitle"), "your trip");
-            String tripUrl = tripActionUrl(map);
+            String email = text(map, "email");
+            String userName = fallback(text(map, "userName", "displayName"), "Traveler");
+            String userId = text(map, "userId");
+            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "your trip");
+            String tripId = text(map, "tripId");
+            String generationId = text(map, "generationId");
+            String destination = fallback(text(map, "destination"), tripTitle);
+            String actionUrl = fallback(text(map, "actionUrl", "link"), tripUrl(tripId));
 
-            sendTemplateEmail(
-                    stringValue(map, "email"),
-                    "Your Trippy itinerary is ready",
+            log.info("Processing notification event type=ai.itinerary.generated recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, "Your Trippy itinerary is ready",
                     "itinerary-ready",
-                    Map.of("userName", defaultString(stringValue(map, "userName"), "Traveler"),
+                    variables("userName", userName,
                             "tripTitle", tripTitle,
-                            "destination", defaultString(stringValue(map, "destination"), ""),
-                            "tripUrl", tripUrl));
+                            "tripName", tripTitle,
+                            "generationId", generationId,
+                            "destination", destination,
+                            "tripUrl", emailUrl(actionUrl),
+                            "dashboardUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
-            uuidValue(map, "userId", "ownerId", "recipientUserId").ifPresent(userId ->
-                    notificationService.createNotification(
-                            userId,
-                            NotificationType.ITINERARY_READY,
-                            "Itinerary Ready",
-                            "Your itinerary for " + tripTitle + " is ready to review.",
-                            tripUrl,
-                            metadata(map, "tripId", "tripTitle", "destination", "generationId")));
+            createNotification(userId, NotificationType.ITINERARY_READY,
+                    "Itinerary Ready",
+                    "Your itinerary for " + tripTitle + " is ready to review.",
+                    actionUrl,
+                    metadata(map, "tripId", "generationId"));
         }
     }
 
     void handleSystemNotification(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String title = defaultString(stringValue(map, "title"), "Trippy update");
-            String message = defaultString(stringValue(map, "message"), "You have a new Trippy notification.");
-            String actionUrl = defaultString(stringValue(map, "actionUrl"), DASHBOARD_URL);
+            String email = text(map, "email");
+            String userName = fallback(text(map, "userName", "displayName"), "Traveler");
+            String userId = text(map, "userId", "recipientUserId");
+            String title = fallback(text(map, "title"), "Trippy update");
+            String message = fallback(text(map, "message"), "You have a new Trippy notification.");
+            String actionUrl = fallback(text(map, "actionUrl", "link"), "/dashboard");
 
-            sendTemplateEmail(
-                    stringValue(map, "email"),
-                    title,
-                    "system-notification",
-                    Map.of("userName", defaultString(stringValue(map, "userName"), "Traveler"),
+            log.info("Processing notification event type=system.notification recipient={}",
+                    LogSanitizer.maskEmail(email));
+            sendTemplate(email, title, "system-notification",
+                    variables("userName", userName,
                             "title", title,
                             "message", message,
-                            "actionUrl", actionUrl));
+                            "actionUrl", emailUrl(actionUrl),
+                            "link", emailUrl(actionUrl)));
 
-            uuidValue(map, "userId", "recipientUserId").ifPresent(userId ->
-                    notificationService.createNotification(
-                            userId,
-                            NotificationType.SYSTEM,
-                            title,
-                            message,
-                            actionUrl,
-                            metadata(map, "category", "severity")));
+            createNotification(userId, NotificationType.SYSTEM,
+                    title,
+                    message,
+                    actionUrl,
+                    metadata(map, "category", "severity"));
         }
     }
 
-    private void sendTemplateEmail(String to, String subject, String templateName,
-                                   Map<String, Object> variables) {
-        if (to == null || to.isBlank()) {
-            log.debug("Skipping {} email because no recipient was supplied", templateName);
+    private void sendTemplate(String email, String subject, String templateName,
+                              Map<String, Object> variables) {
+        if (email == null || email.isBlank()) {
+            log.warn("Skipping {} email because recipient is missing", templateName);
             return;
         }
-        emailService.sendTemplateEmail(to, subject, templateName, variables);
+        emailService.sendTemplateEmail(email, subject, templateName, variables);
     }
 
-    private Optional<UUID> uuidValue(Map<?, ?> map, String... fieldNames) {
-        for (String fieldName : fieldNames) {
-            Object value = map.get(fieldName);
-            if (value == null) {
-                continue;
-            }
-            try {
-                return Optional.of(UUID.fromString(value.toString()));
-            } catch (IllegalArgumentException ex) {
-                log.warn("Skipping malformed UUID in {}: {}", fieldName, value);
-            }
+    private void createNotification(String userId, NotificationType type, String title,
+                                    String message, String actionUrl,
+                                    Map<String, Object> metadata) {
+        UUID parsedUserId = uuid(userId);
+        if (parsedUserId == null) {
+            return;
         }
-        return Optional.empty();
+        notificationService.createNotification(parsedUserId, type, title, message,
+                inAppActionUrl(actionUrl), metadata);
     }
 
-    private String stringValue(Map<?, ?> map, String... fieldNames) {
-        for (String fieldName : fieldNames) {
-            Object value = map.get(fieldName);
-            if (value != null) {
+    private String tripUrl(String tripId) {
+        return tripId == null || tripId.isBlank()
+                ? DASHBOARD_PATH
+                : "/dashboard/trips/" + tripId;
+    }
+
+    private String emailUrl(String actionUrl) {
+        if (actionUrl == null || actionUrl.isBlank()) {
+            return DASHBOARD_URL;
+        }
+
+        String trimmed = actionUrl.trim();
+        if (trimmed.equals(APP_BASE_URL) || trimmed.equals(APP_BASE_URL + "/")) {
+            return DASHBOARD_URL;
+        } else if (trimmed.startsWith(APP_BASE_URL + "/")) {
+            return trimmed;
+        } else if (trimmed.startsWith("https://") || trimmed.startsWith("http://")
+                || trimmed.startsWith("//")) {
+            log.warn("Falling back to dashboard email URL because action URL is not internal");
+            return DASHBOARD_URL;
+        }
+        if (trimmed.startsWith("/")) {
+            return APP_BASE_URL + trimmed;
+        }
+        return APP_BASE_URL + "/" + trimmed;
+    }
+
+    private String inAppActionUrl(String actionUrl) {
+        if (actionUrl == null || actionUrl.isBlank()) {
+            return actionUrl;
+        }
+
+        String trimmed = actionUrl.trim();
+        if (trimmed.equals(APP_BASE_URL) || trimmed.equals(APP_BASE_URL + "/")) {
+            return DASHBOARD_PATH;
+        }
+        if (trimmed.startsWith(APP_BASE_URL + "/")) {
+            return trimmed.substring(APP_BASE_URL.length());
+        }
+        return trimmed;
+    }
+
+    private String fallback(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String text(Map<?, ?> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null && !value.toString().isBlank()) {
                 return value.toString();
             }
         }
         return null;
     }
 
-    private String defaultString(String value, String fallback) {
-        return value != null && !value.isBlank() ? value : fallback;
+    private String validUuidText(Map<?, ?> map, String... keys) {
+        for (String key : keys) {
+            String value = text(map, key);
+            if (value == null) {
+                continue;
+            }
+            try {
+                UUID.fromString(value);
+                return value;
+            } catch (IllegalArgumentException ex) {
+                log.warn("Ignoring notification UUID field={} because value is malformed",
+                        LogSanitizer.safeDetail(key));
+            }
+        }
+        return null;
     }
 
-    private String tripActionUrl(Map<?, ?> map) {
-        String tripId = stringValue(map, "tripId");
-        return tripId != null && !tripId.isBlank()
-                ? "/dashboard/trips/" + tripId
-                : DASHBOARD_URL;
+    private Map<String, Object> variables(Object... keyValues) {
+        Map<String, Object> variables = new HashMap<>();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            Object value = keyValues[i + 1];
+            variables.put(keyValues[i].toString(), value == null ? "" : value);
+        }
+        return variables;
     }
 
-    private Map<String, Object> metadata(Map<?, ?> map, String... allowedKeys) {
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        for (String key : allowedKeys) {
+    private Map<String, Object> metadata(Map<?, ?> map, String... keys) {
+        Map<String, Object> metadata = new HashMap<>();
+        for (String key : keys) {
             Object value = map.get(key);
             if (value != null) {
                 metadata.put(key, value);
             }
         }
-        return metadata.isEmpty() ? null : metadata;
+        return metadata;
+    }
+
+    private UUID uuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            log.warn("Skipping notification because user id is not a UUID");
+            return null;
+        }
     }
 }

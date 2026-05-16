@@ -2,6 +2,7 @@ package pse.trippy.tripservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,6 +26,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/trips")
+@Slf4j
 @RequiredArgsConstructor
 public class TripController {
 
@@ -34,6 +36,7 @@ public class TripController {
     public ResponseEntity<TripResponse> createTrip(
             @Valid @RequestBody CreateTripRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips — Create trip request from user={}", userId);
         TripResponse response = tripService.createTrip(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -43,6 +46,7 @@ public class TripController {
             @RequestHeader("X-User-Id") UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+        log.info("GET /trips — List trips for user={}, page={}, size={}", userId, page, size);
         TripPageResponse response = tripService.listMyTrips(userId, page, size);
         return ResponseEntity.ok(response);
     }
@@ -51,6 +55,7 @@ public class TripController {
     public ResponseEntity<TripDetailResponse> getTripDetail(
             @PathVariable UUID tripId,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("GET /trips/{} — Get trip detail, user={}", tripId, userId);
         TripDetailResponse response = tripService.getTripDetail(tripId, userId);
         return ResponseEntity.ok(response);
     }
@@ -60,6 +65,7 @@ public class TripController {
             @PathVariable UUID tripId,
             @Valid @RequestBody UpdateTripRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("PATCH /trips/{} — Update trip, user={}", tripId, userId);
         TripResponse response = tripService.updateTrip(tripId, request, userId);
         return ResponseEntity.ok(response);
     }
@@ -68,6 +74,7 @@ public class TripController {
     public ResponseEntity<Void> deleteTrip(
             @PathVariable UUID tripId,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("DELETE /trips/{} — Delete trip, user={}", tripId, userId);
         tripService.deleteTrip(tripId, userId);
         return ResponseEntity.noContent().build();
     }
