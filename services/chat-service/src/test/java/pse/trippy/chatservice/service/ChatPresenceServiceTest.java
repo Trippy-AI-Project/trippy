@@ -41,7 +41,7 @@ class ChatPresenceServiceTest {
         boolean added = presenceService.addUser(tripId, userId);
 
         assertThat(added).isTrue();
-        assertThat(presenceService.getConnectedUsers(tripId)).containsExactly(userId);
+        assertThat(presenceService.getConnectedUsers(tripId)).containsExactlyInAnyOrder(userId);
         verify(messagingTemplate, times(1))
                 .convertAndSend(eq("/topic/trips/" + tripId + "/participants"), any(Set.class));
     }

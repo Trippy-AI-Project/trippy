@@ -35,7 +35,7 @@ public class ChatPresenceService {
                 k -> ConcurrentHashMap.newKeySet());
         boolean added = users.add(userId);
         if (added) {
-            log.info("User {} joined chat for trip {} (total: {})", userId, tripId, users.size());
+            log.debug("User {} joined chat for trip {} (total: {})", userId, tripId, users.size());
             broadcastParticipants(tripId, users);
         }
         return added;
@@ -45,15 +45,13 @@ public class ChatPresenceService {
      * Removes a user from a trip's chat room and broadcasts the updated participant list.
      */
     public void removeUser(UUID tripId, UUID userId) {
-        Set<UUID> users = roomParticipants.get(tripId);
-        if (users != null && users.remove(userId)) {
-            log.info("User {} left chat for trip {} (total: {})", userId, tripId, users.size());
-            // Broadcast a snapshot before potentially removing the empty room.
-            broadcastParticipants(tripId, users);
-            if (users.isEmpty()) {
-                roomParticipants.remove(tripId);
+        roomParticipants.computeIfPresent(tripId, (key, users) -> {
+            if (users.remove(userId)) {
+                log.debug("User {} left chat for trip {} (remaining: {})", userId, tripId, users.size());
+                broadcastParticipants(tripId, users);
             }
-        }
+            return users.isEmpty() ? null : users;
+        });
     }
 
     /**
@@ -70,7 +68,7 @@ public class ChatPresenceService {
                     String.format(PARTICIPANTS_TOPIC, tripId),
                     Set.copyOf(users));
         } catch (Exception e) {
-            log.warn("Failed to broadcast participant update for trip {}: {}", tripId, e.getMessage());
+            log.warn("Failed to broadcast participant update for trip {}", tripId, e);
         }
     }
 }
