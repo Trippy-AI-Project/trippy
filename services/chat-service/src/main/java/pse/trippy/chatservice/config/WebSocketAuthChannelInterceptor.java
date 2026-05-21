@@ -67,7 +67,12 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             return;
         }
 
-        UUID tripId = UUID.fromString(matcher.group(1));
+        UUID tripId;
+        try {
+            tripId = UUID.fromString(matcher.group(1));
+        } catch (IllegalArgumentException e) {
+            throw new MessageDeliveryException("Invalid trip id in destination");
+        }
         String topicSuffix = matcher.group(2);
         String userIdHeader = accessor.getFirstNativeHeader("X-User-Id");
         String displayName = accessor.getFirstNativeHeader("X-User-DisplayName");
