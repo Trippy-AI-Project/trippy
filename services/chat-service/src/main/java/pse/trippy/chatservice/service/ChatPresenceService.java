@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tracks which users are currently connected to each chat room (in-memory)
@@ -31,27 +33,45 @@ public class ChatPresenceService {
      * @return true if the user was newly added (first join), false if already present
      */
     public boolean addUser(UUID tripId, UUID userId) {
-        Set<UUID> users = roomParticipants.computeIfAbsent(tripId,
-                k -> ConcurrentHashMap.newKeySet());
-        boolean added = users.add(userId);
-        if (added) {
-            log.debug("User {} joined chat for trip {} (total: {})", userId, tripId, users.size());
-            broadcastParticipants(tripId, users);
+        AtomicBoolean added = new AtomicBoolean(false);
+        AtomicReference<Set<UUID>> participantsSnapshot = new AtomicReference<>();
+
+        roomParticipants.compute(tripId, (key, users) -> {
+            Set<UUID> updatedUsers = users == null ? ConcurrentHashMap.newKeySet() : users;
+            if (updatedUsers.add(userId)) {
+                log.debug("User {} joined chat for trip {} (total: {})", userId, tripId, updatedUsers.size());
+                added.set(true);
+                participantsSnapshot.set(Set.copyOf(updatedUsers));
+            }
+            return updatedUsers;
+        });
+
+        if (added.get()) {
+            broadcastParticipants(tripId, participantsSnapshot.get());
         }
-        return added;
+        return added.get();
     }
 
     /**
      * Removes a user from a trip's chat room and broadcasts the updated participant list.
      */
     public void removeUser(UUID tripId, UUID userId) {
-        roomParticipants.computeIfPresent(tripId, (key, users) -> {
+        AtomicReference<Set<UUID>> participantsSnapshot = new AtomicReference<>();
+
+        roomParticipants.compute(tripId, (key, users) -> {
+            if (users == null) {
+                return null;
+            }
             if (users.remove(userId)) {
                 log.debug("User {} left chat for trip {} (remaining: {})", userId, tripId, users.size());
-                broadcastParticipants(tripId, users);
+                participantsSnapshot.set(Set.copyOf(users));
             }
             return users.isEmpty() ? null : users;
         });
+
+        if (participantsSnapshot.get() != null) {
+            broadcastParticipants(tripId, participantsSnapshot.get());
+        }
     }
 
     /**
