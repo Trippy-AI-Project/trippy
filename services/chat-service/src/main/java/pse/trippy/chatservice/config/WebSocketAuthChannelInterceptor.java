@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final Pattern TOPIC_PATTERN =
-            Pattern.compile("^/topic/trips/([0-9a-fA-F\\-]+)/messages$");
+            Pattern.compile("^/topic/trips/([0-9a-fA-F\\-]+)/(messages|participants)$");
 
     private final TripServiceClient tripServiceClient;
     private final ChatPresenceService chatPresenceService;
@@ -68,6 +68,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         UUID tripId = UUID.fromString(matcher.group(1));
+        String topicSuffix = matcher.group(2);
         String userIdHeader = accessor.getFirstNativeHeader("X-User-Id");
         String displayName = accessor.getFirstNativeHeader("X-User-DisplayName");
 
@@ -83,12 +84,19 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         if (!tripServiceClient.isParticipant(tripId, userId)) {
-            log.warn("User {} denied subscription to trip {} - not a participant", userId, tripId);
+            log.warn("User {} denied subscription to trip {} ({}) - not a participant",
+                    userId, tripId, topicSuffix);
             throw new MessageDeliveryException(
                     "User is not a participant of trip " + tripId);
         }
 
-        log.info("User {} verified as participant for trip {}", userId, tripId);
+        log.info("User {} verified as participant for trip {} ({})", userId, tripId, topicSuffix);
+
+        // Presence tracking + join-message side effects only apply to the main
+        // messages topic. Subscribing to /participants is a read-only view.
+        if (!"messages".equals(topicSuffix)) {
+            return;
+        }
 
         // Track presence and broadcast join message if new
         boolean newJoin = chatPresenceService.addUser(tripId, userId);
