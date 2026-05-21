@@ -10,11 +10,13 @@
         </encoder>
     </appender>
 
-    <!-- Production profile: structured JSON -->
+    <!-- Production profile: single-line JSON-ish records using built-in encoder.
+         Avoids the optional logstash-logback-encoder dependency so the app
+         starts cleanly with -Dspring.profiles.active=prod. -->
     <springProfile name="prod">
         <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-                <customFields>{"service":"${APP_NAME}"}</customFields>
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>{"service":"${APP_NAME}","timestamp":"%date{ISO8601}","level":"%level","thread":"%thread","logger":"%logger{36}","message":"%replace(%msg){'\"','\\\"'}"}%n</pattern>
             </encoder>
         </appender>
         <root level="INFO">
