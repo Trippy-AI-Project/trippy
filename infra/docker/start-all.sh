@@ -1,5 +1,5 @@
 #!/bin/sh
-# Start all Trippy services in background, then tail logs
+# Start all Trippy services in the background and wait for them to exit.
 set -e
 
 echo "==> Starting User Service (8081)..."

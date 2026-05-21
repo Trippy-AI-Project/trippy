@@ -16,7 +16,9 @@
     <springProfile name="prod">
         <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-                <pattern>{"service":"${APP_NAME}","timestamp":"%date{ISO8601}","level":"%level","thread":"%thread","logger":"%logger{36}","message":"%replace(%msg){'\"','\\\"'}"}%n</pattern>
+                <!-- Escape \, then \n / \r / \t, then " — order matters so the
+                     backslash replacement doesn't double-escape the others. -->
+                <pattern>{"service":"${APP_NAME}","timestamp":"%date{ISO8601}","level":"%level","thread":"%thread","logger":"%logger{36}","message":"%replace(%replace(%replace(%replace(%replace(%msg){'\\','\\\\'}){'\n','\\n'}){'\r','\\r'}){'\t','\\t'}){'\"','\\\"'}"}%n</pattern>
             </encoder>
         </appender>
         <root level="INFO">
