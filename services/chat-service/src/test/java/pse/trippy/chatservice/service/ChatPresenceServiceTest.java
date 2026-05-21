@@ -47,7 +47,7 @@ class ChatPresenceServiceTest {
     }
 
     @Test
-    void addUser_duplicate_returnsFalseAndDoesNotBroadcast() {
+    void addUser_duplicate_returnsFalseAndDoesNotBroadcastAgain() {
         presenceService.addUser(tripId, userId);
 
         boolean added = presenceService.addUser(tripId, userId);
