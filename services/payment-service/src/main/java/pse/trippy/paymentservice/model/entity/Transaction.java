@@ -53,7 +53,7 @@ public class Transaction {
     private TransactionStatus status = TransactionStatus.PENDING;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = true, length = 20)
     @Builder.Default
     private TransactionType type = TransactionType.SUBSCRIPTION;
 
