@@ -22,78 +22,114 @@
       "auto_delete": false,
       "internal": false,
       "arguments": {}
-    },
-    {
-      "name": "trippy.notifications",
-      "vhost": "trippy",
-      "type": "topic",
-      "durable": true,
-      "auto_delete": false,
-      "internal": false,
-      "arguments": {}
-    },
-    {
-      "name": "trippy.dlx",
-      "vhost": "trippy",
-      "type": "topic",
-      "durable": true,
-      "auto_delete": false,
-      "internal": false,
-      "arguments": {}
     }
   ],
   "queues": [
     {
-      "name": "notification.email",
+      "name": "notification.events",
       "vhost": "trippy",
       "durable": true,
       "auto_delete": false,
       "arguments": {
-        "x-dead-letter-exchange": "trippy.dlx"
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "notification.events.dlq"
       }
     },
     {
-      "name": "notification.push",
+      "name": "notification.events.dlq",
       "vhost": "trippy",
       "durable": true,
       "auto_delete": false,
-      "arguments": {
-        "x-dead-letter-exchange": "trippy.dlx"
-      }
-    },
-    {
-      "name": "chat.messages",
-      "vhost": "trippy",
-      "durable": true,
-      "auto_delete": false,
-      "arguments": {
-        "x-dead-letter-exchange": "trippy.dlx"
-      }
+      "arguments": {}
     }
   ],
   "bindings": [
     {
       "source": "trippy.events",
       "vhost": "trippy",
-      "destination": "notification.email",
+      "destination": "notification.events",
       "destination_type": "queue",
-      "routing_key": "notification.email.#",
-      "arguments": {}
-    },
-    {
-      "source": "trippy.notifications",
-      "vhost": "trippy",
-      "destination": "notification.push",
-      "destination_type": "queue",
-      "routing_key": "notification.push.#",
+      "routing_key": "user.registered",
       "arguments": {}
     },
     {
       "source": "trippy.events",
       "vhost": "trippy",
-      "destination": "chat.messages",
+      "destination": "notification.events",
       "destination_type": "queue",
-      "routing_key": "chat.message.#",
+      "routing_key": "user.password.reset",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "trip.invitation.created",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "trip.participant.invited",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "trip.invitation.accepted",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "trip.updated",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "payment.completed",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "payment.failed",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "ai.itinerary.ready",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "ai.itinerary.generated",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "system.notification",
       "arguments": {}
     }
   ]
