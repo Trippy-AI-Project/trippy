@@ -59,8 +59,4 @@ management:
 
 logging:
   level:
-    pse.trippy.chatservice: INFO
-    org.hibernate.SQL: WARN
-    org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator: ERROR
-    org.springframework.messaging.simp.stomp.StompBrokerRelayMessageHandler: ERROR
-    reactor.netty.tcp.TcpClient: ERROR
+    root: INFO

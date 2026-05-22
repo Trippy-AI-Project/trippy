@@ -1,11 +1,15 @@
 package pse.trippy.tripservice.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pse.trippy.tripservice.config.RabbitMQConfig;
 import pse.trippy.tripservice.dto.request.CreateTripRequest;
 import pse.trippy.tripservice.dto.request.UpdateTripRequest;
 import pse.trippy.tripservice.dto.response.ParticipantResponse;
@@ -29,14 +33,18 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TripService {
 
     private final TripRepository tripRepository;
     private final ParticipantRepository participantRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     @Transactional
     public TripResponse createTrip(CreateTripRequest request, UUID userId) {
+        log.info("Creating trip: title='{}', destination='{}', visibility={}, requestedBy={}",
+                request.title(), request.destination(), request.visibility(), userId);
         validateDates(request.startDate(), request.endDate());
 
         Trip trip = Trip.builder()
@@ -62,13 +70,23 @@ public class TripService {
                 .build();
         participantRepository.save(owner);
 
+        log.info("Trip created successfully: tripId={}, title='{}', destination='{}', createdBy={}",
+                trip.getId(), trip.getTitle(), trip.getDestination(), userId);
+
+        // Notify user-service so it can upgrade the creator's role to HOST
+        publishTripCreatedEvent(trip.getId(), userId);
+
         return toTripResponse(trip);
     }
 
     @Transactional(readOnly = true)
     public TripPageResponse listMyTrips(UUID userId, int page, int size) {
+        log.debug("Listing trips for user={}, page={}, size={}", userId, page, size);
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "startDate"));
         Page<Trip> tripPage = tripRepository.findTripsByParticipantUserId(userId, pageRequest);
+
+        log.info("Listed {} trip(s) for user={} (page {}/{})",
+                tripPage.getNumberOfElements(), userId, page + 1, tripPage.getTotalPages());
 
         List<TripResponse> trips = tripPage.getContent().stream()
                 .map(this::toTripResponse)
@@ -86,6 +104,7 @@ public class TripService {
 
     @Transactional(readOnly = true)
     public TripDetailResponse getTripDetail(UUID tripId, UUID userId) {
+        log.debug("Fetching trip detail: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
         ensureParticipant(tripId, userId);
 
@@ -98,6 +117,7 @@ public class TripService {
 
     @Transactional
     public TripResponse updateTrip(UUID tripId, UpdateTripRequest request, UUID userId) {
+        log.info("Updating trip: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
         ensureOwner(tripId, userId);
 
@@ -133,15 +153,18 @@ public class TripService {
         }
 
         trip = tripRepository.save(trip);
+        log.info("Trip updated: tripId={}, title='{}', updatedBy={}", trip.getId(), trip.getTitle(), userId);
         return toTripResponse(trip);
     }
 
     @Transactional
     public void deleteTrip(UUID tripId, UUID userId) {
+        log.info("Deleting (cancelling) trip: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
         ensureOwner(tripId, userId);
         trip.setStatus(TripStatus.CANCELLED);
         tripRepository.save(trip);
+        log.info("Trip cancelled: tripId={}, title='{}', deletedBy={}", tripId, trip.getTitle(), userId);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -187,6 +210,25 @@ public class TripService {
             return TripStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new InvalidTripDataException("Invalid status: " + status);
+        }
+    }
+
+    /**
+     * Publishes a {@code trip.created} event to RabbitMQ so that user-service
+     * can upgrade the creator's platform role to HOST.
+     */
+    private void publishTripCreatedEvent(UUID tripId, UUID createdBy) {
+        java.util.Map<String, Object> event = java.util.Map.of(
+                "eventType", "trip.created",
+                "tripId", tripId.toString(),
+                "createdBy", createdBy.toString(),
+                "timestamp", java.time.Instant.now().toString()
+        );
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.created", event);
+            log.info("Published trip.created event: tripId={}, createdBy={}", tripId, createdBy);
+        } catch (AmqpException ex) {
+            log.error("Failed to publish trip.created event for tripId={}", tripId, ex);
         }
     }
 

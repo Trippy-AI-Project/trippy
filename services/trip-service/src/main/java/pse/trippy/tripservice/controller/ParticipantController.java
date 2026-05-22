@@ -2,6 +2,7 @@ package pse.trippy.tripservice.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,6 +23,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/trips/{tripId}/participants")
+@Slf4j
 @RequiredArgsConstructor
 public class ParticipantController {
 
@@ -32,6 +34,7 @@ public class ParticipantController {
             @PathVariable UUID tripId,
             @Valid @RequestBody InviteParticipantRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips/{}/participants/invite — Invite user={}, by={}", tripId, request.userId(), userId);
         ParticipantActionResponse response = participantService.inviteParticipant(tripId, request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -40,6 +43,7 @@ public class ParticipantController {
     public ResponseEntity<ParticipantActionResponse> accept(
             @PathVariable UUID tripId,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips/{}/participants/accept — user={}", tripId, userId);
         ParticipantActionResponse response = participantService.acceptInvite(tripId, userId);
         return ResponseEntity.ok(response);
     }
@@ -48,6 +52,7 @@ public class ParticipantController {
     public ResponseEntity<ParticipantActionResponse> decline(
             @PathVariable UUID tripId,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips/{}/participants/decline — user={}", tripId, userId);
         ParticipantActionResponse response = participantService.declineInvite(tripId, userId);
         return ResponseEntity.ok(response);
     }
@@ -56,6 +61,7 @@ public class ParticipantController {
     public ResponseEntity<Void> leave(
             @PathVariable UUID tripId,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("DELETE /trips/{}/participants/leave — user={}", tripId, userId);
         participantService.leaveTrip(tripId, userId);
         return ResponseEntity.noContent().build();
     }
@@ -64,6 +70,7 @@ public class ParticipantController {
     public ResponseEntity<List<ParticipantResponse>> list(
             @PathVariable UUID tripId,
             @RequestHeader("X-User-Id") UUID userId) {
+        log.info("GET /trips/{}/participants — user={}", tripId, userId);
         List<ParticipantResponse> response = participantService.listParticipants(tripId, userId);
         return ResponseEntity.ok(response);
     }

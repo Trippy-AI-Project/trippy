@@ -2,13 +2,32 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Filter, MapPin, Loader2 } from "lucide-react";
-import { motion } from "framer-motion";
+import {
+  Plus,
+  Search,
+  MapPin,
+  Loader2,
+  Plane,
+  Globe2,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button, Input } from "@/components/ui";
 import TripCard from "@/components/trips/TripCard";
 import CreateTripModal from "@/components/trips/CreateTripModal";
 import { tripsApi, type Trip, type CreateTripRequest } from "@/lib/api";
 import { useToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
+
+const STATUS_TABS = [
+  { key: "", label: "All trips" },
+  { key: "DRAFT", label: "Drafts" },
+  { key: "PLANNED", label: "Planned" },
+  { key: "ONGOING", label: "Active" },
+  { key: "COMPLETED", label: "Completed" },
+] as const;
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -30,7 +49,6 @@ export default function DashboardPage() {
       setTrips(data.content);
       setTotalPages(data.totalPages);
     } catch {
-      // If API is not available, show empty state
       setTrips([]);
       setTotalPages(0);
     } finally {
@@ -57,6 +75,8 @@ export default function DashboardPage() {
     ? trips.filter((t) => t.status === filterStatus)
     : trips;
 
+  const tripCount = filteredTrips.length;
+
   return (
     <>
       <CreateTripModal
@@ -65,133 +85,250 @@ export default function DashboardPage() {
         onCreate={handleCreateTrip}
       />
 
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <motion.h1
-            className="text-2xl font-bold tracking-tight sm:text-3xl"
-            initial={{ opacity: 0, y: 10 }}
+      {/* ── Hero header ─────────────────────────────────────────── */}
+      <section className="relative mb-8">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          {/* Left: Title + subtitle */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.45 }}
           >
-            My Trips
-          </motion.h1>
-          <p className="mt-1 text-muted">
-            {loading ? "Loading..." : `${filteredTrips.length} trip${filteredTrips.length !== 1 ? "s" : ""}`}
-          </p>
-        </div>
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              My Trips
+            </h1>
+            <p className="mt-1.5 text-sm text-muted">
+              {loading
+                ? "Loading your adventures..."
+                : `${tripCount} trip${tripCount !== 1 ? "s" : ""} in your collection`}
+            </p>
+          </motion.div>
 
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus size={16} /> New Trip
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search
-            size={16}
-            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted"
-          />
-          <Input
-            placeholder="Search trips..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-          />
-        </div>
-        <div className="flex gap-2">
-          {["", "DRAFT", "PLANNED", "ONGOING", "COMPLETED"].map((status) => (
-            <Button
-              key={status}
-              variant={filterStatus === status ? "primary" : "secondary"}
-              size="sm"
-              onClick={() => setFilterStatus(status)}
+          {/* Right: Create button */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.35, delay: 0.15 }}
+          >
+            <button
+              onClick={() => setCreateOpen(true)}
+              className={cn(
+                "group relative inline-flex items-center gap-2.5 overflow-hidden",
+                "rounded-2xl px-6 py-3.5 font-semibold text-white shadow-lg",
+                "bg-gradient-to-r from-accent-500 to-accent-600",
+                "transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5",
+                "focus-visible:focus-ring cursor-pointer"
+              )}
             >
-              {status || "All"}
-            </Button>
-          ))}
+              {/* Shimmer overlay */}
+              <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              <Plus size={18} strokeWidth={2.5} />
+              <span>New Trip</span>
+            </button>
+          </motion.div>
         </div>
-      </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="mt-16 flex justify-center">
-          <Loader2 size={32} className="animate-spin text-trippy-500" />
-        </div>
-      ) : filteredTrips.length === 0 ? (
-        /* Empty state */
+        {/* ── Search + filter bar ──────────────────────────────── */}
         <motion.div
-          className="mt-16 flex flex-col items-center text-center"
-          initial={{ opacity: 0, y: 20 }}
+          className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center"
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
         >
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-trippy-500/10">
-            <MapPin size={40} className="text-trippy-500" />
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search
+              size={16}
+              className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted"
+            />
+            <Input
+              placeholder="Search by title or destination..."
+              className="pl-10 rounded-xl"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(0);
+              }}
+            />
           </div>
-          <h3 className="mt-6 text-lg font-semibold">
-            {searchQuery ? "No trips found" : "Plan your first adventure!"}
-          </h3>
-          <p className="mt-2 max-w-sm text-muted">
-            {searchQuery
-              ? "Try a different search term or clear your filters."
-              : "Create a trip to start planning your next journey with friends."}
-          </p>
-          {!searchQuery && (
-            <Button className="mt-6" onClick={() => setCreateOpen(true)}>
-              <Plus size={16} /> Create your first trip
-            </Button>
-          )}
-        </motion.div>
-      ) : (
-        <>
-          {/* Trip grid */}
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTrips.map((trip) => (
-              <div
-                key={trip.tripId}
-                onClick={() => router.push(`/dashboard/trips/${trip.tripId}`)}
-                className="cursor-pointer"
+
+          {/* Status tabs */}
+          <div className="flex gap-1 rounded-xl bg-surface border border-border p-1">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setFilterStatus(tab.key)}
+                className={cn(
+                  "relative px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 cursor-pointer",
+                  filterStatus === tab.key
+                    ? "text-white"
+                    : "text-muted hover:text-foreground"
+                )}
               >
-                <TripCard
-                  title={trip.title}
-                  destination={trip.destination}
-                  startDate={trip.startDate ?? "TBD"}
-                  endDate={trip.endDate ?? "TBD"}
-                  status={trip.status === "ONGOING" ? "ACTIVE" : trip.status as "DRAFT" | "PLANNED" | "ACTIVE" | "COMPLETED" | "CANCELLED"}
-                  participantCount={trip.participantCount}
-                  coverImageUrl={trip.coverImageUrl}
-                />
-              </div>
+                {filterStatus === tab.key && (
+                  <motion.span
+                    layoutId="activeTab"
+                    className="absolute inset-0 rounded-lg bg-trippy-500"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{tab.label}</span>
+              </button>
             ))}
           </div>
+        </motion.div>
+      </section>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-8 flex items-center justify-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page === 0}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-muted">
-                Page {page + 1} of {totalPages}
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= totalPages - 1}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
+      {/* ── Content ─────────────────────────────────────────────── */}
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div
+            key="loading"
+            className="mt-20 flex flex-col items-center gap-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="relative">
+              <div className="h-12 w-12 rounded-full border-3 border-shore-200 border-t-accent-500 animate-spin" />
+              <Plane
+                size={16}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-accent-500"
+              />
             </div>
-          )}
-        </>
-      )}
+            <p className="text-sm text-muted">Loading trips...</p>
+          </motion.div>
+        ) : filteredTrips.length === 0 ? (
+          /* ── Empty state ──────────────────────────────────────── */
+          <motion.div
+            key="empty"
+            className="mt-24 flex flex-col items-center text-center"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="relative">
+              {/* Decorative rings */}
+              <div className="absolute inset-0 -m-4 rounded-full border-2 border-dashed border-accent-200/60 animate-[spin_30s_linear_infinite]" />
+              <div className="absolute inset-0 -m-9 rounded-full border border-dashed border-trippy-200/40 animate-[spin_45s_linear_infinite_reverse]" />
+              <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-accent-100 to-accent-50">
+                {searchQuery ? (
+                  <Search size={40} className="text-accent-500" />
+                ) : (
+                  <Globe2 size={44} className="text-accent-500" />
+                )}
+              </div>
+            </div>
+
+            <h3 className="mt-8 text-xl font-bold">
+              {searchQuery ? "No trips found" : "Your next adventure awaits"}
+            </h3>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
+              {searchQuery
+                ? "Try a different search term or clear your filters to see all trips."
+                : "Start planning an unforgettable journey. Create your first trip and invite friends to join the adventure."}
+            </p>
+
+            {!searchQuery && (
+              <button
+                onClick={() => setCreateOpen(true)}
+                className={cn(
+                  "mt-7 group relative inline-flex items-center gap-2.5 overflow-hidden",
+                  "rounded-2xl px-7 py-3.5 font-semibold text-white shadow-lg",
+                  "bg-gradient-to-r from-accent-500 to-accent-600",
+                  "transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5",
+                  "cursor-pointer"
+                )}
+              >
+                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                <Sparkles size={17} />
+                <span>Create your first trip</span>
+              </button>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="trips"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* ── Trip grid ───────────────────────────────────────── */}
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredTrips.map((trip, i) => (
+                <motion.div
+                  key={trip.tripId}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: i * 0.06 }}
+                  onClick={() =>
+                    router.push(`/dashboard/trips/${trip.tripId}`)
+                  }
+                  className="cursor-pointer"
+                >
+                  <TripCard
+                    title={trip.title}
+                    destination={trip.destination}
+                    startDate={trip.startDate ?? "TBD"}
+                    endDate={trip.endDate ?? "TBD"}
+                    status={
+                      trip.status === "ONGOING"
+                        ? "ACTIVE"
+                        : (trip.status as
+                            | "DRAFT"
+                            | "PLANNED"
+                            | "ACTIVE"
+                            | "COMPLETED"
+                            | "CANCELLED")
+                    }
+                    participantCount={trip.participantCount}
+                    coverImageUrl={trip.coverImageUrl}
+                  />
+                </motion.div>
+              ))}
+            </div>
+
+            {/* ── Pagination ──────────────────────────────────────── */}
+            {totalPages > 1 && (
+              <div className="mt-10 flex items-center justify-center gap-3">
+                <button
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-all hover:bg-surface-hover hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPage(i)}
+                      className={cn(
+                        "h-9 min-w-[2.25rem] rounded-xl text-xs font-medium transition-all cursor-pointer",
+                        page === i
+                          ? "bg-trippy-500 text-white shadow-sm"
+                          : "text-muted hover:bg-surface-hover hover:text-foreground"
+                      )}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-all hover:bg-surface-hover hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

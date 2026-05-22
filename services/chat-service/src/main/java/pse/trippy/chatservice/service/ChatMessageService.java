@@ -56,7 +56,7 @@ public class ChatMessageService {
                 .messageType(messageType)
                 .build());
 
-        log.info("Message {} persisted in room {} for trip {}",
+        log.debug("Message {} persisted in room {} for trip {}",
                 message.getId(), room.getId(), tripId);
 
         ChatMessageResponse response = toResponse(message);
@@ -125,9 +125,10 @@ public class ChatMessageService {
                 .fileUrl(stored.fileUrl())
                 .fileSize(stored.fileSize())
                 .contentType(stored.contentType())
+                .thumbnailUrl(stored.thumbnailUrl())
                 .build());
 
-        log.info("File message {} with attachment {} persisted in room {} for trip {}",
+        log.debug("File message {} with attachment {} persisted in room {} for trip {}",
                 message.getId(), attachment.getId(), room.getId(), tripId);
 
         ChatMessageResponse response = toResponse(message, attachment);
@@ -155,7 +156,8 @@ public class ChatMessageService {
                         attachment.getFileName(),
                         attachment.getFileUrl(),
                         attachment.getFileSize(),
-                        attachment.getContentType());
+                        attachment.getContentType(),
+                        attachment.getThumbnailUrl());
 
         return ChatMessageResponse.builder()
                 .id(msg.getId())
