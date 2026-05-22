@@ -19,6 +19,7 @@ import pse.trippy.userservice.model.enums.UserRole;
 import pse.trippy.userservice.service.EmailVerificationService;
 import pse.trippy.userservice.service.UserProfileService;
 import pse.trippy.userservice.service.UserService;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -54,7 +55,7 @@ class UserControllerTest {
     @MockBean 
     private UserService userService;
 
-    @MockBean private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+    @MockBean private JwtDecoder jwtDecoder;
 
     private static final String GET_ME_URL = "/users/me";
     private static final String PATCH_ME_URL = "/users/me";

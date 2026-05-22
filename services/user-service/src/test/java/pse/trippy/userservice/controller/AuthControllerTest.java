@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -19,7 +20,7 @@ import pse.trippy.userservice.service.AuthService;
 import pse.trippy.userservice.service.JwtService;
 import pse.trippy.userservice.service.UserService;
 import pse.trippy.userservice.TestFixtures;
-
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -34,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AuthController.class)
 @Import(SecurityConfig.class)
 @ActiveProfiles("test")
+@AutoConfigureMockMvc(addFilters = false)
 @DisplayName("AuthController")
 class AuthControllerTest {
 
@@ -52,7 +54,7 @@ class AuthControllerTest {
     @MockBean 
     private JwtService jwtService;
 
-    @MockBean private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+    @MockBean private JwtDecoder jwtDecoder;
 
     private static final String REGISTER_URL = "/auth/register";
 
