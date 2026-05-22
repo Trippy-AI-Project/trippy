@@ -52,6 +52,8 @@ class AuthControllerTest {
     @MockBean 
     private JwtService jwtService;
 
+    @MockBean private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
     private static final String REGISTER_URL = "/auth/register";
 
     // =========================================================================

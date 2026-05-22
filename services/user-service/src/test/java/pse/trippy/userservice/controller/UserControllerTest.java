@@ -54,6 +54,8 @@ class UserControllerTest {
     @MockBean 
     private UserService userService;
 
+    @MockBean private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
     private static final String GET_ME_URL = "/users/me";
     private static final String PATCH_ME_URL = "/users/me";
 

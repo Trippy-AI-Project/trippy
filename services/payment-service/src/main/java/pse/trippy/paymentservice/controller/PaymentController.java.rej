@@ -1,0 +1,18 @@
+diff a/services/payment-service/src/main/java/pse/trippy/paymentservice/controller/PaymentController.java b/services/payment-service/src/main/java/pse/trippy/paymentservice/controller/PaymentController.java	(rejected hunks)
+@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
+ import pse.trippy.paymentservice.dto.request.AddPaymentMethodRequest;
+ import pse.trippy.paymentservice.dto.request.CancelSubscriptionRequest;
+ import pse.trippy.paymentservice.dto.request.CheckoutRequest;
++import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
+ import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
+ import pse.trippy.paymentservice.dto.response.CheckoutResponse;
+ import pse.trippy.paymentservice.dto.response.PaymentMethodResponse;
+@@ -51,7 +52,7 @@ public class PaymentController {
+ 
+     @PostMapping("/subscription/confirm")
+     public ResponseEntity<PaymentConfirmationResponse> confirmPayment(
+-            @Valid @RequestBody pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest request,
++            @Valid @RequestBody PaymentConfirmationRequest request,
+             @RequestHeader("X-User-Id") UUID userId) {
+         PaymentConfirmationResponse response = subscriptionService.confirmPayment(userId, request);
+         return ResponseEntity.status(HttpStatus.CREATED).body(response);
