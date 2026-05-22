@@ -101,19 +101,23 @@ export default function PaymentPage() {
     }
   }, [searchParams, addToast]);
 
-  // Load data
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
+  async function loadData() {
+    const [sub, meth, txns] = await Promise.all([
       paymentsApi.getSubscription().catch(() => null),
       paymentsApi.getMethods().catch(() => []),
       paymentsApi.getTransactions().catch(() => []),
-    ]).then(([sub, meth, txns]) => {
-      setSubscription(sub);
-      setMethods(meth);
-      setTransactions(txns);
-      setLoading(false);
-    });
+    ]);
+
+    setSubscription(sub);
+    setMethods(meth);
+    setTransactions(txns);
+    setLoading(false);
+  }
+
+  // Load data
+  useEffect(() => {
+    setLoading(true);
+    loadData();
   }, []);
 
   async function handleCheckout(planId: string) {
@@ -127,9 +131,7 @@ export default function PaymentPage() {
     try {
       await paymentsApi.checkout(planId, defaultMethod.paymentMethodId);
       addToast("Subscription updated!", "success");
-      // Refresh data
-      const sub = await paymentsApi.getSubscription().catch(() => null);
-      setSubscription(sub);
+      await loadData();
     } catch {
       addToast("Payment failed. Please try again.", "error");
     } finally {
@@ -141,8 +143,8 @@ export default function PaymentPage() {
     if (!confirm("Are you sure you want to cancel your subscription? It will remain active until the end of your billing period.")) return;
     setCancelLoading(true);
     try {
-      const sub = await paymentsApi.cancelSubscription(false);
-      setSubscription(sub);
+      await paymentsApi.cancelSubscription(false);
+      await loadData();
       addToast("Subscription will be cancelled at the end of this billing period", "info");
     } catch {
       addToast("Failed to cancel subscription", "error");
@@ -165,6 +167,7 @@ export default function PaymentPage() {
       });
       setMethods((prev) => [...prev, method]);
       setShowAddCard(false);
+      await loadData();
       addToast("Payment method added", "success");
     } catch {
       addToast("Failed to add payment method", "error");
@@ -175,6 +178,7 @@ export default function PaymentPage() {
     try {
       await paymentsApi.deleteMethod(id);
       setMethods((prev) => prev.filter((m) => m.paymentMethodId !== id));
+      await loadData();
       addToast("Payment method removed", "success");
     } catch {
       addToast("Failed to remove payment method", "error");
@@ -423,7 +427,10 @@ export default function PaymentPage() {
                     </td>
                     <td className="px-4 py-3">{tx.description}</td>
                     <td className="px-4 py-3">
-                      €{Number(tx.amount).toFixed(2)}
+                      {new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency: tx.currency,
+                      }).format(Number(tx.amount))}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={tx.status === "COMPLETED" ? "success" : "default"}>

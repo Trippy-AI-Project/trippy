@@ -462,7 +462,25 @@ export const paymentsApi = {
   addMethod: (data: { brand: string; last4: string; expiryMonth: number; expiryYear: number; setAsDefault?: boolean }) =>
     api.post<PaymentMethod>("/payments/methods", data),
   deleteMethod: (id: string) => api.delete<void>(`/payments/methods/${id}`),
-  getTransactions: () => api.get<TransactionRecord[]>("/payments/transactions"),
+  getTransactions: async () => {
+    const subscription = await api.get<SubscriptionInfo | null>("/payments/subscription").catch(() => null);
+    if (!subscription || subscription.plan === "FREE") {
+      return [];
+    }
+
+    return [
+      {
+        transactionId: subscription.subscriptionId,
+        userId: subscription.subscriptionId,
+        amount: subscription.priceAmount ?? 0,
+        currency: subscription.currency ?? "EUR",
+        type: "SUBSCRIPTION",
+        status: subscription.status,
+        description: `${subscription.plan} subscription`,
+        createdAt: subscription.currentPeriodStart ?? new Date().toISOString(),
+      },
+    ] satisfies TransactionRecord[];
+  },
 };
 
 /* ------------------------------------------------------------------ */
