@@ -18,6 +18,7 @@ import pse.trippy.userservice.model.enums.SubscriptionPlan;
 import pse.trippy.userservice.model.enums.UserRole;
 import pse.trippy.userservice.service.EmailVerificationService;
 import pse.trippy.userservice.service.UserProfileService;
+import pse.trippy.userservice.service.UserService;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -49,6 +50,9 @@ class UserControllerTest {
 
     @MockBean
     private EmailVerificationService emailVerificationService;
+
+    @MockBean 
+    private UserService userService;
 
     private static final String GET_ME_URL = "/users/me";
     private static final String PATCH_ME_URL = "/users/me";

@@ -15,6 +15,8 @@ import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.EmailAlreadyExistsException;
 import pse.trippy.userservice.service.AuthService;
+import pse.trippy.userservice.service.JwtService;
+import pse.trippy.userservice.service.UserService;
 import pse.trippy.userservice.TestFixtures;
 
 import java.util.UUID;
@@ -41,6 +43,12 @@ class AuthControllerTest {
 
     @MockBean
     private AuthService authService;
+
+    @MockBean 
+    private UserService userService;
+    
+    @MockBean 
+    private JwtService jwtService;
 
     private static final String REGISTER_URL = "/auth/register";
 

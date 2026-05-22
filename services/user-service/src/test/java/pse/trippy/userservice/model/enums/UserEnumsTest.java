@@ -29,15 +29,23 @@ class UserEnumsTest {
     }
 
     @Test
-    @DisplayName("UserRole has exactly two values")
-    void userRoleHasTwoValues() {
-        assertThat(UserRole.values()).containsExactlyInAnyOrder(UserRole.USER, UserRole.ADMIN);
+    @DisplayName("UserRole contains all expected roles including legacy USER")
+    void userRoleHasAllValues() {
+        assertThat(UserRole.values())
+            .containsExactlyInAnyOrder(
+                    UserRole.MEMBER,
+                    UserRole.HOST,
+                    UserRole.USER,      
+                    UserRole.ADMIN
+            );
     }
 
     @Test
     @DisplayName("UserRole.valueOf handles valid string")
     void userRoleValueOfValid() {
-        assertThat(UserRole.valueOf("USER")).isEqualTo(UserRole.USER);
+        assertThat(UserRole.valueOf("MEMBER")).isEqualTo(UserRole.MEMBER);
+        assertThat(UserRole.valueOf("HOST")).isEqualTo(UserRole.HOST);
+        assertThat(UserRole.valueOf("USER")).isEqualTo(UserRole.USER); // legacy
         assertThat(UserRole.valueOf("ADMIN")).isEqualTo(UserRole.ADMIN);
     }
 
