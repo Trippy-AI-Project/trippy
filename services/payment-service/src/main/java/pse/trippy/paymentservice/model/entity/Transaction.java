@@ -15,6 +15,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import pse.trippy.paymentservice.model.enums.PlanType;
 import pse.trippy.paymentservice.model.enums.TransactionStatus;
+import pse.trippy.paymentservice.model.enums.TransactionType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -53,6 +54,13 @@ public class Transaction {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", length = 30)
+    private TransactionType type;
+
+    @Column(name = "description", length = 512)
+    private String description;
 
     @PrePersist
     public void prePersist() {
