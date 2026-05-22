@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.paymentservice.dto.request.AddPaymentMethodRequest;
 import pse.trippy.paymentservice.dto.request.CancelSubscriptionRequest;
-import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
-import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
+import pse.trippy.paymentservice.dto.request.CheckoutRequest;
+import pse.trippy.paymentservice.dto.response.CheckoutResponse;
 import pse.trippy.paymentservice.dto.response.PaymentMethodResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.dto.response.SubscriptionResponse;
@@ -41,11 +41,12 @@ public class PaymentController {
     }
 
     @PostMapping("/checkout")
-    public ResponseEntity<PaymentConfirmationResponse> confirmPayment(
-            @Valid @RequestBody PaymentConfirmationRequest request,
+    public ResponseEntity<CheckoutResponse> checkout(
+            @Valid @RequestBody CheckoutRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
-        PaymentConfirmationResponse response = subscriptionService.confirmPayment(userId, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        CheckoutResponse response = paymentService.checkout(userId, request);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/subscription")
