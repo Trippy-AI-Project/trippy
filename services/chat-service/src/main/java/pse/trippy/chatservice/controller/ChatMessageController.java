@@ -94,7 +94,7 @@ public class ChatMessageController {
         java.util.List<MessageAttachmentResponse> attachments = attachmentRepository.findByTripId(tripId)
                 .stream()
                 .map(a -> new MessageAttachmentResponse(a.getId(), a.getFileName(),
-                        a.getFileUrl(), a.getFileSize(), a.getContentType()))
+                        a.getFileUrl(), a.getFileSize(), a.getContentType(), a.getThumbnailUrl()))
                 .toList();
         return ResponseEntity.ok(attachments);
     }
@@ -104,6 +104,7 @@ public class ChatMessageController {
             @PathVariable UUID tripId,
             @PathVariable String filename) {
 
+        validateFilename(filename);
         String filePath = tripId + "/" + filename;
         Resource resource = fileStorageService.getFile(filePath);
 
@@ -111,5 +112,27 @@ public class ChatMessageController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + resource.getFilename() + "\"")
                 .body(resource);
+    }
+
+    @GetMapping("/chats/files/{tripId}/thumbs/{filename}")
+    public ResponseEntity<Resource> downloadThumbnail(
+            @PathVariable UUID tripId,
+            @PathVariable String filename) {
+
+        validateFilename(filename);
+        String filePath = tripId + "/thumbs/" + filename;
+        Resource resource = fileStorageService.getFile(filePath);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"" + resource.getFilename() + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, "image/jpeg")
+                .body(resource);
+    }
+
+    private void validateFilename(String filename) {
+        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
+            throw new IllegalArgumentException("Invalid filename");
+        }
     }
 }
