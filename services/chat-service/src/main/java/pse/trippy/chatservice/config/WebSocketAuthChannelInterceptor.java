@@ -88,7 +88,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
                     "User is not a participant of trip " + tripId);
         }
 
-        log.info("User {} verified as participant for trip {}", userId, tripId);
+        log.debug("User {} verified as participant for trip {}", userId, tripId);
 
         // Track presence and broadcast join message if new
         boolean newJoin = chatPresenceService.addUser(tripId, userId);
@@ -107,8 +107,8 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
                         name + " joined the chat",
                         MessageType.SYSTEM);
             } catch (Exception e) {
-                log.warn("Failed to send join message for user {} in trip {}: {}",
-                        userId, tripId, e.getMessage());
+                log.warn("Failed to send join message for user {} in trip {}",
+                        userId, tripId, e);
             }
         }
     }

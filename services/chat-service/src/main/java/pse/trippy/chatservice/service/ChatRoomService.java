@@ -24,8 +24,6 @@ public class ChatRoomService {
 
     @Transactional
     public ChatRoomResponse createRoom(UUID tripId) {
-        log.info("Creating chat room for trip: {}", tripId);
-
         if (chatRoomRepository.existsByTripId(tripId)) {
             throw new ChatRoomAlreadyExistsException(tripId.toString());
         }
@@ -34,7 +32,7 @@ public class ChatRoomService {
                 .tripId(tripId)
                 .build());
 
-        log.info("Chat room created: {} for trip: {}", room.getId(), tripId);
+        log.info("Chat room created: id={} tripId={}", room.getId(), tripId);
 
         return ChatRoomResponse.builder()
                 .id(room.getId())

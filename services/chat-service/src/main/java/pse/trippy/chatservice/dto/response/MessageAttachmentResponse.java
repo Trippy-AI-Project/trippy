@@ -10,6 +10,7 @@ public record MessageAttachmentResponse(
         String fileName,
         String fileUrl,
         long fileSize,
-        String contentType
+        String contentType,
+        String thumbnailUrl
 ) {
 }
