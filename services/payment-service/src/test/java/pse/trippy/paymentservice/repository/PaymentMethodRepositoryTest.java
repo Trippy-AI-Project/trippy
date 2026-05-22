@@ -34,6 +34,8 @@ class PaymentMethodRepositoryTest {
                 .type("card")
                 .last4("4242")
                 .brand("Visa")
+                .expiryMonth(12)
+                .expiryYear(2030)
                 .isDefault(true)
                 .build());
 
@@ -42,6 +44,8 @@ class PaymentMethodRepositoryTest {
                 .type("card")
                 .last4("1234")
                 .brand("Mastercard")
+                .expiryMonth(10)
+                .expiryYear(2029)
                 .isDefault(false)
                 .build());
 
@@ -49,7 +53,9 @@ class PaymentMethodRepositoryTest {
                 .userId(UUID.randomUUID())
                 .type("sepa_debit")
                 .last4("5678")
-                .brand(null)
+                .brand("SEPA")
+                .expiryMonth(1)
+                .expiryYear(2031)
                 .isDefault(true)
                 .build());
     }
@@ -79,6 +85,8 @@ class PaymentMethodRepositoryTest {
                 .type("card")
                 .last4("9999")
                 .brand("Amex")
+                .expiryMonth(6)
+                .expiryYear(2032)
                 .isDefault(false)
                 .build());
 
@@ -94,6 +102,8 @@ class PaymentMethodRepositoryTest {
                 .type("card")
                 .last4("0000")
                 .brand("Visa")
+                .expiryMonth(7)
+                .expiryYear(2031)
                 .build();
 
         PaymentMethod saved = paymentMethodRepository.save(method);

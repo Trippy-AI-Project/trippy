@@ -9,12 +9,15 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.paymentservice.config.SecurityConfig;
 import pse.trippy.paymentservice.dto.request.CheckoutRequest;
 import pse.trippy.paymentservice.dto.response.CheckoutResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
+import pse.trippy.paymentservice.service.PaymentMethodService;
 import pse.trippy.paymentservice.service.PaymentService;
+import pse.trippy.paymentservice.service.SubscriptionService;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PaymentController.class)
+@ActiveProfiles("test")
 @Import(SecurityConfig.class)
 @DisplayName("PaymentController")
 class PaymentControllerTest {
@@ -42,6 +46,14 @@ class PaymentControllerTest {
 
     @MockBean
     private PaymentService paymentService;
+
+    // ✅ ADD: missing controller dependency
+    @MockBean
+    private SubscriptionService subscriptionService;
+
+    // ✅ ADD: missing controller dependency
+    @MockBean
+    private PaymentMethodService paymentMethodService;
 
     @Test
     @DisplayName("GET /payments/plans returns plan list (no auth required)")
@@ -112,7 +124,7 @@ class PaymentControllerTest {
     }
 
     @Test
-    @DisplayName("POST /payments/checkout without auth returns 401")
+    @DisplayName("POST /payments/checkout without auth returns 403")
     void checkoutWithoutAuthReturns401() throws Exception {
         CheckoutRequest request = CheckoutRequest.builder()
                 .planId("PREMIUM")
