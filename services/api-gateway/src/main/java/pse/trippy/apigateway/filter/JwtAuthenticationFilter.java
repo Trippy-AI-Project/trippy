@@ -45,7 +45,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/auth/**",
             "/.well-known/**",
             "/health",
-            "/actuator/health"
+            "/actuator/health",
+            "/ws/**"
     );
 
     private final JwksClient jwksClient;

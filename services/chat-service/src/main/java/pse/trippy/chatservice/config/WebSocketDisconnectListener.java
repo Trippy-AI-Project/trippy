@@ -73,10 +73,10 @@ public class WebSocketDisconnectListener {
                         name + " left the chat",
                         MessageType.SYSTEM);
             } catch (Exception e) {
-                log.warn("Failed to send leave message for user {} in trip {}: {}",
-                        userId, tripId, e.getMessage());
+                log.warn("Failed to send leave message for user {} in trip {}",
+                        userId, tripId, e);
             }
-            log.info("User {} disconnected from trip {} chat", userId, tripId);
+            log.debug("User {} disconnected from trip {} chat", userId, tripId);
         });
     }
 }

@@ -102,7 +102,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         if (!"messages".equals(topicSuffix)) {
             return;
         }
-
+        
         // Track presence and broadcast join message if new
         boolean newJoin = chatPresenceService.addUser(tripId, userId);
         if (newJoin) {
@@ -120,8 +120,8 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
                         name + " joined the chat",
                         MessageType.SYSTEM);
             } catch (Exception e) {
-                log.warn("Failed to send join message for user {} in trip {}: {}",
-                        userId, tripId, e.getMessage());
+                log.warn("Failed to send join message for user {} in trip {}",
+                        userId, tripId, e);
             }
         }
     }
