@@ -88,10 +88,13 @@ class PaymentControllerTest {
         UUID txnId = UUID.randomUUID();
 
         when(subscriptionService.confirmPayment(any(UUID.class), any(PaymentConfirmationRequest.class)))
-                .thenReturn(PaymentConfirmationResponse.builder()
-                        .transactionId(txnId)
-                        .status("COMPLETED")
-                        .build());
+        .thenReturn(new PaymentConfirmationResponse(
+                txnId,
+                "COMPLETED",
+                null,
+                null,
+                null
+        ));
 
         String json = """
                 {
