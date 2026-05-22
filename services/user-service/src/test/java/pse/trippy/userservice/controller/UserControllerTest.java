@@ -36,7 +36,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Unit tests for {@link UserController}.
  */
 @WebMvcTest(UserController.class)
-@Import(SecurityConfig.class)
 @DisplayName("UserController")
 class UserControllerTest {
 

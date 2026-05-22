@@ -33,7 +33,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Integration tests for {@link AuthController}.
  */
 @WebMvcTest(AuthController.class)
-@Import(SecurityConfig.class)
 @ActiveProfiles("test")
 @AutoConfigureMockMvc(addFilters = false)
 @DisplayName("AuthController")
