@@ -120,8 +120,8 @@ class PaymentControllerTest {
     }
 
     @Test
-    @DisplayName("POST /payments/checkout without auth returns 401")
-    void checkoutWithoutAuthReturns401() throws Exception {
+        @DisplayName("POST /payments/checkout without auth returns 403")
+        void checkoutWithoutAuthReturns403() throws Exception {
         CheckoutRequest request = CheckoutRequest.builder()
                 .planId("PREMIUM")
                 .paymentMethodId("pm_test_123")
