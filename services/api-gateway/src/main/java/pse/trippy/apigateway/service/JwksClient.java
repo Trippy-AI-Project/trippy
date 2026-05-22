@@ -36,12 +36,25 @@ public class JwksClient {
     }
 
     /**
-     * Loads the JWKS public key at startup.
-     * Failure is logged but does not prevent gateway startup.
+     * Loads the JWKS public key at startup, retrying up to 5 times with 3-second
+     * delays to tolerate user-service starting after the gateway.
      */
     @PostConstruct
     public void init() {
-        refreshKeys();
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            refreshKeys();
+            if (publicKeyRef.get() != null) {
+                return;
+            }
+            log.warn("JWKS not yet available (attempt {}/5), retrying in 3 s...", attempt);
+            try {
+                Thread.sleep(3_000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        log.warn("Could not load JWKS at startup — all tokens will be rejected until the scheduled refresh succeeds");
     }
 
     /**
@@ -60,9 +73,10 @@ public class JwksClient {
     }
 
     /**
-     * Scheduled JWKS cache refresh every 5 minutes.
+     * Scheduled JWKS cache refresh every 30 s — fast enough to self-heal when
+     * user-service starts after the gateway, and picks up key rotations quickly.
      */
-    @Scheduled(fixedDelay = 300_000)
+    @Scheduled(fixedDelay = 30_000)
     public void refreshKeys() {
         try {
             String jwksJson = webClient.get()

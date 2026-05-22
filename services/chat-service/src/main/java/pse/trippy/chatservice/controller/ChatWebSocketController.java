@@ -37,7 +37,7 @@ public class ChatWebSocketController {
             @Header(value = "X-User-DisplayName", defaultValue = "Anonymous") String displayName,
             SendMessageRequest request) {
 
-        log.info("Received STOMP message for trip {}: {}", tripId, request.getContent());
+        log.debug("STOMP message received for trip {} from user {}", tripId, userIdHeader);
 
         UUID senderId;
         try {

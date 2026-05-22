@@ -7,6 +7,7 @@ public record FileStorageResult(
         String fileUrl,
         String fileName,
         long fileSize,
-        String contentType
+        String contentType,
+        String thumbnailUrl
 ) {
 }

@@ -35,17 +35,18 @@ spring:
           predicates:
             - Path=/.well-known/**
 
+        # Chat Service Routes (REST) - /trips/{tripId}/chat/**
+        # Must be before trips-route so the more specific path matches first
+        - id: trips-chat-route
+          uri: http://localhost:8083
+          predicates:
+            - Path=/trips/{tripId}/chat/**
+
         # Trip Service Routes
         - id: trips-route
           uri: http://localhost:8082
           predicates:
             - Path=/trips/**
-
-        # Chat Service Routes (REST) - /trips/{tripId}/chat/**
-        - id: trips-chat-route
-          uri: http://localhost:8083
-          predicates:
-            - Path=/trips/{tripId}/chat/**
 
         # Chat Service Routes (REST) - /chats/**
         - id: chats-route
@@ -55,7 +56,7 @@ spring:
 
         # WebSocket Route
         - id: websocket-route
-          uri: ws://localhost:8083
+          uri: http://localhost:8083
           predicates:
             - Path=/ws/**
 
@@ -122,6 +123,7 @@ spring:
 
 trippy:
   gateway:
+<<<<<<< HEAD
     jwks-uri: http://user-service:8081/.well-known/jwks.json
     downstream-services:
       user-service: http://localhost:8081
@@ -130,6 +132,9 @@ trippy:
       ai-service: http://localhost:8084
       notification-service: http://localhost:8085
       payment-service: http://localhost:8086
+=======
+    jwks-uri: ${JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+>>>>>>> dev
 
 management:
   endpoints:

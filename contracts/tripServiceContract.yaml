@@ -166,7 +166,7 @@ components:
 
     TripVisibility:
       type: string
-      enum: ["PRIVATE", "PUBLIC", "UNLISTED"]
+      enum: ["PRIVATE", "PUBLIC"]
 
     ParticipantRole:
       type: string

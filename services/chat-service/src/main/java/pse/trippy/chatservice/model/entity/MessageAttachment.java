@@ -46,4 +46,11 @@ public class MessageAttachment {
 
     @Column(name = "content_type", length = 100)
     private String contentType;
+
+    /**
+     * Relative URL of the auto-generated thumbnail (for image attachments).
+     * {@code null} for non-image files or when thumbnail generation failed.
+     */
+    @Column(name = "thumbnail_url", length = 2048)
+    private String thumbnailUrl;
 }

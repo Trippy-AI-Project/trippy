@@ -47,7 +47,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/health",
             "/actuator/health",
             "/actuator/health/**",
-            "/actuator/info"
+            "/actuator/info",
+            "/ws/**"
     );
 
     private static final List<String> ADMIN_ONLY_PATHS = List.of(

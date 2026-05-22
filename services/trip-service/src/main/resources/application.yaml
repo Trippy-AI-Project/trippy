@@ -26,6 +26,12 @@ spring:
       hibernate:
         format_sql: true
         default_schema: trip_schema
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${MQ_USERNAME}
+    password: ${MQ_PASSWORD}
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:trippy}
 
 server:
   port: 8082
@@ -48,4 +54,18 @@ management:
 
 logging:
   level:
-    org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator: ERROR
+    root: WARN
+    pse.trippy.tripservice: INFO
+    org.hibernate: ERROR
+    org.hibernate.SQL: WARN
+    org.hibernate.engine: ERROR
+    org.hibernate.orm: ERROR
+    org.hibernate.type.descriptor.sql: WARN
+    com.zaxxer.hikari: WARN
+    org.springframework.boot: INFO
+    org.springframework.web: WARN
+    org.springframework.data: WARN
+    org.springframework.orm: WARN
+    org.springframework.amqp: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %highlight(%-5level) [trip-service] %cyan(%logger{20}) — %msg%n"
