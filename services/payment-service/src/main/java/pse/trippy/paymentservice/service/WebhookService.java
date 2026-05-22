@@ -3,15 +3,20 @@ package pse.trippy.paymentservice.service;
 import com.stripe.model.checkout.Session;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pse.trippy.paymentservice.config.RabbitMQConfig;
 import pse.trippy.paymentservice.model.entity.Subscription;
+import pse.trippy.paymentservice.model.entity.Transaction;
 import pse.trippy.paymentservice.model.entity.WebhookEvent;
 import pse.trippy.paymentservice.model.enums.SubscriptionPlan;
 import pse.trippy.paymentservice.model.enums.SubscriptionStatus;
+import pse.trippy.paymentservice.model.enums.TransactionStatus;
+import pse.trippy.paymentservice.model.enums.TransactionType;
 import pse.trippy.paymentservice.repository.SubscriptionRepository;
+import pse.trippy.paymentservice.repository.TransactionRepository;
 import pse.trippy.paymentservice.repository.WebhookEventRepository;
 
 import java.math.BigDecimal;
@@ -26,6 +31,7 @@ import java.util.UUID;
 public class WebhookService {
 
     private final SubscriptionRepository subscriptionRepository;
+    private final TransactionRepository transactionRepository;
     private final WebhookEventRepository webhookEventRepository;
     private final RabbitTemplate rabbitTemplate;
 
@@ -33,24 +39,23 @@ public class WebhookService {
     public void handleCheckoutSessionCompleted(Session session) {
         String sessionId = session.getId();
 
-        // Idempotency check: skip if we already processed this session
-        if (webhookEventRepository.existsByCheckoutSessionId(sessionId)) {
-            log.info("Webhook event already processed for session: {}", sessionId);
-            return;
-        }
-
-        // Record the webhook event for idempotency
         WebhookEvent webhookEvent = WebhookEvent.builder()
                 .checkoutSessionId(sessionId)
                 .eventType("checkout.session.completed")
                 .processedAt(Instant.now())
                 .build();
-        webhookEventRepository.save(webhookEvent);
+
+        try {
+            webhookEventRepository.saveAndFlush(webhookEvent);
+        } catch (DataIntegrityViolationException e) {
+            log.info("Webhook event already processed for session: {}", sessionId);
+            return;
+        }
 
         // Extract data from session
-        String customerEmail = session.getCustomerEmail();
         String clientReferenceId = session.getClientReferenceId();
-        UUID userId = UUID.fromString(clientReferenceId);
+        UUID userId = parseUserId(clientReferenceId);
+        String customerEmail = session.getCustomerEmail();
 
         Map<String, String> metadata = session.getMetadata();
         String planId = metadata != null ? metadata.get("planId") : "premium_monthly";
@@ -61,6 +66,7 @@ public class WebhookService {
         BigDecimal price = amountTotal != null
                 ? BigDecimal.valueOf(amountTotal).divide(BigDecimal.valueOf(100))
                 : BigDecimal.ZERO;
+            String currency = plan.getCurrency();
 
         // Create or update subscription
         LocalDate now = LocalDate.now();
@@ -74,6 +80,7 @@ public class WebhookService {
                     existing.setCurrentPeriodEnd(periodEnd);
                     existing.setCancelAtPeriodEnd(false);
                     existing.setPriceAmount(price);
+                    existing.setCurrency(currency);
                     return existing;
                 })
                 .orElseGet(() -> Subscription.builder()
@@ -83,13 +90,38 @@ public class WebhookService {
                         .currentPeriodStart(now)
                         .currentPeriodEnd(periodEnd)
                         .priceAmount(price)
+                        .currency(currency)
                         .build());
         subscription = subscriptionRepository.save(subscription);
 
-        log.info("Subscription activated via webhook for user {} - plan: {}, session: {}",
-                userId, plan, sessionId);
+        transactionRepository.save(Transaction.builder()
+                .userId(userId)
+                .planId(plan == SubscriptionPlan.ENTERPRISE ? pse.trippy.paymentservice.model.enums.PlanType.ENTERPRISE : pse.trippy.paymentservice.model.enums.PlanType.PREMIUM)
+                .amount(price)
+                .currency(currency)
+                .status(TransactionStatus.COMPLETED)
+                .type(TransactionType.SUBSCRIPTION)
+                .description(customerEmail != null && !customerEmail.isBlank()
+                        ? "Stripe checkout for " + customerEmail
+                        : "Stripe checkout session " + sessionId)
+                .build());
+
+        log.info("Subscription activated via webhook for user {} ({}) - plan: {}, session: {}",
+                userId, customerEmail, plan, sessionId);
 
         publishSubscriptionActivatedEvent(userId, subscription);
+    }
+
+    private UUID parseUserId(String clientReferenceId) {
+        if (clientReferenceId == null || clientReferenceId.isBlank()) {
+            throw new IllegalArgumentException("Missing client reference id");
+        }
+
+        try {
+            return UUID.fromString(clientReferenceId);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid client reference id: " + clientReferenceId, e);
+        }
     }
 
     private SubscriptionPlan resolvePlan(String planId) {

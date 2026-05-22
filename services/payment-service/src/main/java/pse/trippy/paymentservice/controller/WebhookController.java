@@ -44,13 +44,24 @@ public class WebhookController {
         }
 
         log.info("Received Stripe webhook event: type={}, id={}", event.getType(), event.getId());
+        return handleWebhookEvent(event);
+    }
 
+    ResponseEntity<String> handleWebhookEvent(Event event) {
         switch (event.getType()) {
             case "checkout.session.completed" -> {
-                Session session = (Session) event.getDataObjectDeserializer()
+                Object dataObject = event.getDataObjectDeserializer()
                         .getObject().orElse(null);
-                if (session != null) {
-                    webhookService.handleCheckoutSessionCompleted(session);
+                if (dataObject instanceof Session session) {
+                    try {
+                        webhookService.handleCheckoutSessionCompleted(session);
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid Stripe checkout session payload: {}", e.getMessage());
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid payload");
+                    }
+                } else {
+                    log.warn("Stripe webhook event {} did not deserialize a checkout session", event.getId());
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid payload");
                 }
             }
             default -> log.info("Unhandled event type: {}", event.getType());
