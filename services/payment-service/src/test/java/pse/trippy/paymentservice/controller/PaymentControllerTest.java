@@ -15,6 +15,7 @@ import pse.trippy.paymentservice.dto.response.CheckoutResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.service.PaymentService;
 import pse.trippy.paymentservice.service.SubscriptionService;
+import pse.trippy.paymentservice.service.PaymentMethodService;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -45,6 +46,9 @@ class PaymentControllerTest {
 
     @MockBean
     private SubscriptionService subscriptionService;
+
+    @MockBean
+    private PaymentMethodService paymentMethodService;
 
     @Test
     @DisplayName("GET /payments/plans returns plan list (no auth required)")
