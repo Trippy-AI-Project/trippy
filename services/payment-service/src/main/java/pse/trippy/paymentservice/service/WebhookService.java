@@ -14,7 +14,6 @@ import pse.trippy.paymentservice.model.entity.WebhookEvent;
 import pse.trippy.paymentservice.model.enums.SubscriptionPlan;
 import pse.trippy.paymentservice.model.enums.SubscriptionStatus;
 import pse.trippy.paymentservice.model.enums.TransactionStatus;
-import pse.trippy.paymentservice.model.enums.TransactionType;
 import pse.trippy.paymentservice.repository.SubscriptionRepository;
 import pse.trippy.paymentservice.repository.TransactionRepository;
 import pse.trippy.paymentservice.repository.WebhookEventRepository;
@@ -66,7 +65,7 @@ public class WebhookService {
         BigDecimal price = amountTotal != null
                 ? BigDecimal.valueOf(amountTotal).divide(BigDecimal.valueOf(100))
                 : BigDecimal.ZERO;
-            String currency = plan.getCurrency();
+            String currency = "EUR";
 
         // Create or update subscription
         LocalDate now = LocalDate.now();
@@ -100,10 +99,6 @@ public class WebhookService {
                 .amount(price)
                 .currency(currency)
                 .status(TransactionStatus.COMPLETED)
-                .type(TransactionType.SUBSCRIPTION)
-                .description(customerEmail != null && !customerEmail.isBlank()
-                        ? "Stripe checkout for " + customerEmail
-                        : "Stripe checkout session " + sessionId)
                 .build());
 
         log.info("Subscription activated via webhook for user {} ({}) - plan: {}, session: {}",
