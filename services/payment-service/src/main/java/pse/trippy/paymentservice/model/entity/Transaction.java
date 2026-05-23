@@ -52,15 +52,16 @@ public class Transaction {
     @Builder.Default
     private TransactionStatus status = TransactionStatus.PENDING;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "type", length = 30)
-    private TransactionType type;
+    @Builder.Default
+    private TransactionType type = TransactionType.SUBSCRIPTION;
 
     @Column(name = "description", length = 512)
     private String description;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 
     @PrePersist
     public void prePersist() {

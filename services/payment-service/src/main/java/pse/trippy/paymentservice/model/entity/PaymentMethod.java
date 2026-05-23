@@ -17,7 +17,7 @@ import java.util.UUID;
 @Table(
     name = "payment_methods",
     schema = "payment_schema",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"userId", "isDefault"})
+    indexes = @Index(name = "idx_payment_methods_user_default", columnList = "user_id,is_default")
 )
 @Data
 @NoArgsConstructor
@@ -29,7 +29,7 @@ public class PaymentMethod {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "user_id", nullable = false)
     private UUID userId;
 
     @Column(nullable = false, length = 50)
@@ -38,10 +38,10 @@ public class PaymentMethod {
     @Column(nullable = false, length = 4)
     private String last4;
 
-    @Column(nullable = false, length = 50)
+    @Column(length = 50)
     private String brand;
 
-    @Column(name = "expiry_month", nullable = false)
+    @Column(name = "expiry_month")
     private Integer expiryMonth;
 
     @Column(name = "expiry_year")
@@ -51,7 +51,7 @@ public class PaymentMethod {
     @Builder.Default
     private boolean isDefault = false;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
 

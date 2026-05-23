@@ -55,7 +55,7 @@ public class PaymentController {
             @Valid @RequestBody PaymentConfirmationRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
         PaymentConfirmationResponse response = subscriptionService.confirmPayment(userId, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.ok(response); 
     }
 
     @GetMapping("/subscription")

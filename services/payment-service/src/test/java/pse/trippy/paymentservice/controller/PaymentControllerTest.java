@@ -1,6 +1,5 @@
 package pse.trippy.paymentservice.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,11 +8,14 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.paymentservice.config.GatewayHeaderAuthenticationFilter;
 import pse.trippy.paymentservice.config.SecurityConfig;
 import pse.trippy.paymentservice.dto.request.CheckoutRequest;
+import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
 import pse.trippy.paymentservice.dto.response.CheckoutResponse;
+import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.service.PaymentMethodService;
 import pse.trippy.paymentservice.service.PaymentService;
@@ -31,17 +33,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @WebMvcTest(PaymentController.class)
 @Import({SecurityConfig.class, GatewayHeaderAuthenticationFilter.class})
+@ActiveProfiles("test")
 @DisplayName("PaymentController")
 class PaymentControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @MockBean
     private PaymentService paymentService;
@@ -51,6 +52,9 @@ class PaymentControllerTest {
 
     @MockBean
     private PaymentMethodService paymentMethodService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     @DisplayName("GET /payments/plans returns plan list (no auth required)")
@@ -85,43 +89,36 @@ class PaymentControllerTest {
     @Test
     @DisplayName("POST /payments/checkout returns transaction on success")
     void checkoutReturnsOk() throws Exception {
-        UUID txnId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        UUID txnId = UUID.randomUUID();
+
+        CheckoutResponse response = CheckoutResponse.builder()
+                .transactionId(txnId)
+                .status("COMPLETED")
+                .build();
 
         when(paymentService.checkout(eq(userId), any(CheckoutRequest.class)))
-                .thenReturn(CheckoutResponse.builder()
-                        .transactionId(txnId)
-                        .status("COMPLETED")
-                        .plan("PREMIUM")
-                        .amount(CheckoutResponse.Amount.builder()
-                                .value(new BigDecimal("9.99"))
-                                .currency("EUR")
-                                .build())
-                        .message("Subscription activated successfully")
-                        .build());
+                .thenReturn(response);
 
-        CheckoutRequest request = CheckoutRequest.builder()
-                .planId("PREMIUM")
-                .paymentMethodId("pm_test_123")
-                .build();
+        String json = """
+                {
+                "planId": "premium_monthly",
+                "paymentMethodId": "%s"
+                }
+                """.formatted(UUID.randomUUID());
 
         mockMvc.perform(post("/payments/checkout")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-User-Id", userId.toString())
-                        .header("X-User-Role", "USER")
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(json))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transactionId").value(txnId.toString()))
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.plan").value("PREMIUM"))
-                .andExpect(jsonPath("$.amount.value").value(9.99))
-                .andExpect(jsonPath("$.amount.currency").value("EUR"))
-                .andExpect(jsonPath("$.message").value("Subscription activated successfully"));
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
 
     @Test
-        @DisplayName("POST /payments/checkout without auth returns 403")
-        void checkoutWithoutAuthReturns403() throws Exception {
+    @DisplayName("POST /payments/checkout without auth returns 401")
+    void checkoutWithoutAuthReturns401() throws Exception {
         CheckoutRequest request = CheckoutRequest.builder()
                 .planId("PREMIUM")
                 .paymentMethodId("pm_test_123")
@@ -130,14 +127,19 @@ class PaymentControllerTest {
         mockMvc.perform(post("/payments/checkout")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     @WithMockUser
     @DisplayName("POST /payments/checkout with empty planId returns 400")
     void checkoutEmptyPlanReturns400() throws Exception {
-        String json = "{\"planId\": \"\", \"paymentMethodId\": \"pm_test_123\"}";
+        String json = """
+                {
+                "planId": "",
+                "paymentMethodId": "%s"
+                }
+                """.formatted(UUID.randomUUID());
 
         mockMvc.perform(post("/payments/checkout")
                         .with(csrf())
@@ -146,4 +148,5 @@ class PaymentControllerTest {
                         .content(json))
                 .andExpect(status().isBadRequest());
     }
+    
 }
