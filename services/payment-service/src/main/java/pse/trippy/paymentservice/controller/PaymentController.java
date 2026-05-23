@@ -15,10 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.paymentservice.dto.request.AddPaymentMethodRequest;
 import pse.trippy.paymentservice.dto.request.CancelSubscriptionRequest;
 import pse.trippy.paymentservice.dto.request.CheckoutRequest;
+import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
+import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
 import pse.trippy.paymentservice.dto.response.CheckoutResponse;
 import pse.trippy.paymentservice.dto.response.PaymentMethodResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.dto.response.SubscriptionResponse;
+import pse.trippy.paymentservice.dto.response.TransactionResponse;
 import pse.trippy.paymentservice.service.PaymentMethodService;
 import pse.trippy.paymentservice.service.PaymentService;
 import pse.trippy.paymentservice.service.SubscriptionService;
@@ -44,9 +47,16 @@ public class PaymentController {
     public ResponseEntity<CheckoutResponse> checkout(
             @Valid @RequestBody CheckoutRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
-
         CheckoutResponse response = paymentService.checkout(userId, request);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/subscription/confirm")
+    public ResponseEntity<PaymentConfirmationResponse> confirmPayment(
+            @Valid @RequestBody PaymentConfirmationRequest request,
+            @RequestHeader("X-User-Id") UUID userId) {
+        PaymentConfirmationResponse response = subscriptionService.confirmPayment(userId, request);
+        return ResponseEntity.ok(response); 
     }
 
     @GetMapping("/subscription")
@@ -61,6 +71,13 @@ public class PaymentController {
             @Valid @RequestBody CancelSubscriptionRequest request,
             @RequestHeader("X-User-Id") UUID userId) {
         SubscriptionResponse response = subscriptionService.cancelSubscription(userId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/transactions")
+    public ResponseEntity<List<TransactionResponse>> getTransactions(
+            @RequestHeader("X-User-Id") UUID userId) {
+        List<TransactionResponse> response = paymentService.getTransactions(userId);
         return ResponseEntity.ok(response);
     }
 
