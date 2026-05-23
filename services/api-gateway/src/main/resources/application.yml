@@ -15,7 +15,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD}
+      password: ${REDIS_PASSWORD:}
   cloud:
     gateway:
       routes:
@@ -36,10 +36,7 @@ spring:
             - Path=/.well-known/**
 
         # Chat Service Routes (REST) - /trips/{tripId}/chat/**
-<<<<<<< HEAD
-=======
         # Must be before trips-route so the more specific path matches first
->>>>>>> dev
         - id: trips-chat-route
           uri: http://localhost:8083
           predicates:

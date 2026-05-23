@@ -102,7 +102,6 @@ public class PaymentService {
         }
     }
 
-<<<<<<< HEAD
     @Transactional(readOnly = true)
     public List<TransactionResponse> getTransactions(UUID userId) {
         return transactionRepository.findByUserIdOrderByCreatedAtDesc(userId)
@@ -118,7 +117,8 @@ public class PaymentService {
                         t.getCreatedAt()
                 ))
                 .toList();
-=======
+    }
+    
     private Subscription activateSubscription(UUID userId, PlanType plan) {
         LocalDate now = LocalDate.now();
         LocalDate periodEnd = now.plusMonths(1);
@@ -178,6 +178,5 @@ public class PaymentService {
                 publishSubscriptionActivatedEvent(userId, subscription);
             }
         });
->>>>>>> origin/dev
     }
 }
