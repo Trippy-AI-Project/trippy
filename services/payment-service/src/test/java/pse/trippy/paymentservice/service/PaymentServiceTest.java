@@ -188,6 +188,7 @@ class PaymentServiceTest {
             .amount(new BigDecimal("9.99"))
             .currency("EUR")
             .status(TransactionStatus.COMPLETED)
+            .type(TransactionType.SUBSCRIPTION) 
             .build();
         older.setCreatedAt(Instant.parse("2026-05-21T10:00:00Z"));
 

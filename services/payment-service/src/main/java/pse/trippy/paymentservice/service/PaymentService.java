@@ -111,7 +111,7 @@ public class PaymentService {
                         t.getUserId(),
                         t.getAmount(),
                         t.getCurrency(),
-                        t.getPlanId().name(),
+                        t.getType() != null ? t.getType().name() : TransactionType.SUBSCRIPTION.name(),
                         t.getStatus().name(),
                         t.getPlanId().getDisplayName() + " subscription",
                         t.getCreatedAt()
