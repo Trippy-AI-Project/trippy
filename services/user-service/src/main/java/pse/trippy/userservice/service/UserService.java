@@ -8,6 +8,7 @@ import pse.trippy.userservice.dto.request.UpdateProfileRequest;
 import pse.trippy.userservice.exception.UserNotFoundException;
 import pse.trippy.userservice.model.dto.UserProfileDto;
 import pse.trippy.userservice.model.entity.User;
+import pse.trippy.userservice.model.enums.UserRole;
 import pse.trippy.userservice.repository.UserRepository;
 
 import java.util.UUID;
@@ -65,6 +66,24 @@ public class UserService {
         return toProfileDto(saved);
     }
 
+    /**
+     * Upgrades a user's platform role to HOST when they create their first trip.
+     * No-op if the user is already a HOST or ADMIN.
+     *
+     * @param userId the user to promote
+     */
+    @Transactional
+    public void upgradeToHost(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
+
+        if (user.getRole() == UserRole.MEMBER || user.getRole() == UserRole.USER) {
+            user.setRole(UserRole.HOST);
+            userRepository.save(user);
+            log.info("User {} upgraded to HOST role", userId);
+        }
+    }
+
     private UserProfileDto toProfileDto(User user) {
         return UserProfileDto.builder()
                 .userId(user.getId())
@@ -74,6 +93,7 @@ public class UserService {
                 .phoneNumber(user.getPhoneNumber())
                 .avatarUrl(user.getAvatarUrl())
                 .emailVerified(user.isEmailVerified())
+                .role(user.getRole())
                 .build();
     }
 }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import pse.trippy.paymentservice.dto.request.CancelSubscriptionRequest;
 import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
 import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
@@ -42,6 +43,8 @@ class SubscriptionServiceTest {
     private SubscriptionRepository subscriptionRepository;
     @Mock
     private TransactionRepository transactionRepository;
+    @Mock
+    private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
     private SubscriptionService subscriptionService;

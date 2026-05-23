@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="chat-service"/>
+
+    <!-- Console appender with clear, dev-friendly format -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Production profile: single-line JSON-ish records using built-in encoder.
+         Avoids the optional logstash-logback-encoder dependency so the app
+         starts cleanly with -Dspring.profiles.active=prod. -->
+    <springProfile name="prod">
+        <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <!-- Escape \, then \n / \r / \t, then " — order matters so the
+                     backslash replacement doesn't double-escape the others. -->
+                <pattern>{"service":"${APP_NAME}","timestamp":"%date{ISO8601}","level":"%level","thread":"%thread","logger":"%logger{36}","message":"%replace(%replace(%replace(%replace(%replace(%msg){'\\','\\\\'}){'\n','\\n'}){'\r','\\r'}){'\t','\\t'}){'\"','\\\"'}"}%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+        </root>
+    </springProfile>
+
+    <!-- Default (dev) profile -->
+    <springProfile name="!prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- Suppress noisy frameworks -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.engine" level="ERROR"/>
+    <logger name="org.springframework.messaging.simp.stomp" level="ERROR"/>
+    <logger name="reactor.netty" level="ERROR"/>
+    <logger name="org.apache.coyote" level="WARN"/>
+    <logger name="org.springframework.web.socket" level="WARN"/>
+
+    <!-- App-level: INFO by default, DEBUG for detailed tracing -->
+    <logger name="pse.trippy.chatservice" level="INFO"/>
+
+</configuration>

@@ -148,4 +148,58 @@ class WebSocketAuthChannelInterceptorTest {
         accessor.addNativeHeader("X-User-DisplayName", displayName);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
+
+    private Message<?> createParticipantsSubscribeMessage(UUID tripId, String userIdHeader) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setDestination("/topic/trips/" + tripId + "/participants");
+        if (userIdHeader != null) {
+            accessor.addNativeHeader("X-User-Id", userIdHeader);
+        }
+        return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+    }
+
+    @Test
+    @DisplayName("allows /participants subscription for verified participant without broadcasting join")
+    void allowsParticipantsSubscriptionForVerifiedParticipant() {
+        UUID tripId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(tripServiceClient.isParticipant(tripId, userId)).thenReturn(true);
+
+        Message<?> message = createParticipantsSubscribeMessage(tripId, userId.toString());
+
+        Message<?> result = interceptor.preSend(message, channel);
+        assertThat(result).isNotNull();
+        verify(tripServiceClient).isParticipant(tripId, userId);
+        // /participants subscriptions must not affect presence or trigger join messages
+        verify(chatPresenceService, never()).addUser(any(), any());
+        verify(chatMessageService, never()).sendMessage(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("rejects /participants subscription when user is not a participant")
+    void rejectsParticipantsSubscriptionForNonParticipant() {
+        UUID tripId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(tripServiceClient.isParticipant(tripId, userId)).thenReturn(false);
+
+        Message<?> message = createParticipantsSubscribeMessage(tripId, userId.toString());
+
+        assertThatThrownBy(() -> interceptor.preSend(message, channel))
+                .isInstanceOf(MessageDeliveryException.class)
+                .hasMessageContaining("not a participant");
+    }
+
+    @Test
+    @DisplayName("rejects /participants subscription when X-User-Id is missing")
+    void rejectsParticipantsSubscriptionWhenUserIdMissing() {
+        UUID tripId = UUID.randomUUID();
+
+        Message<?> message = createParticipantsSubscribeMessage(tripId, null);
+
+        assertThatThrownBy(() -> interceptor.preSend(message, channel))
+                .isInstanceOf(MessageDeliveryException.class)
+                .hasMessageContaining("Missing X-User-Id");
+    }
 }

@@ -89,6 +89,7 @@ export interface UserProfile {
   userId: string;
   email: string;
   displayName: string;
+  role: "MEMBER" | "HOST" | "ADMIN" | "USER";
   firstName?: string;
   lastName?: string;
   avatarUrl?: string;
@@ -358,6 +359,7 @@ export interface CreateTripRequest {
   startDate?: string;
   endDate?: string;
   visibility?: string;
+  budgetLevel?: "ECONOMY" | "MODERATE" | "LUXURY";
 }
 
 export const tripsApi = {
@@ -462,6 +464,25 @@ export const paymentsApi = {
   addMethod: (data: { brand: string; last4: string; expiryMonth: number; expiryYear: number; setAsDefault?: boolean }) =>
     api.post<PaymentMethod>("/payments/methods", data),
   deleteMethod: (id: string) => api.delete<void>(`/payments/methods/${id}`),
+  getTransactions: async () => {
+    const subscription = await api.get<SubscriptionInfo | null>("/payments/subscription").catch(() => null);
+    if (!subscription || subscription.plan === "FREE") {
+      return [];
+    }
+
+    return [
+      {
+        transactionId: subscription.subscriptionId,
+        userId: subscription.subscriptionId,
+        amount: subscription.priceAmount ?? 0,
+        currency: subscription.currency ?? "EUR",
+        type: "SUBSCRIPTION",
+        status: subscription.status,
+        description: `${subscription.plan} subscription`,
+        createdAt: subscription.currentPeriodStart ?? new Date().toISOString(),
+      },
+    ] satisfies TransactionRecord[];
+  },
 };
 
 /* ------------------------------------------------------------------ */
@@ -469,11 +490,9 @@ export const paymentsApi = {
 /* ------------------------------------------------------------------ */
 
 export interface ChatMessage {
-  messageId: string;
-  tripId: string;
+  id: string;
   senderId: string;
-  senderName?: string;
-  senderAvatarUrl?: string;
+  senderDisplayName?: string;
   type: "TEXT" | "IMAGE" | "FILE" | "SYSTEM";
   content: string;
   attachment?: {
@@ -482,33 +501,34 @@ export interface ChatMessage {
     fileUrl: string;
     fileSize: number;
     contentType: string;
+    thumbnailUrl?: string;
   };
-  sentAt: string;
-  isEdited: boolean;
-  isDeleted: boolean;
+  createdAt: string;
+  edited: boolean;
 }
 
 export interface ChatMessagePage {
-  content: ChatMessage[];
-  totalElements: number;
-  totalPages: number;
-  number: number;
+  messages: ChatMessage[];
+  page: number;
   size: number;
+  totalMessages: number;
+  hasMore: boolean;
 }
 
 export const chatApi = {
   getMessages: (tripId: string, page = 0, size = 50) =>
-    api.get<ChatMessagePage>(`/chats/${tripId}/messages?page=${page}&size=${size}`),
+    api.get<ChatMessagePage>(`/trips/${tripId}/chat/messages?page=${page}&size=${size}`),
   sendMessage: (tripId: string, content: string) =>
-    api.post<ChatMessage>(`/chats/${tripId}/messages`, { content }),
-  uploadFile: async (tripId: string, file: File): Promise<ChatMessage> => {
+    api.post<ChatMessage>(`/trips/${tripId}/chat/messages`, { content }),
+  uploadFile: async (tripId: string, file: File, senderId: string, senderDisplayName: string): Promise<ChatMessage> => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("senderId", "");
+    formData.append("senderId", senderId);
+    formData.append("senderDisplayName", senderDisplayName);
     const token = getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE_URL}/chats/${tripId}/messages/file`, {
+    const res = await fetch(`${API_BASE_URL}/trips/${tripId}/chat/messages/file`, {
       method: "POST",
       headers,
       body: formData,

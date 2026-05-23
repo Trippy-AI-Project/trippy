@@ -1,12 +1,22 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { GlassCard, Avatar, Button } from "@/components/ui";
+import { GlassCard, Avatar, Button, Badge } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
-import { Mail, MapPin, Edit } from "lucide-react";
+import { Mail, MapPin, Edit, LogOut, ShieldCheck } from "lucide-react";
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await logout();
+    router.replace("/login");
+  }
 
   return (
     <div className="space-y-8">
@@ -18,7 +28,15 @@ export default function ProfilePage() {
       <GlassCard className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
         <Avatar name={user?.displayName ?? "User"} src={user?.avatarUrl} size="lg" />
         <div className="flex-1 text-center sm:text-left">
-          <h2 className="text-xl font-bold">{user?.displayName ?? "Unknown"}</h2>
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
+            <h2 className="text-xl font-bold">{user?.displayName ?? "Unknown"}</h2>
+            {user?.role && (
+              <Badge variant={user.role === "HOST" ? "accent" : user.role === "ADMIN" ? "danger" : "default"}>
+                <ShieldCheck size={11} className="mr-1" />
+                {user.role}
+              </Badge>
+            )}
+          </div>
           <div className="mt-2 flex flex-col gap-1 text-sm text-muted">
             {user?.email && (
               <p className="flex items-center gap-2 justify-center sm:justify-start">
@@ -36,6 +54,23 @@ export default function ProfilePage() {
         <Button variant="secondary" size="sm">
           <Edit size={14} /> Edit
         </Button>
+      </GlassCard>
+
+      <GlassCard className="border-red-500/20">
+        <h3 className="text-base font-semibold">Danger Zone</h3>
+        <p className="mt-1 text-sm text-muted">Sign out of your account on this device.</p>
+        <div className="mt-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="border-red-500/40 text-red-500 hover:bg-red-500/10"
+          >
+            <LogOut size={14} />
+            {loggingOut ? "Signing out…" : "Sign out"}
+          </Button>
+        </div>
       </GlassCard>
     </div>
   );
