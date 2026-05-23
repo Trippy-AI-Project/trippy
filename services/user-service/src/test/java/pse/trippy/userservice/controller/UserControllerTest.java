@@ -21,6 +21,15 @@ import pse.trippy.userservice.service.EmailVerificationService;
 import pse.trippy.userservice.service.JwtService;
 import pse.trippy.userservice.service.UserProfileService;
 import pse.trippy.userservice.service.UserService;
+import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
+
+import org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -32,16 +41,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 
-
-/**
- * Unit tests for {@link UserController}.
- */
 @WebMvcTest(
         controllers = UserController.class,
         excludeAutoConfiguration = {
@@ -49,7 +49,10 @@ import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServic
                 SecurityFilterAutoConfiguration.class,
                 UserDetailsServiceAutoConfiguration.class,
                 OAuth2ClientAutoConfiguration.class,
-                OAuth2ResourceServerAutoConfiguration.class
+                OAuth2ResourceServerAutoConfiguration.class,
+                DataSourceAutoConfiguration.class,
+                HibernateJpaAutoConfiguration.class,
+                JpaRepositoriesAutoConfiguration.class
         }
 )
 @AutoConfigureMockMvc(addFilters = false)
