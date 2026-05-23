@@ -123,8 +123,7 @@ spring:
 
 trippy:
   gateway:
-<<<<<<< HEAD
-    jwks-uri: http://user-service:8081/.well-known/jwks.json
+    jwks-uri: ${JWKS_URI:http://localhost:8081/.well-known/jwks.json}
     downstream-services:
       user-service: http://localhost:8081
       trip-service: http://localhost:8082
@@ -132,9 +131,6 @@ trippy:
       ai-service: http://localhost:8084
       notification-service: http://localhost:8085
       payment-service: http://localhost:8086
-=======
-    jwks-uri: ${JWKS_URI:http://localhost:8081/.well-known/jwks.json}
->>>>>>> dev
 
 management:
   endpoints:

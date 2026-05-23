@@ -8,16 +8,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.web.servlet.MockMvc;
-import pse.trippy.userservice.config.SecurityConfig;
 import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.EmailAlreadyExistsException;
 import pse.trippy.userservice.service.AuthService;
 import pse.trippy.userservice.service.JwtService;
+import pse.trippy.userservice.service.UserService;
 import pse.trippy.userservice.TestFixtures;
 
 import java.util.UUID;
@@ -27,13 +26,24 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
+
 
 /**
  * Integration tests for {@link AuthController}.
  */
 @WebMvcTest(AuthController.class)
-@Import(SecurityConfig.class)
 @AutoConfigureMockMvc(addFilters = false)
+@ImportAutoConfiguration(exclude = {
+        SecurityAutoConfiguration.class,
+        SecurityFilterAutoConfiguration.class,
+        OAuth2ClientAutoConfiguration.class,
+        OAuth2ResourceServerAutoConfiguration.class
+})
 @DisplayName("AuthController")
 class AuthControllerTest {
 
@@ -42,6 +52,9 @@ class AuthControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockBean
+    private UserService userService;
 
     @MockBean
     private AuthService authService;
