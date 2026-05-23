@@ -63,6 +63,13 @@ public class Transaction {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", length = 30)
+    private TransactionType type;
+
+    @Column(name = "description", length = 512)
+    private String description;
+
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {

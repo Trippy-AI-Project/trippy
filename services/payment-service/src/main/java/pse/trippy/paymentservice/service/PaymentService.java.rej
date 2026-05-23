@@ -1,0 +1,54 @@
+diff a/services/payment-service/src/main/java/pse/trippy/paymentservice/service/PaymentService.java b/services/payment-service/src/main/java/pse/trippy/paymentservice/service/PaymentService.java	(rejected hunks)
+@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.amqp.rabbit.core.RabbitTemplate;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
++import org.springframework.transaction.support.TransactionSynchronization;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
+ import pse.trippy.paymentservice.config.RabbitMQConfig;
+ import pse.trippy.paymentservice.dto.request.CheckoutRequest;
+ import pse.trippy.paymentservice.dto.response.CheckoutResponse;
+@@ -68,7 +70,7 @@ public class PaymentService {
+                 .build());
+ 
+         Subscription subscription = activateSubscription(userId, plan);
+-        publishSubscriptionActivatedEvent(userId, subscription);
++        publishSubscriptionActivatedEventAfterCommit(userId, subscription);
+ 
+         log.info("Transaction {} completed for user {}", transaction.getId(), userId);
+ 
+@@ -87,7 +89,10 @@ public class PaymentService {
+     private PlanType parsePlan(String planId) {
+         try {
+             String normalized = planId.trim().toUpperCase(Locale.ROOT);
+-            if (normalized.endsWith("_MONTHLY") || normalized.endsWith("_YEARLY")) {
++            if (normalized.endsWith("_YEARLY")) {
++                throw new InvalidPlanException(planId);
++            }
++            if (normalized.endsWith("_MONTHLY")) {
+                 normalized = normalized.substring(0, normalized.indexOf('_'));
+             }
+             return PlanType.valueOf(normalized);
+@@ -139,7 +144,21 @@ public class PaymentService {
+                     "payment.subscription.activated",
+                     event);
+         } catch (Exception e) {
+-            log.warn("Failed to publish subscription activation for user {}: {}", userId, e.getMessage());
++            log.warn("Failed to publish subscription activation for user {}", userId, e);
++        }
++    }
++
++    private void publishSubscriptionActivatedEventAfterCommit(UUID userId, Subscription subscription) {
++        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
++            publishSubscriptionActivatedEvent(userId, subscription);
++            return;
+         }
++
++        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
++            @Override
++            public void afterCommit() {
++                publishSubscriptionActivatedEvent(userId, subscription);
++            }
++        });
+     }
+ }

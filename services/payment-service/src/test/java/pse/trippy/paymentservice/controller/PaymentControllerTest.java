@@ -10,14 +10,23 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+<<<<<<< HEAD
 
+=======
+import pse.trippy.paymentservice.config.GatewayHeaderAuthenticationFilter;
+import pse.trippy.paymentservice.config.SecurityConfig;
+>>>>>>> origin/dev
 import pse.trippy.paymentservice.dto.request.CheckoutRequest;
 import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
 import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
+import pse.trippy.paymentservice.service.PaymentMethodService;
 import pse.trippy.paymentservice.service.PaymentService;
 import pse.trippy.paymentservice.service.SubscriptionService;
+<<<<<<< HEAD
 import pse.trippy.paymentservice.service.PaymentMethodService;
+=======
+>>>>>>> origin/dev
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -33,8 +42,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PaymentController.class)
+<<<<<<< HEAD
 @ActiveProfiles("test") 
 @Import(pse.trippy.paymentservice.config.SecurityConfig.class)
+=======
+@Import({SecurityConfig.class, GatewayHeaderAuthenticationFilter.class})
+>>>>>>> origin/dev
 @DisplayName("PaymentController")
 class PaymentControllerTest {
 
@@ -81,8 +94,12 @@ class PaymentControllerTest {
     }
 
     @Test
+<<<<<<< HEAD
     @WithMockUser
     @DisplayName("POST /payments/checkout returns 200 on success")
+=======
+    @DisplayName("POST /payments/checkout returns transaction on success")
+>>>>>>> origin/dev
     void checkoutReturnsOk() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID txnId = UUID.randomUUID();
@@ -104,16 +121,21 @@ class PaymentControllerTest {
                 """.formatted(UUID.randomUUID());
 
         mockMvc.perform(post("/payments/checkout")
-                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-User-Id", userId.toString())
+<<<<<<< HEAD
                         .content(json))
+=======
+                        .header("X-User-Role", "USER")
+                        .content(objectMapper.writeValueAsString(request)))
+>>>>>>> origin/dev
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transactionId").value(txnId.toString()))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 }
 
     @Test
+<<<<<<< HEAD
     @DisplayName("POST /payments/checkout without auth returns 401")
     void checkoutWithoutAuthReturns401() throws Exception {
         String json = """
@@ -129,6 +151,19 @@ class PaymentControllerTest {
                     .header("X-User-Id", UUID.randomUUID().toString())
                     .content(json))
             .andExpect(status().isUnauthorized());
+=======
+        @DisplayName("POST /payments/checkout without auth returns 403")
+        void checkoutWithoutAuthReturns403() throws Exception {
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planId("PREMIUM")
+                .paymentMethodId("pm_test_123")
+                .build();
+
+        mockMvc.perform(post("/payments/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+>>>>>>> origin/dev
     }
 
     @Test

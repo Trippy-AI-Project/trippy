@@ -10,10 +10,16 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMQConfig {
 
     public static final String PAYMENT_EXCHANGE = "payment.events";
+    public static final String TRIPPY_EVENTS_EXCHANGE = "trippy.events";
 
     @Bean
     public TopicExchange paymentExchange() {
         return new TopicExchange(PAYMENT_EXCHANGE);
+    }
+
+    @Bean
+    public TopicExchange trippyEventsExchange() {
+        return new TopicExchange(TRIPPY_EVENTS_EXCHANGE, true, false);
     }
 
     @Bean

@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8080/ws/chat";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8080/ws";
 
 export default function ChatPage() {
   const params = useParams();
@@ -51,10 +51,10 @@ export default function ChatPage() {
     if (!tripId) return;
     setLoading(true);
     Promise.all([
-      chatApi.getMessages(tripId).catch(() => ({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 50 })),
+      chatApi.getMessages(tripId).catch(() => ({ messages: [], page: 0, size: 50, totalMessages: 0, hasMore: false })),
       chatApi.getParticipants(tripId).catch(() => []),
     ]).then(([msgData, parts]) => {
-      setMessages(msgData.content.reverse());
+      setMessages(msgData.messages.reverse());
       setParticipants(parts);
       setLoading(false);
       setTimeout(scrollToBottom, 100);
@@ -66,28 +66,33 @@ export default function ChatPage() {
     if (!tripId) return;
 
     const token = getAccessToken();
+    const connectHeaders: Record<string, string> = {};
+    if (token) connectHeaders["Authorization"] = `Bearer ${token}`;
+    if (user?.userId) connectHeaders["X-User-Id"] = user.userId;
+    if (user?.displayName) connectHeaders["X-User-DisplayName"] = user.displayName;
+
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
-      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+      connectHeaders,
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
       onConnect: () => {
         setConnected(true);
-        // Subscribe to messages
+        // Subscribe to messages (pass user headers for backend auth interceptor)
         client.subscribe(`/topic/trips/${tripId}/messages`, (msg) => {
           try {
             const chatMsg: ChatMessage = JSON.parse(msg.body);
             setMessages((prev) => {
               // Avoid duplicates
-              if (prev.some((m) => m.messageId === chatMsg.messageId)) return prev;
+              if (prev.some((m) => m.id === chatMsg.id)) return prev;
               return [...prev, chatMsg];
             });
             setTimeout(scrollToBottom, 50);
           } catch {
             // ignore parse errors
           }
-        });
+        }, connectHeaders);
       },
       onDisconnect: () => setConnected(false),
       onStompError: () => setConnected(false),
@@ -100,7 +105,7 @@ export default function ChatPage() {
       client.deactivate();
       stompRef.current = null;
     };
-  }, [tripId, scrollToBottom]);
+  }, [tripId, scrollToBottom, user?.userId, user?.displayName]);
 
   async function handleSend(e: FormEvent) {
     e.preventDefault();
@@ -135,7 +140,7 @@ export default function ChatPage() {
     if (!file) return;
 
     try {
-      const msg = await chatApi.uploadFile(tripId, file);
+      const msg = await chatApi.uploadFile(tripId, file, user?.userId ?? "", user?.displayName ?? "Anonymous");
       setMessages((prev) => [...prev, msg]);
       scrollToBottom();
       addToast("File uploaded", "success");
@@ -206,7 +211,7 @@ export default function ChatPage() {
 
               if (isSystem) {
                 return (
-                  <div key={msg.messageId} className="text-center">
+                  <div key={msg.id} className="text-center">
                     <span className="text-xs text-muted italic">{msg.content}</span>
                   </div>
                 );
@@ -214,13 +219,12 @@ export default function ChatPage() {
 
               return (
                 <div
-                  key={msg.messageId}
+                  key={msg.id}
                   className={cn("flex gap-2", isOwn ? "flex-row-reverse" : "flex-row")}
                 >
                   {!isOwn && (
                     <Avatar
-                      name={msg.senderName ?? "User"}
-                      src={msg.senderAvatarUrl}
+                      name={msg.senderDisplayName ?? "User"}
                       size="sm"
                     />
                   )}
@@ -234,7 +238,7 @@ export default function ChatPage() {
                   >
                     {!isOwn && (
                       <p className="text-xs font-medium text-trippy-400 mb-0.5">
-                        {msg.senderName ?? "Unknown"}
+                        {msg.senderDisplayName ?? "Unknown"}
                       </p>
                     )}
 
@@ -276,7 +280,7 @@ export default function ChatPage() {
                         isOwn ? "text-white/60" : "text-muted",
                       )}
                     >
-                      {formatTime(msg.sentAt)}
+                      {formatTime(msg.createdAt)}
                     </p>
                   </div>
                 </div>
