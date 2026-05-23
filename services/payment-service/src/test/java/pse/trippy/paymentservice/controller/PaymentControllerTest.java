@@ -14,6 +14,7 @@ import pse.trippy.paymentservice.config.GatewayHeaderAuthenticationFilter;
 import pse.trippy.paymentservice.config.SecurityConfig;
 import pse.trippy.paymentservice.dto.request.CheckoutRequest;
 import pse.trippy.paymentservice.dto.request.PaymentConfirmationRequest;
+import pse.trippy.paymentservice.dto.response.CheckoutResponse;
 import pse.trippy.paymentservice.dto.response.PaymentConfirmationResponse;
 import pse.trippy.paymentservice.dto.response.PlanResponse;
 import pse.trippy.paymentservice.service.PaymentMethodService;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -90,14 +92,13 @@ class PaymentControllerTest {
         UUID userId = UUID.randomUUID();
         UUID txnId = UUID.randomUUID();
 
-        when(subscriptionService.confirmPayment(any(UUID.class), any(PaymentConfirmationRequest.class)))
-        .thenReturn(new PaymentConfirmationResponse(
-                txnId,
-                "COMPLETED",
-                null,
-                null,
-                null
-        ));
+        CheckoutResponse response = CheckoutResponse.builder()
+                .transactionId(txnId)
+                .status("COMPLETED")
+                .build();
+
+        when(paymentService.checkout(eq(userId), any(CheckoutRequest.class)))
+                .thenReturn(response);
 
         String json = """
                 {
@@ -109,7 +110,6 @@ class PaymentControllerTest {
         mockMvc.perform(post("/payments/checkout")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-User-Id", userId.toString())
-                        .header("X-User-Role", "USER")
                         .content(json))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transactionId").value(txnId.toString()))
@@ -117,8 +117,8 @@ class PaymentControllerTest {
     }
 
     @Test
-    @DisplayName("POST /payments/checkout without auth returns 403")
-    void checkoutWithoutAuthReturns403() throws Exception {
+    @DisplayName("POST /payments/checkout without auth returns 401")
+    void checkoutWithoutAuthReturns401() throws Exception {
         CheckoutRequest request = CheckoutRequest.builder()
                 .planId("PREMIUM")
                 .paymentMethodId("pm_test_123")
@@ -127,7 +127,7 @@ class PaymentControllerTest {
         mockMvc.perform(post("/payments/checkout")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
