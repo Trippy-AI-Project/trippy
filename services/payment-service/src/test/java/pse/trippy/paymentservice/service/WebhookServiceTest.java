@@ -28,6 +28,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import pse.trippy.paymentservice.repository.TransactionRepository;
+import pse.trippy.paymentservice.model.entity.Transaction;
+import org.junit.jupiter.api.BeforeEach;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("WebhookService")
@@ -39,6 +42,8 @@ class WebhookServiceTest {
     private WebhookEventRepository webhookEventRepository;
     @Mock
     private RabbitTemplate rabbitTemplate;
+    @Mock
+    private TransactionRepository transactionRepository;
 
     @InjectMocks
     private WebhookService webhookService;
@@ -113,5 +118,11 @@ class WebhookServiceTest {
 
         verify(subscriptionRepository).save(any(Subscription.class));
         verify(rabbitTemplate).convertAndSend(eq("payment.events"), eq("payment.subscription.activated"), any(Map.class));
+    }
+
+    @BeforeEach
+    void setup() {
+        when(transactionRepository.save(any(Transaction.class)))
+            .thenAnswer(i -> i.getArgument(0));
     }
 }

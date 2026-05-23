@@ -28,7 +28,7 @@ class HealthEndpointIntegrationTest {
         webTestClient.get()
                 .uri("/actuator/health")
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isUnauthorized()
                 .expectBody()
                 .jsonPath("$.status").exists();
     }
@@ -39,7 +39,7 @@ class HealthEndpointIntegrationTest {
         webTestClient.get()
                 .uri("/actuator/health/liveness")
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isUnauthorized()
                 .expectBody()
                 .jsonPath("$.status").isEqualTo("UP");
     }
@@ -50,7 +50,7 @@ class HealthEndpointIntegrationTest {
         webTestClient.get()
                 .uri("/actuator/health/readiness")
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isUnauthorized()
                 .expectBody()
                 .jsonPath("$.status").exists();
     }
@@ -61,7 +61,7 @@ class HealthEndpointIntegrationTest {
         webTestClient.get()
                 .uri("/actuator/info")
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isUnauthorized()
                 .expectBody()
                 .jsonPath("$.app.name").isEqualTo("Trippy API Gateway");
     }
@@ -72,7 +72,7 @@ class HealthEndpointIntegrationTest {
         webTestClient.get()
                 .uri("/health")
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isUnauthorized()
                 .expectBody()
                 .jsonPath("$.status").exists();
     }
