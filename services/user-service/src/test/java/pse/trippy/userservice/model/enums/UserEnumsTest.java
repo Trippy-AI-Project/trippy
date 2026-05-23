@@ -31,7 +31,8 @@ class UserEnumsTest {
     @Test
     @DisplayName("UserRole has exactly two values")
     void userRoleHasTwoValues() {
-        assertThat(UserRole.values()).containsExactlyInAnyOrder(UserRole.USER, UserRole.ADMIN);
+        assertThat(UserRole.values())
+        .containsExactlyInAnyOrder(UserRole.MEMBER, UserRole.HOST, UserRole.USER, UserRole.ADMIN);
     }
 
     @Test
