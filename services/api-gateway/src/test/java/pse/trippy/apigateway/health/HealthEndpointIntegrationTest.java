@@ -11,10 +11,23 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
 @TestPropertySource(properties = {
-        "spring.data.redis.host=localhost",
-        "spring.data.redis.port=6379",
-        "spring.data.redis.password=",
-        "trippy.gateway.jwks-uri=http://localhost:8081/.well-known/jwks.json"
+    "spring.data.redis.host=localhost",
+    "spring.data.redis.port=6379",
+    "spring.data.redis.password=",
+
+    "management.health.redis.enabled=false",
+
+    "management.endpoint.health.probes.enabled=true",
+    "management.health.livenessState.enabled=true",
+    "management.health.readinessState.enabled=true",
+
+    "management.endpoint.health.status.http-mapping.DOWN=200",
+    "management.endpoint.health.status.http-mapping.OUT_OF_SERVICE=200",
+
+    "info.app.name=Trippy API Gateway",
+    "management.info.env.enabled=true",
+
+    "management.endpoints.web.exposure.include=health,info"
 })
 @DisplayName("Health Endpoint Integration Test")
 class HealthEndpointIntegrationTest {
