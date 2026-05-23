@@ -149,6 +149,9 @@ services:
 
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./init-scripts/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./init-scripts/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./init-scripts/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
 
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"           # AMQP
@@ -172,6 +175,56 @@ services:
           memory: 1g
         reservations:
           memory: 512m
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-50m}"
+        max-file: "${LOG_MAX_FILE:-5}"
+
+  # ===========================================================================
+  # SONARQUBE - Code Quality Analysis
+  # ===========================================================================
+  sonarqube:
+    image: sonarqube:10.6-community
+    container_name: trippy-sonarqube
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      SONAR_JDBC_URL: ${SONARQUBE_JDBC_URL:-jdbc:postgresql://postgres:5432/sonarqube_db}
+      SONAR_JDBC_USERNAME: ${SONARQUBE_JDBC_USERNAME:-sonar_user}
+      SONAR_JDBC_PASSWORD: ${SONARQUBE_JDBC_PASSWORD:?SONARQUBE_JDBC_PASSWORD is required}
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: ${SONAR_ES_BOOTSTRAP_CHECKS_DISABLE:-true}
+
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+    ports:
+      - "${SONARQUBE_PORT:-9000}:9000"
+
+    networks:
+      - trippy-network
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9000/api/system/status || exit 1"]
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: 10
+      start_period: 120s
+
+    deploy:
+      resources:
+        limits:
+          cpus: ${SONARQUBE_CPU_LIMIT:-2}
+          memory: ${SONARQUBE_MEMORY_LIMIT:-4g}
+        reservations:
+          memory: ${SONARQUBE_MEMORY_RESERVATION:-2g}
 
     logging:
       driver: "json-file"
@@ -208,3 +261,15 @@ volumes:
   rabbitmq_data:
     driver: local
     name: trippy-rabbitmq-data
+
+  sonarqube_data:
+    driver: local
+    name: trippy-sonarqube-data
+
+  sonarqube_extensions:
+    driver: local
+    name: trippy-sonarqube-extensions
+
+  sonarqube_logs:
+    driver: local
+    name: trippy-sonarqube-logs

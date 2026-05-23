@@ -53,21 +53,3 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA chat_schema         GRANT ALL ON SEQUENCES TO
 ALTER DEFAULT PRIVILEGES IN SCHEMA ai_schema           GRANT ALL ON SEQUENCES TO trippy_admin;
 ALTER DEFAULT PRIVILEGES IN SCHEMA notification_schema GRANT ALL ON SEQUENCES TO trippy_admin;
 ALTER DEFAULT PRIVILEGES IN SCHEMA payment_schema      GRANT ALL ON SEQUENCES TO trippy_admin;
-
--- ---------------------------------------------------------------------------
--- 3. Create the SonarQube database and user
--- ---------------------------------------------------------------------------
--- SonarQube requires its own database.  docker-entrypoint-initdb.d scripts
--- run inside the POSTGRES_DB, so we create the extra DB here.
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sonar_user') THEN
-        CREATE ROLE sonar_user WITH LOGIN PASSWORD 'CHANGE_ME_SONAR_DB_PASSWORD';
-    END IF;
-END
-$$;
-
--- The CREATE DATABASE statement cannot run inside a transaction block, so
--- we use a separate connection trick via \gexec:
-SELECT 'CREATE DATABASE sonarqube_db OWNER sonar_user'
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'sonarqube_db') \gexec
