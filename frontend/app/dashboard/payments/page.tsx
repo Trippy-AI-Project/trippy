@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { GlassCard, Button, Badge } from "@/components/ui";
-import { paymentsApi, type SubscriptionInfo, type PaymentMethod } from "@/lib/api";
+import { paymentsApi, type SubscriptionInfo, type PaymentMethod, type TransactionRecord } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +88,7 @@ export default function PaymentPage() {
 
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string>("");
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -100,17 +101,23 @@ export default function PaymentPage() {
     }
   }, [searchParams, addToast]);
 
+  async function loadData() {
+    const [sub, meth, txns] = await Promise.all([
+      paymentsApi.getSubscription().catch(() => null),
+      paymentsApi.getMethods().catch(() => []),
+      paymentsApi.getTransactions().catch(() => []),
+    ]);
+
+    setSubscription(sub);
+    setMethods(meth);
+    setTransactions(txns);
+    setLoading(false);
+  }
+
   // Load data
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      paymentsApi.getSubscription().catch(() => null),
-      paymentsApi.getMethods().catch(() => []),
-    ]).then(([sub, meth]) => {
-      setSubscription(sub);
-      setMethods(meth);
-      setLoading(false);
-    });
+    loadData();
   }, []);
 
   async function handleCheckout(planId: string) {
@@ -124,9 +131,7 @@ export default function PaymentPage() {
     try {
       await paymentsApi.checkout(planId, defaultMethod.paymentMethodId);
       addToast("Subscription updated!", "success");
-      // Refresh data
-      const sub = await paymentsApi.getSubscription().catch(() => null);
-      setSubscription(sub);
+      await loadData();
     } catch {
       addToast("Payment failed. Please try again.", "error");
     } finally {
@@ -138,8 +143,8 @@ export default function PaymentPage() {
     if (!confirm("Are you sure you want to cancel your subscription? It will remain active until the end of your billing period.")) return;
     setCancelLoading(true);
     try {
-      const sub = await paymentsApi.cancelSubscription(false);
-      setSubscription(sub);
+      await paymentsApi.cancelSubscription(false);
+      await loadData();
       addToast("Subscription will be cancelled at the end of this billing period", "info");
     } catch {
       addToast("Failed to cancel subscription", "error");
@@ -162,6 +167,7 @@ export default function PaymentPage() {
       });
       setMethods((prev) => [...prev, method]);
       setShowAddCard(false);
+      await loadData();
       addToast("Payment method added", "success");
     } catch {
       addToast("Failed to add payment method", "error");
@@ -172,6 +178,7 @@ export default function PaymentPage() {
     try {
       await paymentsApi.deleteMethod(id);
       setMethods((prev) => prev.filter((m) => m.paymentMethodId !== id));
+      await loadData();
       addToast("Payment method removed", "success");
     } catch {
       addToast("Failed to remove payment method", "error");
@@ -401,7 +408,7 @@ export default function PaymentPage() {
       {/* Billing History */}
       <div>
         <h2 className="text-lg font-semibold mb-4">Billing History</h2>
-        {subscription && subscription.plan !== "FREE" ? (
+        {transactions.length > 0 ? (
           <GlassCard className="overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -413,20 +420,25 @@ export default function PaymentPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-border last:border-0">
-                  <td className="px-4 py-3">
-                    {subscription.currentPeriodStart
-                      ? new Date(subscription.currentPeriodStart).toLocaleDateString()
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3">{subscription.plan} subscription</td>
-                  <td className="px-4 py-3">
-                    €{subscription.priceAmount ?? "0.00"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="success">Paid</Badge>
-                  </td>
-                </tr>
+                {transactions.map((tx) => (
+                  <tr key={tx.transactionId} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3">
+                      {new Date(tx.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">{tx.description}</td>
+                    <td className="px-4 py-3">
+                      {new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency: tx.currency,
+                      }).format(Number(tx.amount))}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={tx.status === "COMPLETED" ? "success" : "default"}>
+                        {tx.status === "COMPLETED" ? "Paid" : tx.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </GlassCard>
