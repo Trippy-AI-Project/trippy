@@ -10,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.userservice.dto.request.UpdateProfileRequest;
 import pse.trippy.userservice.dto.response.UserProfileResponse;
@@ -42,6 +43,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 
 @WebMvcTest(
         controllers = UserController.class,
@@ -53,9 +55,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 OAuth2ResourceServerAutoConfiguration.class,
                 DataSourceAutoConfiguration.class,
                 HibernateJpaAutoConfiguration.class,
-                JpaRepositoriesAutoConfiguration.class
+                JpaRepositoriesAutoConfiguration.class,
+                JdbcTemplateAutoConfiguration.class
         }
 )
+@TestPropertySource(properties = "spring.jpa.open-in-view=false")
 @AutoConfigureMockMvc(addFilters = false)
 @DisplayName("UserController")
 class UserControllerTest {
