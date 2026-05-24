@@ -2,6 +2,7 @@ package pse.trippy.chatservice.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +25,7 @@ public class ChatPresenceService {
 
     private static final String PARTICIPANTS_TOPIC = "/topic/trips/%s/participants";
 
-    private final SimpMessagingTemplate messagingTemplate;
+    private final ObjectProvider<SimpMessagingTemplate> messagingTemplateProvider;
     private final Map<UUID, Set<UUID>> roomParticipants = new ConcurrentHashMap<>();
 
     /**
@@ -84,7 +85,7 @@ public class ChatPresenceService {
 
     private void broadcastParticipants(UUID tripId, Set<UUID> users) {
         try {
-            messagingTemplate.convertAndSend(
+            messagingTemplateProvider.getObject().convertAndSend(
                     String.format(PARTICIPANTS_TOPIC, tripId),
                     Set.copyOf(users));
         } catch (Exception e) {

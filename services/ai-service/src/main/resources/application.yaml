@@ -77,7 +77,6 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-<<<<<<< HEAD
       probes:
         enabled: true
   health:
@@ -85,11 +84,9 @@ management:
       enabled: true
     readinessstate:
       enabled: true
-=======
 
 logging:
   level:
     pse.trippy.aiservice: INFO
     org.hibernate.SQL: WARN
     org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator: ERROR
->>>>>>> dev

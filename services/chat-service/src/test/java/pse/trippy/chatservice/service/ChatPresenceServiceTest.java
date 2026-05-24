@@ -7,6 +7,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.beans.factory.ObjectProvider;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import java.util.Set;
 import java.util.UUID;
@@ -24,6 +27,9 @@ class ChatPresenceServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private ObjectProvider<SimpMessagingTemplate> messagingTemplateProvider;
+
     @InjectMocks
     private ChatPresenceService presenceService;
 
@@ -34,6 +40,7 @@ class ChatPresenceServiceTest {
     void setUp() {
         tripId = UUID.randomUUID();
         userId = UUID.randomUUID();
+        lenient().when(messagingTemplateProvider.getObject()).thenReturn(messagingTemplate);
     }
 
     @Test
