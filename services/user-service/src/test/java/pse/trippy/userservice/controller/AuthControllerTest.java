@@ -5,19 +5,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import pse.trippy.userservice.config.SecurityConfig;
 import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.EmailAlreadyExistsException;
-import pse.trippy.userservice.repository.UserRepository;
 import pse.trippy.userservice.service.AuthService;
-import pse.trippy.userservice.service.JwtService;
-import pse.trippy.userservice.service.UserService;
 import pse.trippy.userservice.TestFixtures;
 
 import java.util.UUID;
@@ -27,11 +24,12 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-@TestPropertySource(properties = "spring.jpa.open-in-view=false")
-@AutoConfigureMockMvc(addFilters = false)
+/**
+ * Integration tests for {@link AuthController}.
+ */
+@WebMvcTest(AuthController.class)
+@Import(SecurityConfig.class)
 @DisplayName("AuthController")
 class AuthControllerTest {
 
@@ -42,21 +40,13 @@ class AuthControllerTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private UserService userService;
-
-    @MockBean
     private AuthService authService;
 
-    @MockBean
-    private JwtService jwtService;
-
-    @MockBean
-    private UserDetailsService userDetailsService;
-
-    @MockBean
-    private UserRepository userRepository;
-
     private static final String REGISTER_URL = "/auth/register";
+
+    // =========================================================================
+    // POST /auth/register
+    // =========================================================================
 
     @Nested
     @DisplayName("POST /auth/register")
@@ -65,8 +55,8 @@ class AuthControllerTest {
         @Test
         @DisplayName("returns 201 Created for valid registration")
         void returnsCreatedForValidRequest() throws Exception {
+            // Given
             UUID userId = UUID.randomUUID();
-
             RegisterRequest request = RegisterRequest.builder()
                     .email("john@example.com")
                     .password(TestFixtures.validPassword())
@@ -82,6 +72,7 @@ class AuthControllerTest {
 
             when(authService.register(any(RegisterRequest.class))).thenReturn(response);
 
+            // When/Then
             mockMvc.perform(post(REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -95,6 +86,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("returns 409 Conflict for duplicate email")
         void returnsConflictForDuplicateEmail() throws Exception {
+            // Given
             RegisterRequest request = RegisterRequest.builder()
                     .email("existing@example.com")
                     .password(TestFixtures.validPassword())
@@ -104,6 +96,7 @@ class AuthControllerTest {
             when(authService.register(any(RegisterRequest.class)))
                     .thenThrow(new EmailAlreadyExistsException("existing@example.com"));
 
+            // When/Then
             mockMvc.perform(post(REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -113,14 +106,16 @@ class AuthControllerTest {
         }
 
         @Test
-        @DisplayName("returns 400 Bad Request for invalid email")
+        @DisplayName("returns 400 Bad Request for invalid email format")
         void returnsBadRequestForInvalidEmail() throws Exception {
+            // Given
             RegisterRequest request = RegisterRequest.builder()
                     .email("invalid-email")
                     .password(TestFixtures.validPassword())
                     .displayName("John Doe")
                     .build();
 
+            // When/Then
             mockMvc.perform(post(REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -132,12 +127,14 @@ class AuthControllerTest {
         @Test
         @DisplayName("returns 400 Bad Request for weak password")
         void returnsBadRequestForWeakPassword() throws Exception {
+            // Given - password missing special char
             RegisterRequest request = RegisterRequest.builder()
                     .email("john@example.com")
                     .password(TestFixtures.weakPassword())
                     .displayName("John Doe")
                     .build();
 
+            // When/Then
             mockMvc.perform(post(REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -149,6 +146,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("returns 400 Bad Request for missing displayName")
         void returnsBadRequestForMissingDisplayName() throws Exception {
+            // Given
             String requestJson = String.format("""
                     {
                         "email": "john@example.com",
@@ -156,6 +154,7 @@ class AuthControllerTest {
                     }
                     """, TestFixtures.validPassword());
 
+            // When/Then
             mockMvc.perform(post(REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestJson))
@@ -167,12 +166,14 @@ class AuthControllerTest {
         @Test
         @DisplayName("returns 400 Bad Request for short password")
         void returnsBadRequestForShortPassword() throws Exception {
+            // Given
             RegisterRequest request = RegisterRequest.builder()
                     .email("john@example.com")
                     .password(TestFixtures.shortPassword())
                     .displayName("John Doe")
                     .build();
 
+            // When/Then
             mockMvc.perform(post(REGISTER_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
