@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import pse.trippy.userservice.dto.request.RegisterRequest;
 import pse.trippy.userservice.dto.response.RegisterResponse;
 import pse.trippy.userservice.exception.EmailAlreadyExistsException;
+import pse.trippy.userservice.repository.UserRepository;
 import pse.trippy.userservice.service.AuthService;
 import pse.trippy.userservice.service.JwtService;
 import pse.trippy.userservice.service.UserService;
@@ -73,6 +74,9 @@ class AuthControllerTest {
 
     @MockBean
     private UserDetailsService userDetailsService;
+
+    @MockBean
+    private UserRepository userRepository;
 
     private static final String REGISTER_URL = "/auth/register";
 
