@@ -24,4 +24,10 @@ public class UpdateProfileRequest {
 
     @Size(max = 20, message = "phoneNumber must not exceed 20 characters")
     private String phoneNumber;
+
+    @Size(max = 100, message = "country must not exceed 100 characters")
+    private String country;
+
+    @Size(max = 2048, message = "avatarUrl must not exceed 2048 characters")
+    private String avatarUrl;
 }
