@@ -152,6 +152,25 @@ export async function resendVerification(email: string): Promise<{ message: stri
   });
 }
 
+export interface UpdateProfileRequest {
+  displayName?: string;
+  bio?: string;
+  phoneNumber?: string;
+  country?: string;
+  avatarUrl?: string;
+}
+
+export async function getProfile(): Promise<UserProfile> {
+  return request<UserProfile>("/users/me", { method: "GET" });
+}
+
+export async function updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
+  return request<UserProfile>("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function logout(): Promise<void> {
   const refreshToken = getRefreshToken();
   if (refreshToken) {

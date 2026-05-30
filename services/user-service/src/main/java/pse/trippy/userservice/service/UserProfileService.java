@@ -58,6 +58,12 @@ public class UserProfileService {
         if (request.getPhoneNumber() != null) {
             user.setPhoneNumber(request.getPhoneNumber());
         }
+        if (request.getCountry() != null) {
+            user.setCountry(request.getCountry());
+        }
+        if (request.getAvatarUrl() != null) {
+            user.setAvatarUrl(request.getAvatarUrl());
+        }
 
         User saved = userRepository.save(user);
         log.info("Profile updated for user {}", userId);

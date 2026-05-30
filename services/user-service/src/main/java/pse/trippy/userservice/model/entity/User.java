@@ -66,6 +66,10 @@ public class User {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
+    @Size(max = 100)
+    @Column(name = "country", length = 100)
+    private String country;
+
     @Column(name = "avatar_url", length = 2048)
     private String avatarUrl;
 

@@ -24,6 +24,7 @@ public class UserProfileResponse {
     private String displayName;
     private String bio;
     private String phoneNumber;
+    private String country;
     private String avatarUrl;
     private UserRole role;
     private SubscriptionPlan plan;
