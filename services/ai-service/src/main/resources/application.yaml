@@ -58,6 +58,10 @@ spring:
 trippy:
   weather:
     openweather-api-key: ${OPENWEATHER_API_KEY:}
+    geocoding-url: ${OPENWEATHER_GEOCODING_URL:https://api.openweathermap.org/geo/1.0/direct}
+    forecast-url: ${OPENWEATHER_FORECAST_URL:https://api.openweathermap.org/data/2.5/forecast}
+  transport:
+    osrm-base-url: ${OSRM_BASE_URL:https://router.project-osrm.org}
 
 server:
   port: 8084

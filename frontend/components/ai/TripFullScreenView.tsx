@@ -6,7 +6,7 @@ import {
   X, MapPin, Calendar, Users, Sparkles, Loader2, Check, Star,
   DollarSign, MessageSquare, Send, ArrowRightLeft, Plus, Trash2,
   Lightbulb, Undo2, ChevronDown, ChevronUp, ArrowLeft, Pencil,
-  RefreshCw,
+  RefreshCw, CloudSun, Bus, Clock,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { getAccessToken } from "@/lib/api";
@@ -16,7 +16,38 @@ interface AiItineraryDay {
   dayNumber: number;
   date?: string;
   title: string;
-  activities: { time?: string; title: string; description?: string; location?: string; estimatedCost?: string }[];
+  weather?: WeatherSummary;
+  transportRecommendations?: TransportRecommendation[];
+  activities: AiItineraryActivity[];
+}
+
+interface WeatherSummary {
+  condition?: string;
+  temperatureCelsius?: number | null;
+  advice?: string;
+}
+
+interface TransportRecommendation {
+  from?: string;
+  to?: string;
+  mode?: string;
+  estimatedDuration?: string;
+  notes?: string;
+}
+
+interface AiItineraryActivity {
+  time?: string;
+  duration?: number;
+  durationMinutes?: number;
+  title: string;
+  description?: string;
+  location?: string;
+  category?: string;
+  estimatedCost?: string;
+  tips?: string;
+  bookingRequired?: boolean;
+  lat?: number;
+  lng?: number;
 }
 
 interface GeneratedTrip {
@@ -83,6 +114,7 @@ export default function TripFullScreenView({
   const [draftTrip, setDraftTrip] = useState<GeneratedTrip>(trip);
   const [itineraryVersion, setItineraryVersion] = useState(0);
   const [itineraryLoading, setItineraryLoading] = useState(false);
+  const [itineraryError, setItineraryError] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -123,6 +155,7 @@ export default function TripFullScreenView({
 
   async function generateItinerary() {
     setItineraryLoading(true);
+    setItineraryError("");
     try {
       const durationMatch = draftTrip.duration.match(/(\d+)/);
       const days = durationMatch ? parseInt(durationMatch[1]) : 3;
@@ -155,14 +188,20 @@ export default function TripFullScreenView({
         setDraftTrip(prev => ({ ...prev, aiItinerary: data.dailyPlan }));
         setExpandedDays(new Set([1]));
       }
-    } catch { /* silent */ }
+    } catch {
+      setItineraryError("Itinerary details are unavailable right now. Regenerate when the AI service is reachable.");
+    }
     finally { setItineraryLoading(false); }
   }
 
   function toggleDay(day: number) {
     setExpandedDays(prev => {
       const next = new Set(prev);
-      next.has(day) ? next.delete(day) : next.add(day);
+      if (next.has(day)) {
+        next.delete(day);
+      } else {
+        next.add(day);
+      }
       return next;
     });
   }
@@ -287,7 +326,7 @@ export default function TripFullScreenView({
     }
   }
 
-  const totalActivities = draftTrip.aiItinerary?.reduce((s, d) => s + d.activities.length, 0) || 0;
+  const totalActivities = draftTrip.aiItinerary?.reduce((s, d) => s + (d.activities?.length ?? 0), 0) || 0;
   const actualDays = draftTrip.aiItinerary?.length || 0;
   const displayDuration = actualDays > 0 ? `${actualDays} days` : draftTrip.duration;
 
@@ -630,7 +669,7 @@ export default function TripFullScreenView({
                             {dateStr && <p className="text-[10px] text-muted">{dateStr}</p>}
                           </div>
                           <span className="text-[10px] text-muted bg-surface px-2.5 py-0.5 rounded-full shrink-0">
-                            {day.activities.length} activities
+                            {(day.activities?.length ?? 0)} activities
                           </span>
                           {isExpanded ? <ChevronUp size={14} className="text-muted shrink-0" /> : <ChevronDown size={14} className="text-muted shrink-0" />}
                         </button>
@@ -671,8 +710,10 @@ export default function TripFullScreenView({
                             className="overflow-hidden"
                           >
                             <div className="divide-y divide-border/30 border-t border-border/40">
-                              {day.activities.map((act, idx) => {
-                                const cat = String((act as Record<string, unknown>).category || "");
+                              <DayContextBlocks day={day} />
+                              {(day.activities ?? []).map((act, idx) => {
+                                const cat = act.category || "";
+                                const durationMinutes = act.durationMinutes ?? act.duration;
                                 const isEditingThis =
                                   editingActivity?.dayNumber === day.dayNumber &&
                                   editingActivity?.idx === idx;
@@ -756,6 +797,11 @@ export default function TripFullScreenView({
                                             <p className="text-[11px] text-muted mt-0.5 leading-relaxed">{act.description}</p>
                                           )}
                                           <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                            {durationMinutes && (
+                                              <span className="text-[10px] text-muted flex items-center gap-0.5">
+                                                <Clock size={9} className="text-trippy-400" /> {formatDurationMinutes(durationMinutes)}
+                                              </span>
+                                            )}
                                             {act.location && (
                                               <span className="text-[10px] text-muted flex items-center gap-0.5">
                                                 <MapPin size={9} className="text-trippy-400" /> {act.location}
@@ -766,7 +812,15 @@ export default function TripFullScreenView({
                                                 {act.estimatedCost}
                                               </span>
                                             )}
+                                            {act.bookingRequired && (
+                                              <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                                                Booking advised
+                                              </span>
+                                            )}
                                           </div>
+                                          {act.tips && (
+                                            <p className="text-[10px] text-foreground/60 mt-1 leading-relaxed">{act.tips}</p>
+                                          )}
                                         </div>
                                         {/* Edit / Delete (visible on hover) */}
                                         <div className="shrink-0 flex items-start gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
@@ -809,6 +863,10 @@ export default function TripFullScreenView({
                 );
               })}
             </div>
+          ) : itineraryError ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+              {itineraryError}
+            </div>
           ) : null}
 
           {/* Save bar */}
@@ -821,6 +879,69 @@ export default function TripFullScreenView({
       </motion.div>
     </motion.div>
   );
+}
+
+function DayContextBlocks({ day }: { day: AiItineraryDay }) {
+  const weather = day.weather;
+  const condition = weather?.condition?.trim() || "Forecast unavailable";
+  const temperature = formatTemperature(weather?.temperatureCelsius);
+  const weatherAdvice = weather?.advice?.trim() || "Check the local forecast closer to departure.";
+  const transport = day.transportRecommendations?.filter((item) =>
+    Boolean(item.from || item.to || item.estimatedDuration || item.notes)
+  ) ?? [];
+
+  return (
+    <div className="grid gap-2.5 bg-[#fbfaf7] px-4 py-3 sm:grid-cols-2">
+      <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <CloudSun size={13} className="text-sky-600" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700">Weather</span>
+          {temperature && <span className="ml-auto text-[10px] font-semibold text-sky-800">{temperature}</span>}
+        </div>
+        <p className="mt-1 text-xs font-semibold text-foreground">{condition}</p>
+        <p className="mt-0.5 text-[10px] leading-relaxed text-muted">{weatherAdvice}</p>
+      </div>
+
+      <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Bus size={13} className="text-emerald-600" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Transit</span>
+        </div>
+        {transport.length > 0 ? (
+          <div className="mt-1 space-y-1.5">
+            {transport.slice(0, 3).map((item, idx) => (
+              <div key={`${item.from}-${item.to}-${idx}`} className="text-[10px] leading-relaxed text-muted">
+                <p className="font-semibold text-foreground/80">
+                  {item.from || "Start"} → {item.to || "Next stop"}
+                </p>
+                <p>
+                  {item.mode || "Route"} · {item.estimatedDuration || "Transit details unavailable"}
+                </p>
+                {item.notes && <p>{item.notes}</p>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-1 text-[10px] leading-relaxed text-muted">
+            Transit details unavailable. Check live routes before departure.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatTemperature(value?: number | null): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  return `${Math.round(value)}°C`;
+}
+
+function formatDurationMinutes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  if (value < 60) return `${value} min`;
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
 function aiRequestHeaders(): Record<string, string> {
