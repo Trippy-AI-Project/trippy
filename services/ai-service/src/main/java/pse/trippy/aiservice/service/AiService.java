@@ -63,6 +63,7 @@ public class AiService {
 
     private static final Duration ITINERARY_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration WEATHER_REQUEST_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration TRANSPORT_REQUEST_TIMEOUT = Duration.ofSeconds(5);
     private static final int ITINERARY_MAX_ATTEMPTS = 3;
 
     private final ChatClient chatClient;
@@ -81,6 +82,15 @@ public class AiService {
 
     @Value("${trippy.weather.openweather-api-key:}")
     private String openWeatherApiKey;
+
+    @Value("${trippy.weather.geocoding-url:https://api.openweathermap.org/geo/1.0/direct}")
+    private String openWeatherGeocodingUrl;
+
+    @Value("${trippy.weather.forecast-url:https://api.openweathermap.org/data/2.5/forecast}")
+    private String openWeatherForecastUrl;
+
+    @Value("${trippy.transport.osrm-base-url:https://router.project-osrm.org}")
+    private String osrmBaseUrl;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(20))
@@ -376,14 +386,16 @@ public class AiService {
                       "activities": [
                         {
                           "time": "HH:mm",
-                          "duration": 60,
+                          "durationMinutes": 60,
                           "title": "string",
                           "description": "string",
                           "location": "string",
                           "category": "SIGHTSEEING",
                           "estimatedCost": "string",
                           "tips": "string",
-                          "bookingRequired": false
+                          "bookingRequired": false,
+                          "lat": 35.0,
+                          "lng": 135.0
                         }
                       ]
                     }
@@ -440,14 +452,16 @@ public class AiService {
                       "activities": [
                         {
                           "time": "09:00",
-                          "duration": 60,
+                          "durationMinutes": 60,
                           "title": "Activity",
                           "description": "Description",
                           "location": "Venue, Address",
                           "category": "FOOD|SIGHTSEEING|TRANSPORT|SHOPPING|CULTURE|NIGHTLIFE|NATURE|WELLNESS",
                           "estimatedCost": "€15",
                           "tips": "Useful tip",
-                          "bookingRequired": false
+                          "bookingRequired": false,
+                          "lat": 48.8566,
+                          "lng": 2.3522
                         }
                       ]
                     }
@@ -520,12 +534,12 @@ public class AiService {
             if (day.getWeather() == null) {
                 day.setWeather(weatherByDate.getOrDefault(date, unavailableWeather()));
             }
-            if (includeTransport && (day.getTransportRecommendations() == null
-                    || day.getTransportRecommendations().isEmpty())) {
-                day.setTransportRecommendations(inferTransport(day.getActivities()));
-            }
             if (day.getActivities() == null) {
                 day.setActivities(List.of());
+            }
+            if (includeTransport && (day.getTransportRecommendations() == null
+                    || day.getTransportRecommendations().isEmpty())) {
+                day.setTransportRecommendations(buildTransportRecommendations(day.getActivities()));
             }
         }
     }
@@ -543,7 +557,7 @@ public class AiService {
             List<ItineraryResponse.Activity> activities = new ArrayList<>();
             activities.add(ItineraryResponse.Activity.builder()
                     .time("09:30")
-                    .duration(120)
+                    .durationMinutes(120)
                     .title("Explore " + constraints.destination())
                     .description("Start with a central landmark or neighborhood walk to get oriented.")
                     .location(constraints.destination())
@@ -555,7 +569,7 @@ public class AiService {
             if (includeMeals) {
                 activities.add(ItineraryResponse.Activity.builder()
                         .time("12:30")
-                        .duration(75)
+                        .durationMinutes(75)
                         .title("Local lunch")
                         .description("Choose a well-reviewed local restaurant near the morning stop.")
                         .location(constraints.destination())
@@ -567,7 +581,7 @@ public class AiService {
             }
             activities.add(ItineraryResponse.Activity.builder()
                     .time("15:00")
-                    .duration(120)
+                    .durationMinutes(120)
                     .title("Flexible afternoon activity")
                     .description("Visit a museum, market, park, or viewpoint based on group energy.")
                     .location(constraints.destination())
@@ -585,7 +599,7 @@ public class AiService {
                     .activities(activities)
                     .build();
             if (includeTransport) {
-                day.setTransportRecommendations(inferTransport(activities));
+                day.setTransportRecommendations(buildTransportRecommendations(activities));
             }
             days.add(day);
             current = current.plusDays(1);
@@ -614,8 +628,8 @@ public class AiService {
         try {
             String encodedDestination = URLEncoder.encode(
                     request.constraints().destination(), StandardCharsets.UTF_8);
-            String geoUrl = "https://api.openweathermap.org/geo/1.0/direct?q="
-                    + encodedDestination + "&limit=1&appid=" + openWeatherApiKey;
+            String geoUrl = appendQuery(openWeatherGeocodingUrl,
+                    "q=" + encodedDestination + "&limit=1&appid=" + encodeQueryParam(openWeatherApiKey));
             JsonNode geo = sendJsonGet(geoUrl, WEATHER_REQUEST_TIMEOUT, "OpenWeather geocoding");
             if (!geo.isArray() || geo.isEmpty()) {
                 return Map.of();
@@ -623,8 +637,8 @@ public class AiService {
 
             double lat = geo.get(0).path("lat").asDouble();
             double lon = geo.get(0).path("lon").asDouble();
-            String forecastUrl = "https://api.openweathermap.org/data/2.5/forecast?lat="
-                    + lat + "&lon=" + lon + "&units=metric&appid=" + openWeatherApiKey;
+            String forecastUrl = appendQuery(openWeatherForecastUrl,
+                    "lat=" + lat + "&lon=" + lon + "&units=metric&appid=" + encodeQueryParam(openWeatherApiKey));
             JsonNode list = sendJsonGet(forecastUrl, WEATHER_REQUEST_TIMEOUT, "OpenWeather forecast")
                     .path("list");
             if (!list.isArray()) {
@@ -681,7 +695,7 @@ public class AiService {
         return objectMapper.readTree(response.body());
     }
 
-    private List<ItineraryResponse.TransportRecommendation> inferTransport(
+    private List<ItineraryResponse.TransportRecommendation> buildTransportRecommendations(
             List<ItineraryResponse.Activity> activities) {
         if (activities == null || activities.size() < 2) {
             return List.of();
@@ -691,15 +705,71 @@ public class AiService {
         for (int i = 0; i < activities.size() - 1; i++) {
             ItineraryResponse.Activity from = activities.get(i);
             ItineraryResponse.Activity to = activities.get(i + 1);
-            recommendations.add(ItineraryResponse.TransportRecommendation.builder()
-                    .from(defaultString(from.getLocation(), from.getTitle()))
-                    .to(defaultString(to.getLocation(), to.getTitle()))
-                    .mode("walk / public transport")
-                    .estimatedDuration("10-30 min")
-                    .notes("Check live routes before departure.")
-                    .build());
+            recommendations.add(fetchOsrmTransport(from, to)
+                    .orElseGet(() -> fallbackTransport(from, to)));
         }
         return recommendations;
+    }
+
+    private Optional<ItineraryResponse.TransportRecommendation> fetchOsrmTransport(
+            ItineraryResponse.Activity from,
+            ItineraryResponse.Activity to) {
+        if (osrmBaseUrl == null || osrmBaseUrl.isBlank()
+                || !hasValidCoordinates(from) || !hasValidCoordinates(to)) {
+            return Optional.empty();
+        }
+
+        try {
+            String routeUrl = trimTrailingSlash(osrmBaseUrl)
+                    + "/route/v1/driving/"
+                    + formatCoordinate(from.getLng()) + "," + formatCoordinate(from.getLat())
+                    + ";"
+                    + formatCoordinate(to.getLng()) + "," + formatCoordinate(to.getLat())
+                    + "?overview=false";
+            JsonNode routes = sendJsonGet(routeUrl, TRANSPORT_REQUEST_TIMEOUT, "OSRM route")
+                    .path("routes");
+            if (!routes.isArray() || routes.isEmpty()) {
+                return Optional.empty();
+            }
+
+            JsonNode route = routes.get(0);
+            double durationSeconds = route.path("duration").asDouble(-1);
+            double distanceMeters = route.path("distance").asDouble(-1);
+            if (durationSeconds < 0 || distanceMeters < 0) {
+                return Optional.empty();
+            }
+
+            return Optional.of(ItineraryResponse.TransportRecommendation.builder()
+                    .from(defaultString(from.getLocation(), from.getTitle()))
+                    .to(defaultString(to.getLocation(), to.getTitle()))
+                    .mode(distanceMeters <= 1200 ? "walk" : "route")
+                    .estimatedDuration(formatRouteDuration(durationSeconds))
+                    .notes("OSRM estimate: " + formatDistance(distanceMeters)
+                            + ". Check live transit before departure.")
+                    .build());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            log.warn("Transport lookup interrupted");
+            return Optional.empty();
+        } catch (IOException | IllegalArgumentException | IllegalStateException ex) {
+            log.warn("Transport lookup failed error={}", LogSanitizer.safeError(ex));
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("Transport lookup failed error={}", LogSanitizer.safeError(ex));
+            return Optional.empty();
+        }
+    }
+
+    private ItineraryResponse.TransportRecommendation fallbackTransport(
+            ItineraryResponse.Activity from,
+            ItineraryResponse.Activity to) {
+        return ItineraryResponse.TransportRecommendation.builder()
+                .from(defaultString(from.getLocation(), from.getTitle()))
+                .to(defaultString(to.getLocation(), to.getTitle()))
+                .mode("walk / public transport")
+                .estimatedDuration("Transit details unavailable")
+                .notes("Check live routes before departure.")
+                .build();
     }
 
     private ItineraryResponse.WeatherSummary unavailableWeather() {
@@ -737,6 +807,61 @@ public class AiService {
 
     private String defaultString(String value, String fallback) {
         return value != null && !value.isBlank() ? value : fallback;
+    }
+
+    private String appendQuery(String baseUrl, String query) {
+        return baseUrl + (baseUrl.contains("?") ? "&" : "?") + query;
+    }
+
+    private String encodeQueryParam(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private boolean hasValidCoordinates(ItineraryResponse.Activity activity) {
+        return activity != null
+                && isValidLatitude(activity.getLat())
+                && isValidLongitude(activity.getLng());
+    }
+
+    private boolean isValidLatitude(Double value) {
+        return value != null && !value.isNaN() && value >= -90 && value <= 90;
+    }
+
+    private boolean isValidLongitude(Double value) {
+        return value != null && !value.isNaN() && value >= -180 && value <= 180;
+    }
+
+    private String formatCoordinate(Double value) {
+        return String.format(Locale.ROOT, "%.6f", value);
+    }
+
+    private String trimTrailingSlash(String value) {
+        String trimmed = value.trim();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    private String formatRouteDuration(double durationSeconds) {
+        long minutes = Math.max(1, Math.round(durationSeconds / 60.0));
+        if (minutes < 60) {
+            return minutes + " " + pluralize("min", minutes);
+        }
+        long hours = minutes / 60;
+        long remainingMinutes = minutes % 60;
+        if (remainingMinutes == 0) {
+            return hours + " " + pluralize("hour", hours);
+        }
+        return hours + " " + pluralize("hour", hours) + " " + remainingMinutes + " min";
+    }
+
+    private String formatDistance(double distanceMeters) {
+        if (distanceMeters < 1000) {
+            return Math.round(distanceMeters) + " m";
+        }
+        double kilometers = distanceMeters / 1000.0;
+        return String.format(Locale.ROOT, "%.1f km", kilometers);
     }
 
     private String mostCommon(List<String> values, String fallback) {

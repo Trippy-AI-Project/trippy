@@ -2,6 +2,8 @@ package pse.trippy.aiservice.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,8 +26,13 @@ import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.model.entity.GenerationHistory;
 import pse.trippy.aiservice.repository.GenerationHistoryRepository;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
@@ -36,6 +43,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -58,6 +66,7 @@ class AiServiceTest {
 
     private AiService aiService;
     private ExecutorService aiBlockingExecutor;
+    private HttpServer testHttpServer;
 
     // Fluent chain mocks
     private ChatClient.ChatClientRequestSpec requestSpec;
@@ -83,6 +92,10 @@ class AiServiceTest {
     @AfterEach
     void tearDown() {
         aiBlockingExecutor.shutdownNow();
+        if (testHttpServer != null) {
+            testHttpServer.stop(0);
+            testHttpServer = null;
+        }
     }
 
     // =========================================================================
@@ -269,6 +282,193 @@ class AiServiceTest {
         }
 
         @Test
+        @DisplayName("accepts enriched activity JSON with durationMinutes and coordinates")
+        void acceptsEnrichedActivityJson() {
+            String groqJson = """
+                    {
+                      "tripTitle": "Kyoto Details",
+                      "summary": "Precise activity data",
+                      "dailyPlan": [
+                        {
+                          "dayNumber": 1,
+                          "date": "2026-09-01",
+                          "title": "Temples",
+                          "activities": [
+                            {
+                              "time": "09:00",
+                              "durationMinutes": 90,
+                              "title": "Kinkaku-ji",
+                              "description": "Golden Pavilion visit",
+                              "location": "Kinkaku-ji, Kyoto",
+                              "category": "SIGHTSEEING",
+                              "estimatedCost": "¥500",
+                              "tips": "Arrive early",
+                              "bookingRequired": false,
+                              "lat": 35.0394,
+                              "lng": 135.7292
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                    """;
+            when(callSpec.content()).thenReturn(groqJson);
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+            ItineraryResponse.Activity activity = response.getDailyPlan().get(0).getActivities().get(0);
+
+            assertThat(activity.getDurationMinutes()).isEqualTo(90);
+            assertThat(activity.getLat()).isEqualTo(35.0394);
+            assertThat(activity.getLng()).isEqualTo(135.7292);
+            assertThat(activity.getTips()).isEqualTo("Arrive early");
+        }
+
+        @Test
+        @DisplayName("accepts legacy duration JSON as durationMinutes")
+        void acceptsLegacyDurationJson() {
+            String groqJson = """
+                    {
+                      "tripTitle": "Legacy Duration",
+                      "dailyPlan": [
+                        {
+                          "dayNumber": 1,
+                          "activities": [
+                            {
+                              "time": "10:00",
+                              "duration": 120,
+                              "title": "Legacy Activity",
+                              "category": "SIGHTSEEING"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                    """;
+            when(callSpec.content()).thenReturn(groqJson);
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getDailyPlan().get(0).getActivities().get(0).getDurationMinutes())
+                    .isEqualTo(120);
+        }
+
+        @Test
+        @DisplayName("returns unavailable weather when OpenWeather key is missing")
+        void returnsUnavailableWeatherWithoutApiKey() {
+            when(callSpec.content()).thenReturn(minimalTwoStopItinerary(false));
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getDailyPlan().get(0).getWeather().getCondition())
+                    .isEqualTo("Forecast unavailable");
+        }
+
+        @Test
+        @DisplayName("returns unavailable weather when OpenWeather fails")
+        void returnsUnavailableWeatherWhenWeatherApiFails() throws Exception {
+            String baseUrl = startHttpServer(exchange ->
+                    writeResponse(exchange, 500, "{\"message\":\"upstream failed\"}"));
+            setField("openWeatherApiKey", "test-key");
+            setField("openWeatherGeocodingUrl", baseUrl + "/geo");
+            when(callSpec.content()).thenReturn(minimalTwoStopItinerary(false));
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getDailyPlan().get(0).getWeather().getCondition())
+                    .isEqualTo("Forecast unavailable");
+        }
+
+        @Test
+        @DisplayName("uses OSRM route estimates when activity coordinates are present")
+        void usesOsrmRouteEstimates() throws Exception {
+            String baseUrl = startHttpServer(exchange ->
+                    writeResponse(exchange, 200, "{\"routes\":[{\"duration\":900,\"distance\":1500}]}"));
+            setField("osrmBaseUrl", baseUrl);
+            when(callSpec.content()).thenReturn(minimalTwoStopItinerary(true));
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+            ItineraryResponse.TransportRecommendation transport =
+                    response.getDailyPlan().get(0).getTransportRecommendations().get(0);
+
+            assertThat(transport.getEstimatedDuration()).isEqualTo("15 mins");
+            assertThat(transport.getNotes()).contains("1.5 km");
+        }
+
+        @Test
+        @DisplayName("falls back when OSRM route lookup fails")
+        void fallsBackWhenOsrmFails() throws Exception {
+            String baseUrl = startHttpServer(exchange ->
+                    writeResponse(exchange, 503, "{\"message\":\"unavailable\"}"));
+            setField("osrmBaseUrl", baseUrl);
+            when(callSpec.content()).thenReturn(minimalTwoStopItinerary(true));
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getDailyPlan().get(0).getTransportRecommendations().get(0)
+                    .getEstimatedDuration()).isEqualTo("Transit details unavailable");
+        }
+
+        @Test
+        @DisplayName("does not call OSRM when activity coordinates are missing")
+        void skipsOsrmWhenCoordinatesAreMissing() throws Exception {
+            AtomicInteger requestCount = new AtomicInteger();
+            String baseUrl = startHttpServer(exchange -> {
+                requestCount.incrementAndGet();
+                writeResponse(exchange, 200, "{\"routes\":[{\"duration\":900,\"distance\":1500}]}");
+            });
+            setField("osrmBaseUrl", baseUrl);
+            when(callSpec.content()).thenReturn(minimalTwoStopItinerary(false));
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(requestCount).hasValue(0);
+            assertThat(response.getDailyPlan().get(0).getTransportRecommendations().get(0)
+                    .getEstimatedDuration()).isEqualTo("Transit details unavailable");
+        }
+
+        @Test
         @DisplayName("returns fallback itinerary when itinerary JSON cannot be parsed")
         void returnsFallbackOnBadJson() {
             when(callSpec.content()).thenReturn("I cannot generate that.");
@@ -418,6 +618,74 @@ class AiServiceTest {
         ArgumentCaptor<GenerationHistory> captor = ArgumentCaptor.forClass(GenerationHistory.class);
         verify(generationHistoryRepository).save(captor.capture());
         return captor.getValue();
+    }
+
+    private String minimalTwoStopItinerary(boolean includeCoordinates) {
+        String firstCoordinates = includeCoordinates ? """
+                              "lat": 35.0394,
+                              "lng": 135.7292,
+                """ : "";
+        String secondCoordinates = includeCoordinates ? """
+                              "lat": 35.0116,
+                              "lng": 135.7681,
+                """ : "";
+        return """
+                {
+                  "tripTitle": "Kyoto",
+                  "dailyPlan": [
+                    {
+                      "dayNumber": 1,
+                      "date": "2026-09-01",
+                      "title": "Kyoto Day",
+                      "activities": [
+                        {
+                          "time": "09:00",
+                          %s
+                          "durationMinutes": 60,
+                          "title": "Temple One",
+                          "location": "Temple One",
+                          "category": "SIGHTSEEING"
+                        },
+                        {
+                          "time": "11:00",
+                          %s
+                          "durationMinutes": 60,
+                          "title": "Temple Two",
+                          "location": "Temple Two",
+                          "category": "SIGHTSEEING"
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.formatted(firstCoordinates, secondCoordinates);
+    }
+
+    private void setField(String fieldName, Object value) throws Exception {
+        Field field = AiService.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(aiService, value);
+    }
+
+    private String startHttpServer(TestHttpHandler handler) throws IOException {
+        testHttpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        testHttpServer.createContext("/", handler::handle);
+        testHttpServer.start();
+        return "http://localhost:" + testHttpServer.getAddress().getPort();
+    }
+
+    private void writeResponse(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(status, bytes.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(bytes);
+        }
+    }
+
+    @FunctionalInterface
+    private interface TestHttpHandler {
+        void handle(HttpExchange exchange) throws IOException;
     }
 
     private static final class RecordingExecutorService extends AbstractExecutorService {

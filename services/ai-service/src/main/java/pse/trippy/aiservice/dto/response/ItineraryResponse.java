@@ -1,5 +1,6 @@
 package pse.trippy.aiservice.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -68,7 +69,8 @@ public class ItineraryResponse {
     @AllArgsConstructor
     public static class Activity {
         private String time;
-        private Integer duration;
+        @JsonAlias("duration")
+        private Integer durationMinutes;
         private String title;
         private String description;
         private String location;
@@ -76,5 +78,7 @@ public class ItineraryResponse {
         private String estimatedCost;
         private String tips;
         private Boolean bookingRequired;
+        private Double lat;
+        private Double lng;
     }
 }
