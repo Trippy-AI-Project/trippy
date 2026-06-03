@@ -1,28 +1,40 @@
 package pse.trippy.chatservice.service;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.beans.factory.ObjectProvider;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.lenient;
+import org.springframework.data.redis.core.SetOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("ChatPresenceService (Redis-backed)")
 class ChatPresenceServiceTest {
+
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private SetOperations<String, String> setOps;
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;
@@ -30,7 +42,6 @@ class ChatPresenceServiceTest {
     @Mock
     private ObjectProvider<SimpMessagingTemplate> messagingTemplateProvider;
 
-    @InjectMocks
     private ChatPresenceService presenceService;
 
     private UUID tripId;
@@ -40,63 +51,92 @@ class ChatPresenceServiceTest {
     void setUp() {
         tripId = UUID.randomUUID();
         userId = UUID.randomUUID();
+
+        lenient().when(redisTemplate.opsForSet()).thenReturn(setOps);
         lenient().when(messagingTemplateProvider.getObject()).thenReturn(messagingTemplate);
+
+        presenceService = new ChatPresenceService(redisTemplate, messagingTemplateProvider);
+    }
+
+    // ---------------------------------------------------------------- addUser
+
+    @Test
+    @DisplayName("addUser: first join returns true and broadcasts")
+    void addUser_firstJoin_returnsTrueAndBroadcasts() {
+        String key = "presence:trip:" + tripId;
+        when(setOps.add(eq(key), eq(userId.toString()))).thenReturn(1L);
+        when(setOps.members(key)).thenReturn(Set.of(userId.toString()));
+
+        boolean result = presenceService.addUser(tripId, userId);
+
+        assertThat(result).isTrue();
+        verify(redisTemplate).expire(eq(key), eq(ChatPresenceService.PRESENCE_TTL));
+        verify(messagingTemplate).convertAndSend(
+                eq("/topic/trips/" + tripId + "/participants"),
+                any(Set.class));
     }
 
     @Test
-    void addUser_firstTime_returnsTrueAndBroadcasts() {
-        boolean added = presenceService.addUser(tripId, userId);
+    @DisplayName("addUser: duplicate join returns false and does not broadcast")
+    void addUser_duplicate_returnsFalseNobroadcast() {
+        String key = "presence:trip:" + tripId;
+        when(setOps.add(eq(key), eq(userId.toString()))).thenReturn(0L);
 
-        assertThat(added).isTrue();
-        assertThat(presenceService.getConnectedUsers(tripId)).containsExactlyInAnyOrder(userId);
-        verify(messagingTemplate, times(1))
-                .convertAndSend(eq("/topic/trips/" + tripId + "/participants"), any(Set.class));
+        boolean result = presenceService.addUser(tripId, userId);
+
+        assertThat(result).isFalse();
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
-    @Test
-    void addUser_duplicate_returnsFalseAndDoesNotBroadcastAgain() {
-        presenceService.addUser(tripId, userId);
-
-        boolean added = presenceService.addUser(tripId, userId);
-
-        assertThat(added).isFalse();
-        verify(messagingTemplate, times(1))
-                .convertAndSend(eq("/topic/trips/" + tripId + "/participants"), any(Set.class));
-    }
+    // --------------------------------------------------------------- removeUser
 
     @Test
-    void removeUser_present_broadcastsUpdate() {
-        presenceService.addUser(tripId, userId);
+    @DisplayName("removeUser: present user is removed and update is broadcast")
+    void removeUser_presentUser_broadcastsUpdate() {
+        String key = "presence:trip:" + tripId;
+        when(setOps.remove(eq(key), eq(userId.toString()))).thenReturn(1L);
+        when(setOps.members(key)).thenReturn(Set.of());
 
         presenceService.removeUser(tripId, userId);
 
-        assertThat(presenceService.getConnectedUsers(tripId)).isEmpty();
-        verify(messagingTemplate, times(2))
-                .convertAndSend(eq("/topic/trips/" + tripId + "/participants"), any(Set.class));
+        verify(messagingTemplate).convertAndSend(
+                eq("/topic/trips/" + tripId + "/participants"),
+                any(Set.class));
     }
 
     @Test
-    void removeUser_notPresent_doesNotBroadcast() {
+    @DisplayName("removeUser: absent user does nothing")
+    void removeUser_absentUser_doesNotBroadcast() {
+        String key = "presence:trip:" + tripId;
+        when(setOps.remove(eq(key), eq(userId.toString()))).thenReturn(0L);
+
         presenceService.removeUser(tripId, userId);
 
-        verify(messagingTemplate, never())
-                .convertAndSend(any(String.class), any(Set.class));
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
-    @Test
-    void getConnectedUsers_emptyRoom_returnsEmptySet() {
-        assertThat(presenceService.getConnectedUsers(tripId)).isEmpty();
-    }
+    // -------------------------------------------------------- getConnectedUsers
 
     @Test
-    void multipleUsers_inSameRoom_allTracked() {
+    @DisplayName("getConnectedUsers: maps Redis strings back to UUIDs")
+    void getConnectedUsers_mapsStringsToUUIDs() {
         UUID userA = UUID.randomUUID();
         UUID userB = UUID.randomUUID();
+        String key = "presence:trip:" + tripId;
+        when(setOps.members(key)).thenReturn(Set.of(userA.toString(), userB.toString()));
 
-        presenceService.addUser(tripId, userA);
-        presenceService.addUser(tripId, userB);
+        Set<UUID> result = presenceService.getConnectedUsers(tripId);
 
-        assertThat(presenceService.getConnectedUsers(tripId))
-                .containsExactlyInAnyOrder(userA, userB);
+        assertThat(result).containsExactlyInAnyOrder(userA, userB);
+    }
+
+    @Test
+    @DisplayName("getConnectedUsers: empty room returns empty set")
+    void getConnectedUsers_emptyRoom_returnsEmptySet() {
+        when(setOps.members(anyString())).thenReturn(Set.of());
+
+        Set<UUID> result = presenceService.getConnectedUsers(tripId);
+
+        assertThat(result).isEmpty();
     }
 }

@@ -19,9 +19,13 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
 trippy:
   trip-service:
     url: http://localhost:8082
   chat:
     upload-dir: ./test-uploads
+  jwt:
+    jwks-uri: http://localhost:8081/.well-known/jwks.json
+

@@ -3,20 +3,29 @@ package pse.trippy.chatservice.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
- * Tracks which users are currently connected to each chat room (in-memory)
- * and broadcasts participant list updates to STOMP subscribers.
+ * Tracks which users are currently connected to each chat room, backed by
+ * Redis Sets (ticket 3.9 — upgrade from in-memory ConcurrentHashMap).
+ *
+ * <p>Redis key: {@code presence:trip:{tripId}} — a Set of userId strings.
+ * An expiry is set on the whole set as a safety-net TTL; individual members
+ * are added/removed on join/leave.  The TTL is reset on every join so an
+ * active room never silently expires.
+ *
+ * <p>Public API is identical to the Sprint 2 implementation so all callers
+ * ({@link pse.trippy.chatservice.config.WebSocketAuthChannelInterceptor},
+ * {@link pse.trippy.chatservice.config.WebSocketDisconnectListener})
+ * require zero changes.
  */
 @Service
 @RequiredArgsConstructor
@@ -24,72 +33,75 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ChatPresenceService {
 
     private static final String PARTICIPANTS_TOPIC = "/topic/trips/%s/participants";
+    private static final String PRESENCE_KEY       = "presence:trip:%s";
+    /** Safety-net TTL — a room key expires 24 h after the last join. */
+    static final Duration       PRESENCE_TTL       = Duration.ofHours(24);
 
+    private final StringRedisTemplate redisTemplate;
     private final ObjectProvider<SimpMessagingTemplate> messagingTemplateProvider;
-    private final Map<UUID, Set<UUID>> roomParticipants = new ConcurrentHashMap<>();
 
     /**
      * Adds a user to a trip's chat room and broadcasts the updated participant list.
      *
-     * @return true if the user was newly added (first join), false if already present
+     * @return {@code true} if the user was newly added, {@code false} if already present
      */
     public boolean addUser(UUID tripId, UUID userId) {
-        AtomicBoolean added = new AtomicBoolean(false);
-        AtomicReference<Set<UUID>> participantsSnapshot = new AtomicReference<>();
+        String key     = key(tripId);
+        String member  = userId.toString();
 
-        roomParticipants.compute(tripId, (key, users) -> {
-            Set<UUID> updatedUsers = users == null ? ConcurrentHashMap.newKeySet() : users;
-            if (updatedUsers.add(userId)) {
-                log.debug("User {} joined chat for trip {} (total: {})", userId, tripId, updatedUsers.size());
-                added.set(true);
-                participantsSnapshot.set(Set.copyOf(updatedUsers));
-            }
-            return updatedUsers;
-        });
+        Long added = redisTemplate.opsForSet().add(key, member);
+        redisTemplate.expire(key, PRESENCE_TTL);  // reset safety-net TTL on activity
 
-        if (added.get()) {
-            broadcastParticipants(tripId, participantsSnapshot.get());
+        boolean isNew = added != null && added > 0;
+        if (isNew) {
+            log.debug("User {} joined chat for trip {} (total: {})", userId, tripId,
+                    redisTemplate.opsForSet().size(key));
+            broadcastParticipants(tripId, getConnectedUsers(tripId));
         }
-        return added.get();
+        return isNew;
     }
 
     /**
      * Removes a user from a trip's chat room and broadcasts the updated participant list.
      */
     public void removeUser(UUID tripId, UUID userId) {
-        AtomicReference<Set<UUID>> participantsSnapshot = new AtomicReference<>();
+        String key    = key(tripId);
+        String member = userId.toString();
 
-        roomParticipants.compute(tripId, (key, users) -> {
-            if (users == null) {
-                return null;
-            }
-            if (users.remove(userId)) {
-                log.debug("User {} left chat for trip {} (remaining: {})", userId, tripId, users.size());
-                participantsSnapshot.set(Set.copyOf(users));
-            }
-            return users.isEmpty() ? null : users;
-        });
-
-        if (participantsSnapshot.get() != null) {
-            broadcastParticipants(tripId, participantsSnapshot.get());
+        Long removed = redisTemplate.opsForSet().remove(key, member);
+        if (removed != null && removed > 0) {
+            log.debug("User {} left chat for trip {}", userId, tripId);
+            broadcastParticipants(tripId, getConnectedUsers(tripId));
         }
     }
 
     /**
-     * Returns the set of user IDs currently in the trip's chat room.
+     * Returns the set of user UUIDs currently in the trip's chat room.
      */
     public Set<UUID> getConnectedUsers(UUID tripId) {
-        return Collections.unmodifiableSet(
-                roomParticipants.getOrDefault(tripId, Collections.emptySet()));
+        Set<String> members = redisTemplate.opsForSet().members(key(tripId));
+        if (members == null || members.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return members.stream()
+                .map(UUID::fromString)
+                .collect(Collectors.toUnmodifiableSet());
     }
+
+    // ------------------------------------------------------------------ helpers
 
     private void broadcastParticipants(UUID tripId, Set<UUID> users) {
         try {
             messagingTemplateProvider.getObject().convertAndSend(
                     String.format(PARTICIPANTS_TOPIC, tripId),
-                    Set.copyOf(users));
+                    users);
         } catch (Exception e) {
             log.warn("Failed to broadcast participant update for trip {}", tripId, e);
         }
     }
+
+    private static String key(UUID tripId) {
+        return String.format(PRESENCE_KEY, tripId);
+    }
 }
+
