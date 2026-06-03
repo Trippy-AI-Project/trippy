@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -10,21 +10,15 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock,
-  Compass,
   DollarSign,
-  Map,
-  MapPin,
-  MessageCircle,
   Route,
   Search,
   SlidersHorizontal,
-  Sparkles,
   Users,
   Utensils,
-  Wand2,
 } from "lucide-react";
 import AITripBuilderModal, { type AIBuilderRequest } from "@/components/ai/AITripBuilderModal";
+import Logo from "@/components/Logo";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -54,104 +48,8 @@ const DIET_OPTIONS = [NO_PREFERENCE_LABEL, "Vegetarian", "Vegan", "Halal", "Jain
 
 const PACE_OPTIONS = [NO_PREFERENCE_LABEL, "Balanced pace", "Relaxed", "Packed"];
 
-type AdjustmentKey = "balanced" | "slower" | "food";
-
-interface PreviewStop {
-  time: string;
-  title: string;
-  detail: string;
-}
-
-interface PreviewAdjustment {
-  key: AdjustmentKey;
-  label: string;
-  prompt: string;
-  summary: string;
-  filters: string[];
-  itinerary: PreviewStop[];
-}
-
-const PREVIEW_ADJUSTMENTS: PreviewAdjustment[] = [
-  {
-    key: "balanced",
-    label: "Balanced",
-    prompt: "Keep it premium, but leave room to wander.",
-    summary: "A polished Lisbon plan with timed anchors, soft gaps, and one guided evening.",
-    filters: ["City", "Food", "Culture"],
-    itinerary: [
-      {
-        time: "09:30",
-        title: "Tile atelier in Principe Real",
-        detail: "Private studio visit, then coffee within walking distance.",
-      },
-      {
-        time: "13:00",
-        title: "Chef-picked lunch in Chiado",
-        detail: "Trippy holds two nearby backups if the first choice is busy.",
-      },
-      {
-        time: "17:20",
-        title: "Sunset tram route to Alfama",
-        detail: "Low-friction route with a short scenic walk and viewpoint stop.",
-      },
-    ],
-  },
-  {
-    key: "slower",
-    label: "Make it slower",
-    prompt: "Lower the pace and protect open time.",
-    summary: "The day becomes calmer with fewer hops, later starts, and longer neighborhood blocks.",
-    filters: ["Wellness", "Culture"],
-    itinerary: [
-      {
-        time: "10:45",
-        title: "Late start near Jardim da Estrela",
-        detail: "A slow cafe block before the first planned stop.",
-      },
-      {
-        time: "14:00",
-        title: "One museum, not three",
-        detail: "Trippy trims the route and keeps the strongest cultural anchor.",
-      },
-      {
-        time: "18:30",
-        title: "Dinner within 12 minutes",
-        detail: "No cross-town transfer after sunset, just a reserved local table.",
-      },
-    ],
-  },
-  {
-    key: "food",
-    label: "More food",
-    prompt: "Turn the day into a local food crawl.",
-    summary: "More tasting stops, market timing, and reservations replace generic sightseeing.",
-    filters: ["Food", "City"],
-    itinerary: [
-      {
-        time: "09:00",
-        title: "Market breakfast at Ribeira",
-        detail: "Arrive before peak crowds and save room for the next stop.",
-      },
-      {
-        time: "12:30",
-        title: "Petiscos crawl in Bairro Alto",
-        detail: "Three small plates, all clustered on a walkable route.",
-      },
-      {
-        time: "20:00",
-        title: "Fado dinner pairing",
-        detail: "A quieter room with a reservation window and backup venue.",
-      },
-    ],
-  },
-];
-
 const DEFAULT_PEOPLE = 2;
 const DEFAULT_BUDGET = "";
-const PREVIEW_BUDGET = "Moderate";
-const PREVIEW_CITY = "Lisbon, Portugal";
-const PREVIEW_START_DATE = "2026-09-12";
-const PREVIEW_END_DATE = "2026-09-16";
 
 const revealContainer = {
   hidden: {},
@@ -214,13 +112,8 @@ export default function LandingPage() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showAIBuilder, setShowAIBuilder] = useState(false);
   const [aiBuilderRequest, setAiBuilderRequest] = useState<AIBuilderRequest | undefined>(undefined);
-  const [activeAdjustment, setActiveAdjustment] = useState<AdjustmentKey>("balanced");
 
   const selectedGroup = TRAVEL_GROUPS.find((group) => group.label === travelGroup);
-  const preview = useMemo(
-    () => PREVIEW_ADJUSTMENTS.find((item) => item.key === activeAdjustment) ?? PREVIEW_ADJUSTMENTS[0],
-    [activeAdjustment],
-  );
 
   const nextRequestId = () => {
     requestIdRef.current += 1;
@@ -269,20 +162,6 @@ export default function LandingPage() {
     );
   };
 
-  const adjustPreviewWithAI = () => {
-    openAIBuilder({
-      city: PREVIEW_CITY,
-      start: PREVIEW_START_DATE,
-      end: PREVIEW_END_DATE,
-      people: DEFAULT_PEOPLE,
-      budget: PREVIEW_BUDGET,
-      filters: preview.filters,
-      diet: undefined,
-      preferences: "Balanced pace",
-      autoGenerate: false,
-    });
-  };
-
   return (
     <div className="relative isolate min-h-screen overflow-x-hidden bg-[#f8efe1] text-[#18211f]">
       <LandingAmbientBackground />
@@ -290,29 +169,24 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-white/30 bg-white/18 px-4 shadow-[0_1px_0_rgba(20,47,43,0.04)] backdrop-blur-2xl lg:px-8">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between">
           <Link href="/" aria-label="Trippy home">
-            <LandingLogo />
+            <Logo size="md" />
           </Link>
 
           <div className="flex items-center gap-2">
             <Link href="/login">
-              <Button variant="ghost" size="sm" className="px-3 text-[#263936] hover:bg-white/36">
-                Log in
+              <Button
+                size="sm"
+                className="!rounded-xl !border-white/75 !bg-white/62 px-4 !text-[#17312d] shadow-[0_14px_34px_-24px_rgba(20,47,43,0.86)] backdrop-blur-xl hover:!border-white hover:!bg-white/82"
+              >
+                Log in / Sign up
               </Button>
             </Link>
-            <Button
-              size="sm"
-              className="!border-[#d5653e] !bg-[#d5653e] !text-white shadow-[0_14px_26px_-18px_rgba(213,101,62,0.95)] hover:!border-[#b95534] hover:!bg-[#b95534]"
-              onClick={() => openAIBuilder()}
-            >
-              Plan with AI
-              <Sparkles size={15} />
-            </Button>
           </div>
         </div>
       </header>
 
       <main className="relative z-10">
-        <section className="relative isolate overflow-hidden border-b border-[#172522]/10">
+        <section className="relative isolate overflow-hidden">
           <div className="relative mx-auto flex min-h-[calc(100svh-8rem)] max-w-7xl flex-col justify-center px-4 py-14 lg:px-8 lg:py-16">
             <motion.div
               variants={revealContainer}
@@ -320,14 +194,6 @@ export default function LandingPage() {
               animate="visible"
               className="mx-auto w-full max-w-6xl text-center"
             >
-              <motion.div
-                variants={revealItem}
-                className="mx-auto mb-5 inline-flex items-center gap-2 rounded-lg border border-[#cfd8c8] bg-white/70 px-3 py-2 text-sm font-bold text-[#24443e] shadow-sm backdrop-blur"
-              >
-                <Wand2 size={15} className="text-[#d5653e]" />
-                AI-native trip planning
-              </motion.div>
-
               <motion.h1
                 variants={revealItem}
                 className="mx-auto max-w-5xl font-display text-balance text-5xl font-black leading-tight text-[#17211f] sm:text-6xl lg:text-7xl"
@@ -441,39 +307,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="px-4 py-14 lg:px-8 lg:py-20">
-          <div className="mx-auto max-w-7xl">
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.54, ease: "easeOut" }}
-              className="max-w-3xl"
-            >
-              <p className="text-xs font-black uppercase text-[#b95534]">AI itinerary preview</p>
-              <h2 className="mt-3 max-w-2xl text-3xl font-black leading-tight text-[#17211f] sm:text-4xl">
-                A living itinerary, map, and timeline in one place.
-              </h2>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-[#63736c]">
-                Trippy keeps the plan concrete enough to use, but flexible enough to revise with one natural-language adjustment.
-              </p>
-            </motion.div>
-
-            <div className="mt-9 grid gap-5 lg:grid-cols-[minmax(0,0.98fr)_minmax(380px,1.02fr)]">
-              <ItineraryPreview preview={preview} />
-
-              <div className="grid gap-5">
-                <MapTimelinePreview />
-                <AdjustmentPreview
-                  activeKey={activeAdjustment}
-                  onSelect={setActiveAdjustment}
-                  onAdjust={adjustPreviewWithAI}
-                  preview={preview}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
       </main>
 
       <AITripBuilderModal
@@ -481,23 +314,6 @@ export default function LandingPage() {
         onClose={() => setShowAIBuilder(false)}
         initialRequest={aiBuilderRequest}
       />
-    </div>
-  );
-}
-
-function LandingLogo({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className="group flex items-center gap-2.5">
-      <div
-        className={cn(
-          "relative grid place-items-center overflow-hidden rounded-lg bg-[#142f2b] text-white shadow-[0_16px_36px_-24px_rgba(20,47,43,0.8)] transition-transform duration-200 group-hover:-translate-y-0.5",
-          compact ? "h-8 w-8" : "h-10 w-10",
-        )}
-      >
-        <Route size={compact ? 17 : 21} strokeWidth={2.2} />
-        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#d5653e]" />
-      </div>
-      <span className={cn("font-display font-black text-[#17211f]", compact ? "text-lg" : "text-xl")}>Trippy</span>
     </div>
   );
 }
@@ -780,222 +596,6 @@ function LandingAmbientBackground() {
       <div className="absolute inset-0 bg-[linear-gradient(rgba(23,33,31,0.048)_1px,transparent_1px),linear-gradient(90deg,rgba(23,33,31,0.042)_1px,transparent_1px)] bg-[size:78px_78px] opacity-50" />
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,250,242,0.38)_0%,rgba(255,250,242,0.12)_38%,rgba(248,239,225,0.42)_100%)]" />
     </div>
-  );
-}
-
-function ItineraryPreview({ preview }: { preview: PreviewAdjustment }) {
-  return (
-    <motion.article
-      key={preview.key}
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.34, ease: "easeOut" }}
-      className="rounded-lg border border-[#cbd7cb] bg-white p-5 shadow-[0_22px_70px_-52px_rgba(20,47,43,0.75)] sm:p-6"
-    >
-      <div className="flex flex-col gap-4 border-b border-[#e3e9e1] pb-5 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase text-[#b95534]">Generated itinerary</p>
-          <h3 className="mt-2 text-2xl font-black text-[#17211f]">Lisbon in five days</h3>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[#63736c]">{preview.summary}</p>
-        </div>
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#142f2b] text-white">
-          <Compass size={22} />
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        {[
-          { icon: Calendar, label: "Dates", value: "Sep 12-16" },
-          { icon: MapPin, label: "Base", value: "Principe Real" },
-          { icon: Sparkles, label: "Style", value: preview.label },
-        ].map(({ icon: Icon, label, value }) => (
-          <div key={label} className="rounded-lg border border-[#dce4da] bg-[#fbf7ee] p-3">
-            <div className="flex items-center gap-2 text-[#b95534]">
-              <Icon size={14} />
-              <p className="text-[11px] font-black uppercase text-[#7b827d]">{label}</p>
-            </div>
-            <p className="mt-1 text-sm font-black text-[#17211f]">{value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6 space-y-4">
-        {preview.itinerary.map((stop, index) => (
-          <div key={`${stop.time}-${stop.title}`} className="grid grid-cols-[auto_1fr] gap-4">
-            <div className="flex flex-col items-center">
-              <div className="grid h-10 w-10 place-items-center rounded-lg border border-[#cbd7cb] bg-[#eef3ec] text-[#142f2b]">
-                <Clock size={17} />
-              </div>
-              {index < preview.itinerary.length - 1 && <div className="h-full min-h-8 w-px bg-[#cbd7cb]" />}
-            </div>
-            <div className="pb-4">
-              <p className="text-xs font-black uppercase text-[#b95534]">{stop.time}</p>
-              <h4 className="mt-1 text-lg font-black text-[#17211f]">{stop.title}</h4>
-              <p className="mt-1 text-sm leading-6 text-[#63736c]">{stop.detail}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </motion.article>
-  );
-}
-
-function MapTimelinePreview() {
-  return (
-    <div className="grid gap-5 md:grid-cols-[1fr_0.72fr] lg:grid-cols-1 xl:grid-cols-[1fr_0.72fr]">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-80px" }}
-        transition={{ duration: 0.48, ease: "easeOut" }}
-        className="relative min-h-72 overflow-hidden rounded-lg border border-[#cbd7cb] bg-[#dfe9df]"
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(23,33,31,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(23,33,31,0.07)_1px,transparent_1px)] bg-[size:42px_42px]" />
-        <div className="absolute left-4 top-4 rounded-lg border border-white/70 bg-white/78 px-3 py-2 text-xs font-black uppercase text-[#63736c] backdrop-blur">
-          Map preview
-        </div>
-        <motion.svg viewBox="0 0 580 360" className="absolute inset-0 h-full w-full">
-          <path d="M66 236 C144 88 268 278 346 112 C392 14 480 70 526 142" fill="none" stroke="#142f2b" strokeWidth="8" strokeLinecap="round" opacity="0.18" />
-          <motion.path
-            d="M66 236 C144 88 268 278 346 112 C392 14 480 70 526 142"
-            fill="none"
-            stroke="#d5653e"
-            strokeWidth="5"
-            strokeLinecap="round"
-            initial={{ pathLength: 0 }}
-            whileInView={{ pathLength: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1.25, ease: "easeInOut" }}
-          />
-          {[
-            [66, 236],
-            [194, 172],
-            [346, 112],
-            [526, 142],
-          ].map(([cx, cy], index) => (
-            <motion.circle
-              key={`${cx}-${cy}`}
-              cx={cx}
-              cy={cy}
-              r={index === 2 ? 14 : 11}
-              fill={index === 2 ? "#d5653e" : "#ffffff"}
-              stroke="#142f2b"
-              strokeWidth="4"
-              initial={{ scale: 0 }}
-              whileInView={{ scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 + index * 0.1, duration: 0.25 }}
-            />
-          ))}
-        </motion.svg>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-80px" }}
-        transition={{ delay: 0.08, duration: 0.48, ease: "easeOut" }}
-        className="rounded-lg border border-[#cbd7cb] bg-[#17211f] p-5 text-white"
-      >
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-black uppercase text-white/50">Timeline</p>
-            <h3 className="mt-1 text-xl font-black">Day 2 flow</h3>
-          </div>
-          <Map size={21} className="text-[#d5653e]" />
-        </div>
-
-        <div className="space-y-4">
-          {[
-            ["09:30", "Studio visit"],
-            ["13:00", "Lunch hold"],
-            ["15:30", "Open time"],
-            ["17:20", "Scenic route"],
-          ].map(([time, label], index) => (
-            <div key={time} className="grid grid-cols-[52px_1fr] gap-3">
-              <p className="text-xs font-black text-white/48">{time}</p>
-              <div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/12">
-                  <motion.div
-                    className="h-full rounded-full bg-[#d5653e]"
-                    initial={{ width: 0 }}
-                    whileInView={{ width: `${42 + index * 15}%` }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.15 + index * 0.08, duration: 0.48, ease: "easeOut" }}
-                  />
-                </div>
-                <p className="mt-2 text-sm font-bold text-white/88">{label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function AdjustmentPreview({
-  activeKey,
-  onSelect,
-  onAdjust,
-  preview,
-}: {
-  activeKey: AdjustmentKey;
-  onSelect: (key: AdjustmentKey) => void;
-  onAdjust: () => void;
-  preview: PreviewAdjustment;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ delay: 0.12, duration: 0.48, ease: "easeOut" }}
-      className="rounded-lg border border-[#cbd7cb] bg-white p-5 shadow-[0_22px_70px_-54px_rgba(20,47,43,0.72)]"
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase text-[#b95534]">Adjust with AI</p>
-          <h3 className="mt-2 text-xl font-black text-[#17211f]">Change the plan without starting over.</h3>
-        </div>
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#eef3ec] text-[#142f2b]">
-          <MessageCircle size={19} />
-        </div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {PREVIEW_ADJUSTMENTS.map((adjustment) => {
-          const active = adjustment.key === activeKey;
-          return (
-            <button
-              key={adjustment.key}
-              type="button"
-              onClick={() => onSelect(adjustment.key)}
-              className={cn(
-                "rounded-lg border px-3 py-2 text-sm font-bold transition-all duration-200",
-                active
-                  ? "border-[#142f2b] bg-[#142f2b] text-white"
-                  : "border-[#d7dfd5] bg-[#fbf7ee] text-[#63736c] hover:border-[#d5653e] hover:text-[#b95534]",
-              )}
-            >
-              {adjustment.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 rounded-lg border border-[#dbe3d9] bg-[#fbf7ee] p-4">
-        <div className="flex gap-3">
-          <Sparkles size={18} className="mt-0.5 shrink-0 text-[#d5653e]" />
-          <p className="text-sm font-semibold leading-6 text-[#263936]">{preview.prompt}</p>
-        </div>
-      </div>
-
-      <Button className="mt-4 w-full rounded-lg bg-[#d5653e] text-white hover:border-[#b95534] hover:bg-[#b95534]" onClick={onAdjust}>
-        Adjust with AI
-        <ArrowRight size={16} />
-      </Button>
-    </motion.div>
   );
 }
 
