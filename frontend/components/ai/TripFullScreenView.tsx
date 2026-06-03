@@ -6,7 +6,7 @@ import {
   X, MapPin, Calendar, Users, Sparkles, Loader2, Check, Star,
   DollarSign, Send, ArrowRightLeft, Plus, Trash2,
   Lightbulb, Undo2, ChevronDown, ChevronUp, ArrowLeft, Pencil,
-  RefreshCw, CloudSun, Bus, Clock,
+  RefreshCw, Bus, Clock,
 } from "lucide-react";
 import Logo from "@/components/Logo";
 import AmbientBackground from "@/components/layout/AmbientBackground";
@@ -361,9 +361,9 @@ export default function TripFullScreenView({
             </button>
             <Logo size="sm" className="min-w-0 [&>span]:text-xl" />
             <button
-              onClick={onClose}
+              onClick={onBack}
               className="ml-auto grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/54 text-[#6f7c73] transition-all hover:bg-white hover:text-[#17211f] cursor-pointer"
-              title="Close"
+              title="Back to results"
             >
               <X size={16} />
             </button>
@@ -543,83 +543,91 @@ export default function TripFullScreenView({
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.15 }}
       >
-        <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+        <div className="max-w-4xl mx-auto px-8 py-6 space-y-5">
           {/* Hero image + info */}
-          <div className="relative rounded-2xl overflow-hidden h-56 shadow-lg">
+          <div className="relative rounded-2xl overflow-hidden h-80 shadow-xl">
             <img
               src={draftTrip.image}
               alt={draftTrip.destination}
               className="w-full h-full object-cover"
               onError={(e) => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80"; }}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-            <div className="absolute bottom-4 left-5 right-5">
-              <h1 className="text-white font-bold text-xl drop-shadow-lg">
-                {actualDays > 0 ? `${draftTrip.destination} — ${actualDays}-Day Trip` : draftTrip.title}
-              </h1>
-              <div className="flex items-center gap-3 mt-1.5">
-                <span className="flex items-center gap-1 text-white/90 text-xs">
-                  <MapPin size={12} />
-                  {draftTrip.googleMapsUrl ? (
-                    <a
-                      href={draftTrip.googleMapsUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="hover:text-white hover:underline"
-                    >
-                      {draftTrip.destination}
-                    </a>
-                  ) : (
-                    draftTrip.destination
-                  )}
-                </span>
-                <span className="flex items-center gap-1 text-white/90 text-xs"><Star size={12} fill="currentColor" className="text-amber-400" /> {draftTrip.rating}</span>
-              </div>
-            </div>
-            {/* X button = close entire view */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/10" />
+            {/* X button = close entire modal */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 cursor-pointer transition-colors"
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 cursor-pointer transition-colors shadow-lg"
+              title="Close"
             >
-              <X size={16} />
+              <X size={17} />
             </button>
+            <div className="absolute bottom-0 left-0 right-0 p-6">
+              <h1 className="text-white font-black text-2xl drop-shadow-lg leading-tight">
+                {actualDays > 0 ? `${draftTrip.destination} — ${actualDays}-Day Trip` : draftTrip.title}
+              </h1>
+              <div className="flex items-center gap-4 mt-2.5 flex-wrap">
+                <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
+                  <MapPin size={13} />
+                  {draftTrip.googleMapsUrl ? (
+                    <a href={draftTrip.googleMapsUrl} target="_blank" rel="noreferrer" className="hover:text-white hover:underline">
+                      {draftTrip.destination}
+                    </a>
+                  ) : draftTrip.destination}
+                </span>
+                <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
+                  <Star size={13} fill="currentColor" className="text-amber-400" /> {draftTrip.rating}
+                </span>
+                <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
+                  <Calendar size={13} /> {displayDuration}
+                </span>
+                <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
+                  <Users size={13} /> {draftTrip.groupSize} people
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Trip stats */}
-          <div className="flex flex-wrap gap-3">
+          {/* Trip stats bar */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { icon: <Calendar size={14} />, label: displayDuration, color: "bg-trippy-500/10 text-trippy-700" },
-              { icon: <DollarSign size={14} />, label: draftTrip.budget, color: "bg-amber-500/10 text-amber-700" },
-              { icon: <Users size={14} />, label: `${draftTrip.groupSize} people`, color: "bg-blue-500/10 text-blue-700" },
-              { icon: <Sparkles size={14} />, label: `${totalActivities} activities`, color: "bg-purple-500/10 text-purple-700" },
+              { icon: <Sparkles size={16} className="text-purple-500" />, label: "Activities", value: `${totalActivities} planned`, bg: "bg-purple-50 border-purple-100" },
+              { icon: <DollarSign size={16} className="text-amber-500" />, label: "Budget", value: draftTrip.budget, bg: "bg-amber-50 border-amber-100" },
+              { icon: <Calendar size={16} className="text-trippy-500" />, label: "Duration", value: displayDuration, bg: "bg-trippy-500/5 border-trippy-200" },
+              { icon: <Star size={16} className="text-orange-400" fill="currentColor" />, label: "AI Rating", value: `${draftTrip.rating} / 5`, bg: "bg-orange-50 border-orange-100" },
             ].map((s, i) => (
-              <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${s.color}`}>
-                {s.icon} {s.label}
+              <div key={i} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${s.bg}`}>
+                <div className="shrink-0">{s.icon}</div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted">{s.label}</p>
+                  <p className="text-sm font-bold text-foreground truncate">{s.value}</p>
+                </div>
               </div>
             ))}
-            {draftTrip.bestTimeToVisit && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-green-500/10 text-green-700">
-                <Calendar size={14} /> Best: {draftTrip.bestTimeToVisit}
-              </div>
-            )}
           </div>
 
           {/* Highlights */}
           {draftTrip.highlights.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {draftTrip.highlights.map(h => (
-                <span key={h} className="text-[11px] bg-white border border-border/60 px-3 py-1 rounded-full text-foreground/70 shadow-sm">
-                  {h}
-                </span>
-              ))}
+            <div className="rounded-xl border border-border/60 bg-white px-5 py-4">
+              <div className="flex flex-wrap gap-2">
+                {draftTrip.highlights.map(h => (
+                  <span key={h} className="text-xs bg-surface border border-border/60 px-3 py-1.5 rounded-full text-foreground/80 font-medium shadow-sm">
+                    {h}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
           {/* Itinerary */}
           {itineraryLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-trippy-500 mr-3" />
-              <span className="text-sm text-muted">Generating your itinerary…</span>
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-trippy-500/10 flex items-center justify-center">
+                <Loader2 size={28} className="animate-spin text-trippy-500" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-foreground">Building your itinerary…</p>
+                <p className="text-xs text-muted mt-1">This takes a few seconds</p>
+              </div>
             </div>
           ) : draftTrip.aiItinerary && draftTrip.aiItinerary.length > 0 ? (
             <div className="relative">
@@ -632,7 +640,7 @@ export default function TripFullScreenView({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/80 backdrop-blur-[3px]"
+                    className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-white/85 backdrop-blur-[4px]"
                   >
                     <Loader2 size={32} className="animate-spin text-trippy-500 mb-3" />
                     <p className="text-sm font-semibold text-foreground">Updating with AI…</p>
@@ -640,11 +648,59 @@ export default function TripFullScreenView({
                   </motion.div>
                 )}
               </AnimatePresence>
-              <h2 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3">
-                <Sparkles size={14} className="text-trippy-500" />
-                Your Itinerary
-                <span className="text-[10px] font-normal text-muted ml-1">(hover activities to edit)</span>
-              </h2>
+
+              {/* Itinerary header + day navigator */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-black text-foreground flex items-center gap-2">
+                  <Sparkles size={16} className="text-trippy-500" />
+                  Your Itinerary
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setExpandedDays(new Set(draftTrip.aiItinerary?.map(d => d.dayNumber) ?? []))}
+                    className="text-[11px] font-semibold text-trippy-600 hover:text-trippy-700 cursor-pointer transition-colors px-2.5 py-1 rounded-lg hover:bg-trippy-500/10"
+                  >
+                    Expand all
+                  </button>
+                  <button
+                    onClick={() => setExpandedDays(new Set())}
+                    className="text-[11px] font-semibold text-muted hover:text-foreground cursor-pointer transition-colors px-2.5 py-1 rounded-lg hover:bg-surface"
+                  >
+                    Collapse all
+                  </button>
+                </div>
+              </div>
+
+              {/* Day navigator pills */}
+              <div className="flex gap-2 overflow-x-auto pb-3 mb-4 no-scrollbar">
+                {draftTrip.aiItinerary.map(day => {
+                  const isExp = expandedDays.has(day.dayNumber);
+                  const hasWeather = day.weather?.condition && !day.weather.condition.includes("unavailable");
+                  return (
+                    <button
+                      key={day.dayNumber}
+                      onClick={() => {
+                        if (!isExp) toggleDay(day.dayNumber);
+                        setTimeout(() => {
+                          document.getElementById(`day-${itineraryVersion}-${day.dayNumber}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }, 50);
+                      }}
+                      className={`flex items-center gap-2 shrink-0 px-3.5 py-2 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                        isExp
+                          ? "bg-trippy-500 border-trippy-500 text-white shadow-md shadow-trippy-500/30"
+                          : "bg-white border-border/60 text-foreground hover:border-trippy-400 hover:text-trippy-600"
+                      }`}
+                    >
+                      <span>Day {day.dayNumber}</span>
+                      {hasWeather && (
+                        <span className={`text-[9px] font-medium ${isExp ? "text-white/80" : "text-sky-600"}`}>
+                          {formatTemperature(day.weather!.temperatureCelsius)}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
 
               {draftTrip.aiItinerary.map((day, dayIdx) => {
                 const isExpanded = expandedDays.has(day.dayNumber);
@@ -652,24 +708,31 @@ export default function TripFullScreenView({
                 const dateStr = day.date
                   ? new Date(day.date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })
                   : "";
+                const weatherCondition = day.weather?.condition;
+                const hasWeather = weatherCondition && !weatherCondition.includes("unavailable");
+                const weatherTemp = formatTemperature(day.weather?.temperatureCelsius);
+                const weatherIcon = getWeatherIcon(weatherCondition);
 
                 return (
                   <motion.div
+                    id={`day-${itineraryVersion}-${day.dayNumber}`}
                     key={`${itineraryVersion}-day-${day.dayNumber}`}
-                    className="mb-3"
+                    className="mb-4 scroll-mt-4"
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: dayIdx * 0.06, duration: 0.3, ease: "easeOut" }}
                   >
-                    <div className="rounded-xl border border-border/60 overflow-hidden bg-white shadow-sm">
+                    <div className="rounded-2xl border border-border/60 overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
                       {/* Day header */}
-                      <div className="flex items-center gap-3 px-4 py-3 hover:bg-trippy-500/[0.02] transition-colors">
+                      <div className={`flex items-center gap-3 px-5 py-4 transition-colors ${isExpanded ? "bg-trippy-500/[0.03] border-b border-border/40" : "hover:bg-trippy-500/[0.02]"}`}>
                         <button
                           onClick={() => toggleDay(day.dayNumber)}
-                          className="flex-1 flex items-center gap-3 text-left cursor-pointer min-w-0"
+                          className="flex-1 flex items-center gap-4 text-left cursor-pointer min-w-0"
                         >
-                          <div className="w-9 h-9 rounded-xl bg-trippy-500 text-white text-xs flex items-center justify-center font-bold shadow-sm shrink-0">
-                            D{day.dayNumber}
+                          {/* Day number badge */}
+                          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-trippy-500 to-trippy-600 text-white flex flex-col items-center justify-center font-black shadow-md shadow-trippy-500/25 shrink-0">
+                            <span className="text-[9px] font-bold opacity-80 leading-none">DAY</span>
+                            <span className="text-base leading-none">{day.dayNumber}</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             {isEditingThisDay ? (
@@ -685,14 +748,26 @@ export default function TripFullScreenView({
                                 className="text-sm font-bold text-foreground bg-transparent border-b-2 border-trippy-400 outline-none w-full pb-0.5"
                               />
                             ) : (
-                              <p className="text-sm font-bold text-foreground truncate">{day.title}</p>
+                              <p className="text-sm font-bold text-foreground leading-tight">{day.title}</p>
                             )}
-                            {dateStr && <p className="text-[10px] text-muted">{dateStr}</p>}
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              {dateStr && <span className="text-[11px] text-muted">{dateStr}</span>}
+                              <span className="text-[11px] text-muted bg-surface px-2 py-0.5 rounded-full">
+                                {(day.activities?.length ?? 0)} activities
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-[10px] text-muted bg-surface px-2.5 py-0.5 rounded-full shrink-0">
-                            {(day.activities?.length ?? 0)} activities
-                          </span>
-                          {isExpanded ? <ChevronUp size={14} className="text-muted shrink-0" /> : <ChevronDown size={14} className="text-muted shrink-0" />}
+                          {/* Weather badge in header */}
+                          {hasWeather && (
+                            <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700">
+                              <span className="text-sm leading-none">{weatherIcon}</span>
+                              <span className="text-[11px] font-semibold whitespace-nowrap">
+                                {weatherCondition!.split("(")[0].trim()}
+                                {weatherTemp && <span className="ml-1 font-bold">{weatherTemp}</span>}
+                              </span>
+                            </div>
+                          )}
+                          {isExpanded ? <ChevronUp size={16} className="text-muted shrink-0" /> : <ChevronDown size={16} className="text-muted shrink-0" />}
                         </button>
 
                         {/* Edit / Save day title button */}
@@ -730,161 +805,172 @@ export default function TripFullScreenView({
                             exit={{ height: 0 }}
                             className="overflow-hidden"
                           >
-                            <div className="divide-y divide-border/30 border-t border-border/40">
+                            <div className="border-t border-border/40">
                               <DayContextBlocks day={day} />
-                              {(day.activities ?? []).map((act, idx) => {
-                                const cat = act.category || "";
-                                const durationMinutes = act.durationMinutes ?? act.duration;
-                                const isEditingThis =
-                                  editingActivity?.dayNumber === day.dayNumber &&
-                                  editingActivity?.idx === idx;
+                              <div className="px-5 py-4 space-y-0">
+                                {(day.activities ?? []).map((act, idx) => {
+                                  const cat = act.category || "";
+                                  const durationMinutes = act.durationMinutes ?? act.duration;
+                                  const isEditingThis =
+                                    editingActivity?.dayNumber === day.dayNumber &&
+                                    editingActivity?.idx === idx;
+                                  const isLast = idx === (day.activities?.length ?? 0) - 1;
 
-                                return (
-                                  <div key={idx} className="group relative">
-                                    {isEditingThis ? (
-                                      /* ── Inline edit form ── */
-                                      <div className="px-4 py-3 bg-trippy-500/[0.025] space-y-2.5 border-l-2 border-trippy-400">
-                                        <p className="text-[10px] font-semibold text-trippy-700 uppercase tracking-wider">Edit Activity</p>
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <input
-                                            value={editActivityForm.title}
-                                            onChange={(e) => setEditActivityForm(f => ({ ...f, title: e.target.value }))}
-                                            placeholder="Activity title *"
-                                            autoFocus
-                                            className="col-span-2 text-xs rounded-lg border border-trippy-300 px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500"
-                                          />
-                                          <input
-                                            value={editActivityForm.time}
-                                            onChange={(e) => setEditActivityForm(f => ({ ...f, time: e.target.value }))}
-                                            placeholder="Time (e.g. 10:00 AM)"
-                                            className="text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500/50"
-                                          />
-                                          <input
-                                            value={editActivityForm.estimatedCost}
-                                            onChange={(e) => setEditActivityForm(f => ({ ...f, estimatedCost: e.target.value }))}
-                                            placeholder="Cost (e.g. $20)"
-                                            className="text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500/50"
-                                          />
-                                          <input
-                                            value={editActivityForm.location}
-                                            onChange={(e) => setEditActivityForm(f => ({ ...f, location: e.target.value }))}
-                                            placeholder="Location / Address"
-                                            className="col-span-2 text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500/50"
-                                          />
-                                          <textarea
-                                            value={editActivityForm.description}
-                                            onChange={(e) => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
-                                            placeholder="Description (optional)"
-                                            rows={2}
-                                            className="col-span-2 text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white resize-none focus:border-trippy-500/50"
-                                          />
-                                        </div>
-                                        <div className="flex gap-2">
-                                          <button
-                                            onClick={saveEditActivity}
-                                            disabled={!editActivityForm.title.trim()}
-                                            className="text-[10px] font-semibold text-white bg-trippy-500 px-3.5 py-1.5 rounded-full cursor-pointer hover:bg-trippy-600 disabled:opacity-40 transition-colors"
-                                          >
-                                            Save changes
-                                          </button>
-                                          <button
-                                            onClick={() => setEditingActivity(null)}
-                                            className="text-[10px] text-muted border border-border px-3.5 py-1.5 rounded-full cursor-pointer hover:text-foreground transition-colors"
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
+                                  return (
+                                    <div key={idx} className="group relative flex gap-4">
+                                      {/* Timeline spine */}
+                                      <div className="flex flex-col items-center shrink-0 w-16">
+                                        {act.time ? (
+                                          <span className="text-[10px] font-black text-trippy-600 bg-trippy-500/10 border border-trippy-200 px-2 py-1 rounded-lg text-center leading-tight whitespace-nowrap z-10">
+                                            {act.time}
+                                          </span>
+                                        ) : (
+                                          <div className="w-3 h-3 rounded-full bg-trippy-400 border-2 border-white shadow-sm z-10 mt-1" />
+                                        )}
+                                        {!isLast && (
+                                          <div className="w-0.5 flex-1 bg-gradient-to-b from-trippy-200 to-trippy-100 my-1 min-h-[24px]" />
+                                        )}
                                       </div>
-                                    ) : (
-                                      /* ── Activity row ── */
-                                      <div className="flex gap-3 px-4 py-3 hover:bg-trippy-500/[0.02] transition-colors">
-                                        <div className="shrink-0 pt-0.5 w-14 text-center">
-                                          {act.time ? (
-                                            <span className="text-[10px] font-bold text-trippy-600 bg-trippy-500/10 px-2 py-0.5 rounded-md">{act.time}</span>
-                                          ) : (
-                                            <div className="w-2 h-2 rounded-full bg-trippy-300 mx-auto mt-1.5" />
-                                          )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-xs font-semibold text-foreground">{act.title}</span>
-                                            {cat && (
-                                              <span className={`text-[9px] font-medium px-2 py-0.5 rounded-full border ${CAT_COLORS[cat] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                                                {CAT_ICONS[cat] || "📌"} {cat.toLowerCase()}
-                                              </span>
-                                            )}
+
+                                      {/* Activity card */}
+                                      <div className={`flex-1 min-w-0 pb-4 ${isLast ? "" : ""}`}>
+                                        {isEditingThis ? (
+                                          /* ── Inline edit form ── */
+                                          <div className="rounded-xl px-4 py-3 bg-trippy-500/[0.03] space-y-2.5 border border-trippy-300 mb-2">
+                                            <p className="text-[10px] font-bold text-trippy-700 uppercase tracking-wider">Edit Activity</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <input
+                                                value={editActivityForm.title}
+                                                onChange={(e) => setEditActivityForm(f => ({ ...f, title: e.target.value }))}
+                                                placeholder="Activity title *"
+                                                autoFocus
+                                                className="col-span-2 text-xs rounded-lg border border-trippy-300 px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500"
+                                              />
+                                              <input
+                                                value={editActivityForm.time}
+                                                onChange={(e) => setEditActivityForm(f => ({ ...f, time: e.target.value }))}
+                                                placeholder="Time (e.g. 10:00 AM)"
+                                                className="text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500/50"
+                                              />
+                                              <input
+                                                value={editActivityForm.estimatedCost}
+                                                onChange={(e) => setEditActivityForm(f => ({ ...f, estimatedCost: e.target.value }))}
+                                                placeholder="Cost (e.g. $20)"
+                                                className="text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500/50"
+                                              />
+                                              <input
+                                                value={editActivityForm.location}
+                                                onChange={(e) => setEditActivityForm(f => ({ ...f, location: e.target.value }))}
+                                                placeholder="Location / Address"
+                                                className="col-span-2 text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500/50"
+                                              />
+                                              <textarea
+                                                value={editActivityForm.description}
+                                                onChange={(e) => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
+                                                placeholder="Description (optional)"
+                                                rows={2}
+                                                className="col-span-2 text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white resize-none focus:border-trippy-500/50"
+                                              />
+                                            </div>
+                                            <div className="flex gap-2">
+                                              <button
+                                                onClick={saveEditActivity}
+                                                disabled={!editActivityForm.title.trim()}
+                                                className="text-[10px] font-semibold text-white bg-trippy-500 px-3.5 py-1.5 rounded-full cursor-pointer hover:bg-trippy-600 disabled:opacity-40 transition-colors"
+                                              >
+                                                Save changes
+                                              </button>
+                                              <button
+                                                onClick={() => setEditingActivity(null)}
+                                                className="text-[10px] text-muted border border-border px-3.5 py-1.5 rounded-full cursor-pointer hover:text-foreground transition-colors"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
                                           </div>
-                                          {act.description && (
-                                            <p className="text-[11px] text-muted mt-0.5 leading-relaxed">{act.description}</p>
-                                          )}
-                                          <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                            {durationMinutes && (
-                                              <span className="text-[10px] text-muted flex items-center gap-0.5">
-                                                <Clock size={9} className="text-trippy-400" /> {formatDurationMinutes(durationMinutes)}
-                                              </span>
-                                            )}
-                                            {act.location && (
-                                              <span className="text-[10px] text-muted flex items-center gap-0.5">
-                                                <MapPin size={9} className="text-trippy-400" />
-                                                {act.googleMapsUrl ? (
-                                                  <a
-                                                    href={act.googleMapsUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="hover:text-trippy-600 hover:underline"
-                                                  >
-                                                    {act.location}
-                                                  </a>
-                                                ) : (
-                                                  act.location
+                                        ) : (
+                                          /* ── Activity card ── */
+                                          <div className="rounded-xl border border-border/50 bg-white hover:border-trippy-300/60 hover:shadow-sm transition-all px-4 py-3 mb-2 group/card relative">
+                                            {/* Edit/Delete on hover */}
+                                            <div className="absolute top-2.5 right-2.5 flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity z-10">
+                                              <button
+                                                onClick={() => startEditActivity(day.dayNumber, idx, act)}
+                                                title="Edit"
+                                                className="w-6 h-6 rounded-lg flex items-center justify-center text-muted hover:text-trippy-600 hover:bg-trippy-500/10 transition-colors cursor-pointer"
+                                              >
+                                                <Pencil size={11} />
+                                              </button>
+                                              <button
+                                                onClick={() => deleteActivity(day.dayNumber, idx)}
+                                                title="Delete"
+                                                className="w-6 h-6 rounded-lg flex items-center justify-center text-muted hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                                              >
+                                                <Trash2 size={11} />
+                                              </button>
+                                            </div>
+
+                                            <div className="flex items-start gap-3 pr-14">
+                                              {/* Category emoji */}
+                                              <span className="text-xl leading-none mt-0.5 shrink-0">{CAT_ICONS[cat] || "📌"}</span>
+                                              <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                  <p className="text-sm font-bold text-foreground leading-tight">{act.title}</p>
+                                                  {cat && (
+                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wide ${CAT_COLORS[cat] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                                                      {cat}
+                                                    </span>
+                                                  )}
+                                                  {act.bookingRequired && (
+                                                    <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                                      📅 Book ahead
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                {act.description && (
+                                                  <p className="text-[12px] text-muted mt-1 leading-relaxed">{act.description}</p>
                                                 )}
-                                              </span>
-                                            )}
-                                            {act.estimatedCost && (
-                                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                                                {act.estimatedCost}
-                                              </span>
-                                            )}
-                                            {act.bookingRequired && (
-                                              <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
-                                                Booking advised
-                                              </span>
-                                            )}
+                                                <div className="flex flex-wrap items-center gap-3 mt-2">
+                                                  {durationMinutes && (
+                                                    <span className="text-[11px] text-muted flex items-center gap-1 font-medium">
+                                                      <Clock size={10} className="text-trippy-400" /> {formatDurationMinutes(durationMinutes)}
+                                                    </span>
+                                                  )}
+                                                  {act.location && (
+                                                    <span className="text-[11px] text-muted flex items-center gap-1 font-medium">
+                                                      <MapPin size={10} className="text-trippy-400" />
+                                                      {act.googleMapsUrl ? (
+                                                        <a href={act.googleMapsUrl} target="_blank" rel="noreferrer" className="hover:text-trippy-600 hover:underline">
+                                                          {act.location}
+                                                        </a>
+                                                      ) : act.location}
+                                                    </span>
+                                                  )}
+                                                  {act.estimatedCost && (
+                                                    <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                                                      <DollarSign size={9} /> {act.estimatedCost}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                {act.tips && (
+                                                  <p className="text-[11px] text-trippy-600/70 mt-2 leading-relaxed italic border-l-2 border-trippy-200 pl-2">
+                                                    💡 {act.tips}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </div>
                                           </div>
-                                          {act.tips && (
-                                            <p className="text-[10px] text-foreground/60 mt-1 leading-relaxed">{act.tips}</p>
-                                          )}
-                                        </div>
-                                        {/* Edit / Delete (visible on hover) */}
-                                        <div className="shrink-0 flex items-start gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
-                                          <button
-                                            onClick={() => startEditActivity(day.dayNumber, idx, act)}
-                                            title="Edit activity"
-                                            className="w-6 h-6 rounded-lg flex items-center justify-center text-muted hover:text-trippy-600 hover:bg-trippy-500/10 transition-colors cursor-pointer"
-                                          >
-                                            <Pencil size={10} />
-                                          </button>
-                                          <button
-                                            onClick={() => deleteActivity(day.dayNumber, idx)}
-                                            title="Delete activity"
-                                            className="w-6 h-6 rounded-lg flex items-center justify-center text-muted hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                                          >
-                                            <Trash2 size={10} />
-                                          </button>
-                                        </div>
+                                        )}
                                       </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                    </div>
+                                  );
+                                })}
 
-                              {/* Add activity */}
-                              <div className="px-4 py-2.5">
+                                {/* Add activity */}
                                 <button
                                   onClick={() => addActivity(day.dayNumber)}
-                                  className="flex items-center gap-1.5 text-[10px] font-semibold text-trippy-600 hover:text-trippy-700 cursor-pointer transition-colors"
+                                  className="flex items-center gap-2 text-[11px] font-semibold text-trippy-600 hover:text-trippy-700 cursor-pointer transition-colors mt-1 px-2 py-1.5 rounded-lg hover:bg-trippy-500/10"
                                 >
-                                  <Plus size={11} className="text-trippy-500" /> Add activity
+                                  <Plus size={12} className="text-trippy-500" /> Add activity
                                 </button>
                               </div>
                             </div>
@@ -903,9 +989,9 @@ export default function TripFullScreenView({
           ) : null}
 
           {/* Save bar */}
-          <div className="sticky bottom-0 bg-[#f7f6f3] pt-3 pb-4">
-            <Button className="w-full text-sm py-3" onClick={onSave} disabled={saved}>
-              {saved ? <><Check size={16} /> Trip Saved</> : <><Sparkles size={16} /> Save Trip</>}
+          <div className="sticky bottom-0 bg-gradient-to-t from-[#f7f6f3] via-[#f7f6f3]/95 to-transparent pt-6 pb-6">
+            <Button className="w-full text-sm py-3.5 shadow-lg shadow-trippy-500/20" onClick={onSave} disabled={saved}>
+              {saved ? <><Check size={16} /> Trip Saved to Dashboard</> : <><Sparkles size={16} /> Save This Trip</>}
             </Button>
           </div>
         </div>
@@ -917,40 +1003,46 @@ export default function TripFullScreenView({
 function DayContextBlocks({ day }: { day: AiItineraryDay }) {
   const weather = day.weather;
   const condition = weather?.condition?.trim() || "Forecast unavailable";
+  const isForecastUnavailable = condition === "Forecast unavailable";
   const temperature = formatTemperature(weather?.temperatureCelsius);
   const weatherAdvice = weather?.advice?.trim() || "Check the local forecast closer to departure.";
+  const weatherIcon = getWeatherIcon(weather?.condition);
   const transport = day.transportRecommendations?.filter((item) =>
     Boolean((item.from || item.to) && (item.estimatedDuration || item.notes))
   ) ?? [];
 
   return (
-    <div className={`grid gap-2.5 bg-[#fbfaf7] px-4 py-3 ${transport.length > 0 ? "sm:grid-cols-2" : ""}`}>
-      <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2.5">
+    <div className={`grid gap-3 bg-[#f9f9f7] px-5 py-4 ${transport.length > 0 ? "sm:grid-cols-2" : ""}`}>
+      <div className={`rounded-xl border px-4 py-3 ${isForecastUnavailable ? "border-slate-200 bg-slate-50/70" : "border-sky-200 bg-sky-50/60"}`}>
         <div className="flex items-center gap-2">
-          <CloudSun size={13} className="text-sky-600" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700">Weather</span>
-          {temperature && <span className="ml-auto text-[10px] font-semibold text-sky-800">{temperature}</span>}
+          <span className="text-lg leading-none">{isForecastUnavailable ? "🌤️" : weatherIcon}</span>
+          <span className={`text-[11px] font-black uppercase tracking-wider ${isForecastUnavailable ? "text-slate-500" : "text-sky-700"}`}>Weather</span>
+          {temperature && (
+            <span className="ml-auto text-sm font-black text-sky-800 bg-sky-100 border border-sky-200 px-2.5 py-0.5 rounded-lg">
+              {temperature}
+            </span>
+          )}
         </div>
-        <p className="mt-1 text-xs font-semibold text-foreground">{condition}</p>
-        <p className="mt-0.5 text-[10px] leading-relaxed text-muted">{weatherAdvice}</p>
+        <p className={`mt-1.5 text-sm font-semibold ${isForecastUnavailable ? "text-slate-600" : "text-foreground"}`}>{condition}</p>
+        <p className={`mt-0.5 text-[11px] leading-relaxed ${isForecastUnavailable ? "text-slate-400" : "text-muted"}`}>{weatherAdvice}</p>
       </div>
 
       {transport.length > 0 && (
-        <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2.5">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
           <div className="flex items-center gap-2">
-            <Bus size={13} className="text-emerald-600" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Transit</span>
+            <Bus size={14} className="text-emerald-600" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Transit</span>
           </div>
-          <div className="mt-1 space-y-1.5">
+          <div className="mt-1.5 space-y-2">
             {transport.slice(0, 3).map((item, idx) => (
-              <div key={`${item.from}-${item.to}-${idx}`} className="text-[10px] leading-relaxed text-muted">
-                <p className="font-semibold text-foreground/80">
+              <div key={`${item.from}-${item.to}-${idx}`} className="text-[11px] leading-relaxed">
+                <p className="font-bold text-foreground/80">
                   {item.from || "Start"} → {item.to || "Next stop"}
                 </p>
-                <p>
+                <p className="text-muted">
                   {[item.mode || "Route", item.estimatedDuration].filter(Boolean).join(" · ")}
                 </p>
-                {item.notes && <p>{item.notes}</p>}
+                {item.notes && <p className="text-muted">{item.notes}</p>}
               </div>
             ))}
           </div>
@@ -958,6 +1050,25 @@ function DayContextBlocks({ day }: { day: AiItineraryDay }) {
       )}
     </div>
   );
+}
+
+function getWeatherIcon(condition: string | undefined): string {
+  if (!condition) return "🌤️";
+  const c = condition.toLowerCase();
+  if (c.includes("clear")) return "☀️";
+  if (c.includes("mainly clear")) return "🌤️";
+  if (c.includes("partly cloudy")) return "⛅";
+  if (c.includes("overcast") || c.includes("cloud")) return "☁️";
+  if (c.includes("fog")) return "🌫️";
+  if (c.includes("drizzle")) return "🌦️";
+  if (c.includes("thunderstorm")) return "⛈️";
+  if (c.includes("snow")) return "🌨️";
+  if (c.includes("rain")) return "🌧️";
+  if (c.includes("warm") || c.includes("summer")) return "☀️";
+  if (c.includes("cold") || c.includes("winter") || c.includes("frost")) return "🌨️";
+  if (c.includes("mild") || c.includes("spring")) return "🌸";
+  if (c.includes("cool") || c.includes("autumn")) return "🍂";
+  return "🌤️";
 }
 
 function formatTemperature(value?: number | null): string {
