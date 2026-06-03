@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import AITripBuilderModal, { type AIBuilderRequest } from "@/components/ai/AITripBuilderModal";
 import Logo from "@/components/Logo";
+import AmbientBackground from "@/components/layout/AmbientBackground";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -110,6 +111,7 @@ export default function LandingPage() {
   const [dietPreference, setDietPreference] = useState("");
   const [pacePreference, setPacePreference] = useState("");
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [dateError, setDateError] = useState("");
   const [showAIBuilder, setShowAIBuilder] = useState(false);
   const [aiBuilderRequest, setAiBuilderRequest] = useState<AIBuilderRequest | undefined>(undefined);
 
@@ -141,11 +143,31 @@ export default function LandingPage() {
     preferences?: string;
     autoGenerate?: boolean;
   } = {}) => {
+    const trimmedCity = city.trim();
+
+    if (!start) {
+      setDateError("Select a start date to plan a one-day trip.");
+      return;
+    }
+
+    const normalizedEnd = end || start;
+
+    if (isPastDateValue(start) || isPastDateValue(normalizedEnd)) {
+      setDateError("Please choose today or a future date.");
+      return;
+    }
+
+    if (!trimmedCity) {
+      setDateError("Enter a destination to plan your trip.");
+      return;
+    }
+
+    setDateError("");
     setAiBuilderRequest({
       requestId: nextRequestId(),
-      city: city.trim() || undefined,
-      startDate: start || undefined,
-      endDate: end || undefined,
+      city: trimmedCity,
+      startDate: start,
+      endDate: normalizedEnd,
       people,
       budget: budget || undefined,
       filters,
@@ -162,9 +184,19 @@ export default function LandingPage() {
     );
   };
 
+  const handleStartDateChange = (value: string) => {
+    setDateError("");
+    setStartDate(value);
+  };
+
+  const handleEndDateChange = (value: string) => {
+    setDateError("");
+    setEndDate(value);
+  };
+
   return (
     <div className="relative isolate min-h-screen overflow-x-hidden bg-[#f8efe1] text-[#18211f]">
-      <LandingAmbientBackground />
+      <AmbientBackground />
 
       <header className="sticky top-0 z-50 border-b border-white/30 bg-white/18 px-4 shadow-[0_1px_0_rgba(20,47,43,0.04)] backdrop-blur-2xl lg:px-8">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between">
@@ -211,7 +243,7 @@ export default function LandingPage() {
                   event.preventDefault();
                   openAIBuilder({ autoGenerate: true });
                 }}
-                className="mx-auto mt-8 w-full max-w-5xl rounded-[1.35rem] border border-white/80 bg-white/78 p-2.5 shadow-[0_34px_96px_-58px_rgba(20,47,43,0.82)] backdrop-blur-xl"
+                className="relative z-30 mx-auto mt-8 w-full max-w-5xl rounded-[1.35rem] border border-white/80 bg-white/78 p-2.5 shadow-[0_34px_96px_-58px_rgba(20,47,43,0.82)] backdrop-blur-xl"
               >
                 <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_250px_178px]">
                   <label
@@ -241,8 +273,9 @@ export default function LandingPage() {
                   <DateRangePicker
                     startDate={startDate}
                     endDate={endDate}
-                    onStartDateChange={setStartDate}
-                    onEndDateChange={setEndDate}
+                    hasError={Boolean(dateError)}
+                    onStartDateChange={handleStartDateChange}
+                    onEndDateChange={handleEndDateChange}
                   />
 
                   <Button
@@ -256,11 +289,16 @@ export default function LandingPage() {
                     </span>
                   </Button>
                 </div>
+                {dateError && (
+                  <p className="px-2 pt-2 text-left text-xs font-bold text-[#b95534]">
+                    {dateError}
+                  </p>
+                )}
               </motion.form>
 
               <motion.div
                 variants={revealItem}
-                className="mx-auto mt-3 flex w-fit max-w-full flex-wrap items-center justify-center gap-2 rounded-[1.35rem] border border-white/60 bg-white/28 px-3 py-2 text-left shadow-[0_18px_54px_-42px_rgba(20,47,43,0.86)] backdrop-blur-2xl sm:rounded-full"
+                className="relative z-10 mx-auto mt-3 flex w-fit max-w-full flex-wrap items-center justify-center gap-2 rounded-[1.35rem] border border-white/60 bg-white/28 px-3 py-2 text-left shadow-[0_18px_54px_-42px_rgba(20,47,43,0.86)] backdrop-blur-2xl sm:rounded-full"
               >
                 <PlannerMultiGroup
                   icon={<SlidersHorizontal size={12} />}
@@ -308,7 +346,6 @@ export default function LandingPage() {
         </section>
 
       </main>
-
       <AITripBuilderModal
         open={showAIBuilder}
         onClose={() => setShowAIBuilder(false)}
@@ -589,24 +626,16 @@ function PlannerChoiceGroup({
   );
 }
 
-function LandingAmbientBackground() {
-  return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#f8efe1]">
-      <div className="absolute inset-0 bg-[url('/trippy-landing-background.png')] bg-cover bg-center bg-no-repeat" />
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(23,33,31,0.048)_1px,transparent_1px),linear-gradient(90deg,rgba(23,33,31,0.042)_1px,transparent_1px)] bg-[size:78px_78px] opacity-50" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,250,242,0.38)_0%,rgba(255,250,242,0.12)_38%,rgba(248,239,225,0.42)_100%)]" />
-    </div>
-  );
-}
-
 function DateRangePicker({
   startDate,
   endDate,
+  hasError = false,
   onStartDateChange,
   onEndDateChange,
 }: {
   startDate: string;
   endDate: string;
+  hasError?: boolean;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
 }) {
@@ -632,11 +661,19 @@ function DateRangePicker({
 
   const start = parseLocalDate(startDate);
   const end = parseLocalDate(endDate);
+  const today = startOfToday();
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
   const days = buildCalendarDays(monthStart);
   const rangeLabel = formatDateRangeLabel(startDate, endDate);
 
+  useEffect(() => {
+    if (isPastDateValue(startDate)) onStartDateChange("");
+    if (isPastDateValue(endDate)) onEndDateChange("");
+  }, [endDate, onEndDateChange, onStartDateChange, startDate]);
+
   const selectDate = (date: Date) => {
+    if (isPastDate(date)) return;
+
     const selected = toDateInputValue(date);
 
     if (!start || end || date < start) {
@@ -664,6 +701,8 @@ function DateRangePicker({
           "flex min-h-16 w-full items-center gap-3 rounded-[1.05rem] border bg-[#fbf7ee]/92 px-4 text-left transition-all duration-200 focus-visible:focus-ring",
           open
             ? "border-[#d5653e] bg-white shadow-[0_0_0_4px_rgba(213,101,62,0.12),0_16px_30px_-24px_rgba(20,47,43,0.55)]"
+            : hasError
+              ? "border-[#d5653e] bg-white shadow-[0_0_0_4px_rgba(213,101,62,0.1)]"
             : "border-transparent hover:border-[#cbd7cb] hover:bg-white/90",
         )}
       >
@@ -685,13 +724,14 @@ function DateRangePicker({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className="absolute left-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-[#cbd7cb] bg-white p-4 text-left shadow-2xl"
+            className="absolute left-0 top-full z-[120] mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-[#cbd7cb] bg-white p-4 text-left shadow-2xl"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
-                className="grid h-9 w-9 place-items-center rounded-lg border border-[#d6ded4] bg-[#fbf7ee] text-[#142f2b] hover:border-[#d5653e]"
+                disabled={calendarMonth.getFullYear() === today.getFullYear() && calendarMonth.getMonth() === today.getMonth()}
+                className="grid h-9 w-9 place-items-center rounded-lg border border-[#d6ded4] bg-[#fbf7ee] text-[#142f2b] hover:border-[#d5653e] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-[#d6ded4]"
                 aria-label="Previous month"
               >
                 <ChevronLeft size={17} />
@@ -701,7 +741,7 @@ function DateRangePicker({
                   {monthStart.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
                 </p>
                 <p className="mt-0.5 text-xs font-semibold text-[#6f7a73]">
-                  {start && !end ? "Select an end date" : "Select a start date"}
+                  {start && !end ? "One-day trip selected" : "Select a start date"}
                 </p>
               </div>
               <button
@@ -727,15 +767,19 @@ function DateRangePicker({
                 const isStart = Boolean(start && sameDay(date, start));
                 const isEnd = Boolean(end && sameDay(date, end));
                 const isBetween = Boolean(start && end && date > start && date < end);
+                const isPast = isPastDate(date);
 
                 return (
                   <button
                     key={toDateInputValue(date)}
                     type="button"
                     onClick={() => selectDate(date)}
+                    disabled={isPast}
                     className={cn(
                       "grid h-10 place-items-center rounded-lg text-sm font-bold transition-all",
-                      isStart || isEnd
+                      isPast
+                        ? "cursor-not-allowed bg-transparent text-[#b8beb9]"
+                        : isStart || isEnd
                         ? "bg-[#142f2b] text-white"
                         : isBetween
                           ? "bg-[#e1ebe0] text-[#142f2b]"
@@ -772,6 +816,20 @@ function parseLocalDate(value: string) {
   return new Date(`${value}T00:00:00`);
 }
 
+function startOfToday() {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+}
+
+function isPastDate(date: Date) {
+  return date < startOfToday();
+}
+
+function isPastDateValue(value?: string) {
+  const date = parseLocalDate(value ?? "");
+  return Boolean(date && isPastDate(date));
+}
+
 function toDateInputValue(date: Date) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -785,7 +843,7 @@ function formatDateRangeLabel(startDate: string, endDate: string) {
   const format = (date: Date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
   if (start && end) return `${format(start)} - ${format(end)}`;
-  if (start) return `${format(start)} - Add return`;
+  if (start) return `${format(start)} · 1 day`;
   return "";
 }
 

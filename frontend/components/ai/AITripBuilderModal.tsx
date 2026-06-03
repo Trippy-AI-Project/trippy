@@ -262,9 +262,9 @@ function formatDestination(suggestion: DestinationSuggestionItem): string {
 }
 
 function daysBetween(startDate: string, endDate: string): number {
-  if (!startDate || !endDate) return 0;
+  if (!startDate) return 0;
   const start = new Date(startDate);
-  const end = new Date(endDate);
+  const end = new Date(endDate || startDate);
   const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   return Math.max(1, Number.isFinite(diff) ? diff + 1 : 1);
 }
@@ -422,7 +422,7 @@ function DateRangePicker({
     displayLabel = `${s} → ${e}  ·  ${nights} night${nights !== 1 ? "s" : ""}`;
   } else if (startDate) {
     const s = new Date(startDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    displayLabel = `${s} → pick return date`;
+    displayLabel = `${s} · 1 day`;
   }
 
   return (
@@ -520,7 +520,7 @@ function DateRangePicker({
               {!startDate ? (
                 <p className="text-[11px] text-muted">Tap a date to start</p>
               ) : !endDate ? (
-                <p className="text-[11px] text-trippy-600 font-medium">Now pick your return date</p>
+                <p className="text-[11px] text-trippy-600 font-medium">One-day trip selected</p>
               ) : (
                 <p className="text-[11px] text-green-600 font-medium">
                   ✓ {Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000)} nights selected
@@ -568,7 +568,9 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       parts.push("Suggest travel destinations.");
     }
 
-    if (startDate && endDate) parts.push(`Travel dates: ${startDate} to ${endDate}.`);
+    if (startDate) {
+      parts.push(endDate ? `Travel dates: ${startDate} to ${endDate}.` : `Travel date: ${startDate} for a one-day trip.`);
+    }
     if (people) parts.push(`${people} traveler(s).`);
     if (selectedFilters.length) parts.push(`Trip style: ${selectedFilters.join(", ")}.`);
     if (budget) parts.push(`Budget: ${budget}.`);
@@ -605,8 +607,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       if (
         initialRequest.autoGenerate &&
         initialRequest.requestId !== lastAutoRequestId.current &&
-        initialRequest.startDate &&
-        initialRequest.endDate
+        initialRequest.startDate
       ) {
         lastAutoRequestId.current = initialRequest.requestId;
         pendingAutoGenerate.current = true;
@@ -652,12 +653,13 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
 
   async function handleGenerate() {
     if (isLoading) return;
-    if (!startDate || !endDate) {
+    if (!startDate) {
       setShowFormExpanded(true);
       setError("Please select travel dates before generating an AI trip.");
       return;
     }
 
+    const effectiveEndDate = endDate || startDate;
     loadingStartedAt.current = Date.now();
     setIsLoading(true);
     setError("");
@@ -666,7 +668,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
 
     try {
       // Build structured payload with ALL user preferences for the AI
-      const tripDays = startDate && endDate ? daysBetween(startDate, endDate) : undefined;
+      const tripDays = daysBetween(startDate, effectiveEndDate);
       const payload: AiRequestPayload = {
         prompt: promptPreview,
         city: city.trim() || undefined,
@@ -714,7 +716,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       }
 
       const mapped = primarySuggestions.map((s) =>
-        toTripCardFromSuggestion(s, people, startDate, endDate)
+        toTripCardFromSuggestion(s, people, startDate, effectiveEndDate)
       );
 
       setResults(mapped);
@@ -759,7 +761,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
         <TripFullScreenView
           trip={fullScreenTrip}
           userPrompt={promptPreview}
-          userDates={{ start: startDate, end: endDate }}
+          userDates={{ start: startDate, end: endDate || startDate }}
           onBack={() => onClose()}
           onClose={onClose}
           onSave={() => handleSave(fullScreenTrip.title)}
@@ -828,10 +830,11 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
                       <MapPin size={14} className="text-trippy-500" />
                       <span className="font-medium">{city || "Anywhere"}</span>
                     </div>
-                    {startDate && endDate && (
+                    {startDate && (
                       <div className="flex items-center gap-1.5 text-xs text-muted">
                         <Calendar size={12} />
-                        {new Date(startDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })} → {new Date(endDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        {new Date(startDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        {endDate ? ` → ${new Date(endDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : " · 1 day"}
                       </div>
                     )}
                     <div className="flex items-center gap-1.5 text-xs text-muted">
@@ -853,7 +856,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
                       >
                         Edit search
                       </button>
-                      <Button size="sm" onClick={() => void handleGenerate()} disabled={isLoading || !startDate || !endDate} title={!startDate || !endDate ? "Select travel dates first" : undefined} className="text-xs">
+                      <Button size="sm" onClick={() => void handleGenerate()} disabled={isLoading || !startDate} title={!startDate ? "Select travel dates first" : undefined} className="text-xs">
                         {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                         {isLoading ? "Generating…" : "Regenerate"}
                       </Button>
@@ -894,8 +897,8 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
                       endDate={endDate}
                       onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
                     />
-                    {(!startDate || !endDate) && (
-                      <p className="text-[10px] text-red-400 mt-1">Select your travel dates to continue</p>
+                    {!startDate && (
+                      <p className="text-[10px] text-red-400 mt-1">Select your travel date to continue</p>
                     )}
                   </div>
 
@@ -985,8 +988,8 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       onClick={() => { void handleGenerate(); setShowFormExpanded(false); }}
-                      disabled={isLoading || !startDate || !endDate}
-                      title={!startDate || !endDate ? "Please select travel dates first" : undefined}
+                      disabled={isLoading || !startDate}
+                      title={!startDate ? "Please select travel dates first" : undefined}
                     >
                       {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                       {isLoading ? "Generating" : "Generate AI Trip"}
@@ -1071,7 +1074,7 @@ function TripResultCard({
   onSave: () => void;
   onOpenFullScreen: () => void;
   userPrompt?: string;
-  userDates?: { start: string; end: string };
+  userDates?: { start: string; end?: string };
 }) {
   const [showItinerary, setShowItinerary] = useState(false);
   const [itineraryLoading, setItineraryLoading] = useState(false);
@@ -1119,11 +1122,12 @@ function TripResultCard({
       setShowItinerary((p) => !p);
       return;
     }
-    if (!userDates?.start || !userDates?.end) {
+    if (!userDates?.start) {
       setShowItinerary(true);
       setItineraryError("Select travel dates before generating an itinerary.");
       return;
     }
+    const effectiveEndDate = userDates.end || userDates.start;
     setItineraryLoading(true);
     setItineraryError("");
     setShowItinerary(true);
@@ -1135,7 +1139,7 @@ function TripResultCard({
           constraints: {
             destination: draftTrip.destination,
             startDate: userDates.start,
-            endDate: userDates.end,
+            endDate: effectiveEndDate,
             budgetLevel: "MODERATE",
             adults: parseInt(draftTrip.groupSize) || 2,
             children: 0,
