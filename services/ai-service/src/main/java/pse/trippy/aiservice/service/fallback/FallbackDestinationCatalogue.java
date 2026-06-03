@@ -10,6 +10,8 @@ import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -74,6 +76,9 @@ public class FallbackDestinationCatalogue {
         int suggestionLimit = Math.max(1, Math.min(5, limit));
         List<FallbackDestinationProfile> selected = new ArrayList<>();
         Optional<FallbackDestinationProfile> primary = findBestMatch(request.city());
+        if (hasDestinationQuery(request.city()) && primary.isEmpty()) {
+            return List.of();
+        }
 
         primary.ifPresent(selected::add);
         rankProfiles(request, primary.map(FallbackDestinationProfile::id).orElse(null)).stream()
@@ -87,6 +92,10 @@ public class FallbackDestinationCatalogue {
                         .map(FallbackDestinationProfile::id)
                         .orElse(null))))
                 .toList();
+    }
+
+    private boolean hasDestinationQuery(String city) {
+        return city != null && !city.isBlank();
     }
 
     static String normalize(String value) {
@@ -277,7 +286,13 @@ public class FallbackDestinationCatalogue {
                 safeList(profile.highlights()).stream().limit(3).toList(),
                 estimatedCost,
                 profile.bestTimeToVisit(),
+                googleMapsDirectionsUrl(profile.destination()),
                 Math.round(score * 100.0) / 100.0);
+    }
+
+    private String googleMapsDirectionsUrl(String query) {
+        return "https://www.google.com/maps/dir/?api=1&destination="
+                + URLEncoder.encode(query, StandardCharsets.UTF_8);
     }
 
     private Integer parseMonth(String rawMonth) {

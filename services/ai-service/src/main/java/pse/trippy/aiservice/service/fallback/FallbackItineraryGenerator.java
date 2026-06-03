@@ -7,6 +7,8 @@ import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -37,7 +39,9 @@ public class FallbackItineraryGenerator {
         String reason = fallbackReason == null || fallbackReason.isBlank() ? DEFAULT_REASON : fallbackReason;
         return catalogue.findBestMatch(request.constraints().destination())
                 .map(profile -> generateForProfile(request, profile, reason))
-                .orElseGet(() -> generateUnsupportedDestinationFallback(request, reason));
+                .orElseThrow(() -> new IllegalArgumentException("Fallback is not available for "
+                        + request.constraints().destination()
+                        + ". Please start the AI service or try a supported fallback destination."));
     }
 
     private ItineraryResponse generateForProfile(GenerateItineraryRequest request,
@@ -57,14 +61,14 @@ public class FallbackItineraryGenerator {
             boolean dayTripDay = dayNumber == 5 && days >= 5 && !safeList(profile.dayTrips()).isEmpty();
             if (dayTripDay) {
                 addActivity(activities, firstAvailable(profile.dayTrips(), preferences, usedTitles)
-                        .orElse(profile.dayTrips().get(0)), usedTitles);
+                        .orElse(profile.dayTrips().get(0)), usedTitles, profile.destination());
             } else {
                 int targetCoreCount = targetCoreActivityCount(preferences.pacePreference(), dayNumber, days);
-                addMustSeeRequests(activities, corePool, preferences, usedTitles, dayNumber);
+                addMustSeeRequests(activities, corePool, preferences, usedTitles, dayNumber, profile.destination());
                 while (coreActivityCount(activities) < targetCoreCount) {
                     Optional<FallbackActivity> next = nextActivity(corePool, usedTitles, dayNumber);
                     if (next.isPresent()) {
-                        addActivity(activities, next.get(), usedTitles);
+                        addActivity(activities, next.get(), usedTitles, profile.destination());
                     } else {
                         activities.add(flexibleActivity(profile, dayNumber, activities.size()));
                         break;
@@ -74,12 +78,12 @@ public class FallbackItineraryGenerator {
 
             if (preferences.includeMeals()) {
                 Optional<FallbackActivity> food = firstAvailable(profile.foodExperiences(), preferences, usedTitles);
-                food.ifPresent(activity -> addActivity(activities, activity, usedTitles));
+                food.ifPresent(activity -> addActivity(activities, activity, usedTitles, profile.destination()));
             }
 
             if (shouldAddEvening(dayNumber, days, preferences.pacePreference())) {
                 Optional<FallbackActivity> evening = firstAvailable(profile.eveningOptions(), preferences, usedTitles);
-                evening.ifPresent(activity -> addActivity(activities, activity, usedTitles));
+                evening.ifPresent(activity -> addActivity(activities, activity, usedTitles, profile.destination()));
             }
 
             assignTimes(activities);
@@ -101,51 +105,6 @@ public class FallbackItineraryGenerator {
                 .dailyPlan(dayPlans)
                 .packingTips(safeList(profile.packingTips()))
                 .travelTips(safeList(profile.travelTips()))
-                .generatedAt(Instant.now())
-                .tokensUsed(0)
-                .fallbackUsed(true)
-                .fallbackReason(fallbackReason)
-                .build();
-    }
-
-    private ItineraryResponse generateUnsupportedDestinationFallback(GenerateItineraryRequest request,
-                                                                    String fallbackReason) {
-        TripConstraints constraints = request.constraints();
-        int days = requestedDays(constraints);
-        List<ItineraryResponse.DayPlan> dayPlans = new ArrayList<>();
-        for (int dayNumber = 1; dayNumber <= days; dayNumber++) {
-            LocalDate date = constraints.startDate().plusDays(dayNumber - 1L);
-            ItineraryResponse.Activity orientation = ItineraryResponse.Activity.builder()
-                    .time("09:30")
-                    .durationMinutes(120)
-                    .title("Flexible orientation in " + constraints.destination())
-                    .description("The fallback catalogue does not have a full profile for this destination. "
-                            + "Use this block to start with a central, well-reviewed area.")
-                    .location(constraints.destination())
-                    .category("FREE_TIME")
-                    .estimatedCost("Varies")
-                    .tips("Regenerate when AI is reachable for a destination-specific plan.")
-                    .bookingRequired(false)
-                    .build();
-            dayPlans.add(ItineraryResponse.DayPlan.builder()
-                    .dayNumber(dayNumber)
-                    .date(date.toString())
-                    .title("Day " + dayNumber + " in " + constraints.destination())
-                    .weather(unavailableWeather())
-                    .activities(List.of(orientation))
-                    .build());
-        }
-
-        return ItineraryResponse.builder()
-                .generationId(UUID.randomUUID())
-                .tripTitle(days + " Days in " + constraints.destination())
-                .summary("Fallback generated because AI was unavailable, but this destination is not in the "
-                        + "static fallback catalogue.")
-                .totalEstimatedCost("Estimate unavailable")
-                .dailyPlan(dayPlans)
-                .packingTips(List.of("Comfortable walking shoes", "Weather-appropriate layers"))
-                .travelTips(List.of("Confirm current opening days and tickets before visiting major attractions.",
-                        "Use this as a temporary plan and regenerate when AI is reachable."))
                 .generatedAt(Instant.now())
                 .tokensUsed(0)
                 .fallbackUsed(true)
@@ -194,13 +153,14 @@ public class FallbackItineraryGenerator {
                                     List<FallbackActivity> corePool,
                                     Preferences preferences,
                                     Set<String> usedTitles,
-                                    int dayNumber) {
+                                    int dayNumber,
+                                    String destination) {
         if (dayNumber > 2) {
             return;
         }
         for (FallbackActivity activity : corePool) {
             if (preferences.isRequested(activity.title()) && !usedTitles.contains(normalizeTitle(activity.title()))) {
-                addActivity(activities, activity, usedTitles);
+                addActivity(activities, activity, usedTitles, destination);
             }
         }
     }
@@ -228,17 +188,19 @@ public class FallbackItineraryGenerator {
 
     private void addActivity(List<ItineraryResponse.Activity> activities,
                              FallbackActivity activity,
-                             Set<String> usedTitles) {
+                             Set<String> usedTitles,
+                             String destination) {
         usedTitles.add(normalizeTitle(activity.title()));
-        activities.add(toResponseActivity(activity));
+        activities.add(toResponseActivity(activity, destination));
     }
 
-    private ItineraryResponse.Activity toResponseActivity(FallbackActivity fallbackActivity) {
+    private ItineraryResponse.Activity toResponseActivity(FallbackActivity fallbackActivity, String destination) {
         return ItineraryResponse.Activity.builder()
                 .durationMinutes(fallbackActivity.durationMinutes())
                 .title(fallbackActivity.title())
                 .description(fallbackActivity.description())
                 .location(fallbackActivity.location())
+                .googleMapsUrl(googleMapsDirectionsUrl(fallbackActivity.location() + ", " + destination))
                 .category(fallbackActivity.category())
                 .estimatedCost(fallbackActivity.estimatedCost())
                 .tips(tipsFor(fallbackActivity))
@@ -255,6 +217,7 @@ public class FallbackItineraryGenerator {
                 .description("Use this lower-pressure block for a neighbourhood walk, cafe pause, rest or "
                         + "weather-safe indoor alternative.")
                 .location(profile.city())
+                .googleMapsUrl(googleMapsDirectionsUrl(profile.destination()))
                 .category("FREE_TIME")
                 .estimatedCost("Flexible")
                 .tips("Keep this block adaptable instead of forcing another landmark.")
@@ -351,6 +314,11 @@ public class FallbackItineraryGenerator {
 
     private String normalizeTitle(String value) {
         return FallbackDestinationCatalogue.normalize(value);
+    }
+
+    private String googleMapsDirectionsUrl(String query) {
+        return "https://www.google.com/maps/dir/?api=1&destination="
+                + URLEncoder.encode(query, StandardCharsets.UTF_8);
     }
 
     private static <T> List<T> safeList(List<T> values) {

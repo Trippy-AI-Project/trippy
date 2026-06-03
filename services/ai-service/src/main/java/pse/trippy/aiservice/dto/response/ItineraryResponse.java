@@ -74,6 +74,7 @@ public class ItineraryResponse {
         private String title;
         private String description;
         private String location;
+        private String googleMapsUrl;
         private String category; // SIGHTSEEING, FOOD, TRANSPORT, ACCOMMODATION, ACTIVITY, FREE_TIME
         private String estimatedCost;
         private String tips;

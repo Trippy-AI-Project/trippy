@@ -42,6 +42,7 @@ const LOADING_MESSAGES = [
   { emoji: "☕", text: "Finding cozy cafés..." },
   { emoji: "🎭", text: "Curating unique experiences..." },
 ];
+const MIN_AI_LOADING_MS = 5_000;
 
 function TripLoadingScreen({ destination }: { destination: string }) {
   const [msgIndex, setMsgIndex] = useState(0);
@@ -182,7 +183,14 @@ interface AiItineraryDay {
   dayNumber: number;
   date?: string;
   title: string;
-  activities: { time?: string; title: string; description?: string; location?: string; estimatedCost?: string }[];
+  activities: {
+    time?: string;
+    title: string;
+    description?: string;
+    location?: string;
+    googleMapsUrl?: string;
+    estimatedCost?: string;
+  }[];
 }
 
 interface GeneratedTrip {
@@ -196,6 +204,7 @@ interface GeneratedTrip {
   reason: string;
   bestTimeToVisit: string;
   image: string;
+  googleMapsUrl?: string;
   aiItinerary?: AiItineraryDay[];
 }
 
@@ -204,6 +213,7 @@ interface DestinationSuggestionItem {
   country?: string;
   estimatedDailyCost?: string;
   bestTimeToVisit?: string;
+  googleMapsUrl?: string;
   highlights?: string[];
   reason?: string;
   matchScore?: number;
@@ -285,6 +295,7 @@ function toTripCardFromSuggestion(
     reason: suggestion.reason || "",
     bestTimeToVisit: suggestion.bestTimeToVisit || "",
     image: PLACEHOLDER_IMAGE, // Will be replaced dynamically by TripResultCard
+    googleMapsUrl: suggestion.googleMapsUrl,
   };
 }
 
@@ -546,6 +557,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
   const [fullScreenTrip, setFullScreenTrip] = useState<GeneratedTrip | null>(null);
 
   const lastAutoRequestId = useRef<number>(0);
+  const loadingStartedAt = useRef(0);
 
   const promptPreview = useMemo(() => {
     const parts: string[] = [];
@@ -630,10 +642,23 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
     setSavedTrips((prev) => new Set(prev).add(title));
   }
 
+  async function waitForMinimumLoading() {
+    const elapsed = Date.now() - loadingStartedAt.current;
+    const remaining = MIN_AI_LOADING_MS - elapsed;
+    if (remaining > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+    }
+  }
+
   async function handleGenerate() {
     if (isLoading) return;
-    if (!startDate || !endDate) return;
+    if (!startDate || !endDate) {
+      setShowFormExpanded(true);
+      setError("Please select travel dates before generating an AI trip.");
+      return;
+    }
 
+    loadingStartedAt.current = Date.now();
     setIsLoading(true);
     setError("");
     setReply("");
@@ -655,6 +680,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       };
 
       const suggestions = await fetchAiSuggestions(payload);
+      await waitForMinimumLoading();
 
       if (!suggestions.length) {
         setResults([]);
@@ -706,6 +732,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
         setFullScreenTrip(mapped[0]);
       }
     } catch (err) {
+      await waitForMinimumLoading();
       const message = err instanceof Error ? err.message : "Could not connect to AI service.";
       setError(message);
       setResults([]);
@@ -1092,26 +1119,23 @@ function TripResultCard({
       setShowItinerary((p) => !p);
       return;
     }
+    if (!userDates?.start || !userDates?.end) {
+      setShowItinerary(true);
+      setItineraryError("Select travel dates before generating an itinerary.");
+      return;
+    }
     setItineraryLoading(true);
     setItineraryError("");
     setShowItinerary(true);
     try {
-      const durationMatch = draftTrip.duration.match(/(\d+)/);
-      const days = durationMatch ? parseInt(durationMatch[1]) : 3;
-      const today = new Date();
-      const startDate = today.toISOString().slice(0, 10);
-      const endDateObj = new Date(today);
-      endDateObj.setDate(endDateObj.getDate() + days - 1);
-      const endDate = endDateObj.toISOString().slice(0, 10);
-
       const res = await fetch("/api/ai/itineraries", {
         method: "POST",
         headers: aiRequestHeaders(),
         body: JSON.stringify({
           constraints: {
             destination: draftTrip.destination,
-            startDate: userDates?.start || startDate,
-            endDate: userDates?.end || endDate,
+            startDate: userDates.start,
+            endDate: userDates.end,
             budgetLevel: "MODERATE",
             adults: parseInt(draftTrip.groupSize) || 2,
             children: 0,
@@ -1152,7 +1176,18 @@ function TripResultCard({
           <h4 className="text-white font-bold text-sm">{draftTrip.title}</h4>
           <div className="flex items-center gap-1 mt-0.5">
             <MapPin size={11} className="text-white/80" />
-            <span className="text-white/80 text-xs">{draftTrip.destination}</span>
+            {draftTrip.googleMapsUrl ? (
+              <a
+                href={draftTrip.googleMapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-white/80 text-xs hover:text-white hover:underline"
+              >
+                {draftTrip.destination}
+              </a>
+            ) : (
+              <span className="text-white/80 text-xs">{draftTrip.destination}</span>
+            )}
           </div>
         </div>
         <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5">
@@ -1283,7 +1318,18 @@ function TripResultCard({
                                 {act.location && (
                                   <span className="text-[9px] text-muted flex items-center gap-0.5">
                                     <MapPin size={7} className="text-trippy-400" />
-                                    {act.location}
+                                    {act.googleMapsUrl ? (
+                                      <a
+                                        href={act.googleMapsUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="hover:text-trippy-600 hover:underline"
+                                      >
+                                        {act.location}
+                                      </a>
+                                    ) : (
+                                      act.location
+                                    )}
                                   </span>
                                 )}
                                 {act.estimatedCost && (
