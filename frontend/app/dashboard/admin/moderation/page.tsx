@@ -16,7 +16,11 @@ export default function ModerationPage() {
 
   // Gate: ADMIN-only. Members get redirected; UI also hides itself.
   useEffect(() => {
-    if (!isLoading && user && user.role !== "ADMIN") {
+    if (!isLoading && !user) {
+      router.replace("/login");
+      return;
+    }
+    if (!isLoading && user.role !== "ADMIN") {
       router.replace("/dashboard");
     }
   }, [isLoading, user, router]);

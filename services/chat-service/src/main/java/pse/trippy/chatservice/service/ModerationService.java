@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pse.trippy.chatservice.exception.ChatRoomNotFoundException;
+import pse.trippy.chatservice.exception.MessageNotFoundException;
 import pse.trippy.chatservice.model.entity.ChatMessage;
 import pse.trippy.chatservice.repository.ChatMessageRepository;
 
@@ -50,7 +50,7 @@ public class ModerationService {
     public void banUser(UUID userId, int durationMinutes) {
         Duration ttl = resolvedDuration(durationMinutes);
         redisTemplate.opsForValue().set(banKey(userId), Instant.now().plus(ttl).toString(), ttl);
-        log.info("User {} banned for {} minutes", userId, durationMinutes);
+        log.info("User {} banned for {} minutes", userId, ttl.toMinutes());
     }
 
     /**
@@ -75,7 +75,7 @@ public class ModerationService {
     public void muteUser(UUID userId, int durationMinutes) {
         Duration ttl = resolvedDuration(durationMinutes);
         redisTemplate.opsForValue().set(muteKey(userId), Instant.now().plus(ttl).toString(), ttl);
-        log.info("User {} muted for {} minutes", userId, durationMinutes);
+        log.info("User {} muted for {} minutes", userId, ttl.toMinutes());
     }
 
     /**
@@ -97,12 +97,12 @@ public class ModerationService {
      * Soft-deletes a chat message by setting its {@code deleted} flag.
      * The message record is retained in the database for audit purposes.
      *
-     * @throws ChatRoomNotFoundException if the message does not exist
+     * @throws MessageNotFoundException if the message does not exist
      */
     @Transactional
     public void deleteMessage(UUID messageId) {
         ChatMessage message = chatMessageRepository.findById(messageId)
-                .orElseThrow(() -> new ChatRoomNotFoundException(
+                .orElseThrow(() -> new MessageNotFoundException(
                         "Message not found: " + messageId));
         message.setDeleted(true);
         chatMessageRepository.save(message);
@@ -112,9 +112,12 @@ public class ModerationService {
     // ---------------------------------------------------------------- helpers
 
     private static Duration resolvedDuration(int durationMinutes) {
-        return durationMinutes > 0
-                ? Duration.ofMinutes(Math.min(durationMinutes, MAX_DURATION_MINUTES))
-                : MAX_DURATION;
+        if (durationMinutes < 0) {
+            throw new IllegalArgumentException("durationMinutes must be >= 0");
+        }
+        return durationMinutes == 0
+                ? MAX_DURATION
+                : Duration.ofMinutes(Math.min(durationMinutes, MAX_DURATION_MINUTES));
     }
 
     static String banKey(UUID userId)  { return String.format(BAN_KEY,  userId); }
