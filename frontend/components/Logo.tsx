@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 interface LogoProps {
   size?: "sm" | "md" | "lg";
   className?: string;
+  showText?: boolean;
 }
 
 const sizeMap = {
@@ -12,7 +13,7 @@ const sizeMap = {
   lg: { mark: "h-12 w-12 rounded-2xl", text: "text-2xl" },
 };
 
-export default function Logo({ size = "md", className }: LogoProps) {
+export default function Logo({ size = "md", className, showText = true }: LogoProps) {
   const s = sizeMap[size];
   const id = useId().replaceAll(":", "");
   const gradientId = `trippyLogoBg${id}`;
@@ -59,9 +60,11 @@ export default function Logo({ size = "md", className }: LogoProps) {
           <circle cx="34.6" cy="49.1" r="2.1" fill="#f06f4f" />
         </svg>
       </div>
-      <span className={cn("font-display font-black text-[#17211f]", s.text)}>
-        Trippy
-      </span>
+      {showText && (
+        <span className={cn("font-display font-black text-[#17211f]", s.text)}>
+          Trippy
+        </span>
+      )}
     </div>
   );
 }
