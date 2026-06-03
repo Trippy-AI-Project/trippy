@@ -3,11 +3,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, MapPin, Calendar, Users, Sparkles, Loader2, Check, Star,
+  MapPin, Calendar, Users, Sparkles, Loader2, Check, Star,
   DollarSign, Send, ArrowRightLeft, Plus, Trash2,
-  Lightbulb, Undo2, ChevronDown, ChevronUp, ArrowLeft, Pencil,
-  RefreshCw, Bus, Clock,
+  Lightbulb, Undo2, ChevronDown, ChevronUp, Pencil,
+  Bus, Clock, ArrowLeft,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import AmbientBackground from "@/components/layout/AmbientBackground";
 import Button from "@/components/ui/Button";
@@ -87,12 +88,9 @@ interface TripFullScreenViewProps {
   trip: GeneratedTrip;
   userPrompt?: string;
   userDates?: { start: string; end?: string };
-  onBack: () => void;
   onClose: () => void;
   onSave: () => void;
   saved: boolean;
-  onRegenerate?: () => void;
-  onEditSearch?: () => void;
 }
 
 const CAT_COLORS: Record<string, string> = {
@@ -113,8 +111,9 @@ const CAT_ICONS: Record<string, string> = {
 
 /* ── Main Component ────────────────────────────────────────────────── */
 export default function TripFullScreenView({
-  trip, userPrompt, userDates, onBack, onClose, onSave, saved, onRegenerate, onEditSearch,
+  trip, userPrompt, userDates, onClose, onSave, saved,
 }: TripFullScreenViewProps) {
+  const router = useRouter();
   const [draftTrip, setDraftTrip] = useState<GeneratedTrip>(trip);
   const [itineraryVersion, setItineraryVersion] = useState(0);
   const [itineraryLoading, setItineraryLoading] = useState(false);
@@ -353,20 +352,13 @@ export default function TripFullScreenView({
         <div className="border-b border-white/60 bg-white/36 px-4 py-4 shadow-[0_16px_36px_-34px_rgba(20,47,43,0.65)]">
           <div className="flex items-center gap-3">
             <button
-              onClick={onBack}
-              title="Back to results"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/75 bg-white/68 text-[#51635d] shadow-sm transition-all hover:-translate-x-0.5 hover:bg-white cursor-pointer"
+              onClick={() => router.push("/")}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/50 text-[#3a4a44] shadow-sm transition-all hover:bg-white hover:text-[#123d36] cursor-pointer"
+              title="Back to home"
             >
-              <ArrowLeft size={17} />
+              <ArrowLeft size={15} />
             </button>
             <Logo size="sm" className="min-w-0 [&>span]:text-xl" />
-            <button
-              onClick={onBack}
-              className="ml-auto grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/54 text-[#6f7c73] transition-all hover:bg-white hover:text-[#17211f] cursor-pointer"
-              title="Back to results"
-            >
-              <X size={16} />
-            </button>
           </div>
           {prevItinerary && (
             <button
@@ -374,26 +366,6 @@ export default function TripFullScreenView({
               className="mt-3 inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] text-orange-600 transition-colors hover:bg-orange-100 cursor-pointer"
             >
               <Undo2 size={10} /> Undo
-            </button>
-          )}
-        </div>
-
-        {/* ── Action bar: Regenerate / Change Dates / Close ─────── */}
-        <div className="grid grid-cols-2 gap-2 border-b border-white/45 bg-white/18 px-4 py-3">
-          {onRegenerate && (
-            <button
-              onClick={onRegenerate}
-              className="flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#c8d3cd] bg-white/68 px-3 text-xs font-black text-[#123d36] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white cursor-pointer"
-            >
-              <RefreshCw size={13} /> Regenerate
-            </button>
-          )}
-          {onEditSearch && (
-            <button
-              onClick={onEditSearch}
-              className="flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#b7d2ff] bg-[#edf5ff]/78 px-3 text-xs font-black text-[#2454d6] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white cursor-pointer"
-            >
-              <Calendar size={13} /> Change Dates
             </button>
           )}
         </div>
@@ -553,14 +525,6 @@ export default function TripFullScreenView({
               onError={(e) => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop&q=80"; }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/10" />
-            {/* X button = close entire modal */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 cursor-pointer transition-colors shadow-lg"
-              title="Close"
-            >
-              <X size={17} />
-            </button>
             <div className="absolute bottom-0 left-0 right-0 p-6">
               <h1 className="text-white font-black text-2xl drop-shadow-lg leading-tight">
                 {actualDays > 0 ? `${draftTrip.destination} — ${actualDays}-Day Trip` : draftTrip.title}
@@ -568,11 +532,14 @@ export default function TripFullScreenView({
               <div className="flex items-center gap-4 mt-2.5 flex-wrap">
                 <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
                   <MapPin size={13} />
-                  {draftTrip.googleMapsUrl ? (
-                    <a href={draftTrip.googleMapsUrl} target="_blank" rel="noreferrer" className="hover:text-white hover:underline">
-                      {draftTrip.destination}
-                    </a>
-                  ) : draftTrip.destination}
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(draftTrip.destination)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-white hover:underline"
+                  >
+                    {draftTrip.destination}
+                  </a>
                 </span>
                 <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
                   <Star size={13} fill="currentColor" className="text-amber-400" /> {draftTrip.rating}
@@ -604,19 +571,6 @@ export default function TripFullScreenView({
               </div>
             ))}
           </div>
-
-          {/* Highlights */}
-          {draftTrip.highlights.length > 0 && (
-            <div className="rounded-xl border border-border/60 bg-white px-5 py-4">
-              <div className="flex flex-wrap gap-2">
-                {draftTrip.highlights.map(h => (
-                  <span key={h} className="text-xs bg-surface border border-border/60 px-3 py-1.5 rounded-full text-foreground/80 font-medium shadow-sm">
-                    {h}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Itinerary */}
           {itineraryLoading ? (
@@ -938,12 +892,18 @@ export default function TripFullScreenView({
                                                   {act.location && (
                                                     <span className="text-[11px] text-muted flex items-center gap-1 font-medium">
                                                       <MapPin size={10} className="text-trippy-400" />
-                                                      {act.googleMapsUrl ? (
-                                                        <a href={act.googleMapsUrl} target="_blank" rel="noreferrer" className="hover:text-trippy-600 hover:underline">
-                                                          {act.location}
-                                                        </a>
-                                                      ) : act.location}
+                                                      {act.location}
                                                     </span>
+                                                  )}
+                                                  {act.location && (
+                                                    <a
+                                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${act.location}, ${draftTrip.destination}`)}`}
+                                                      target="_blank"
+                                                      rel="noreferrer"
+                                                      className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
+                                                    >
+                                                      <MapPin size={9} /> Open in Maps
+                                                    </a>
                                                   )}
                                                   {act.estimatedCost && (
                                                     <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
