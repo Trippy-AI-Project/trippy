@@ -609,7 +609,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       void handleGenerate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, startDate, endDate, people, selectedFilters, budget, diet, preferences, customPreference]);
+  }, [city, startDate, endDate, people, selectedFilters, budget, diet, preferences, customPreference, isLoading]);
 
   useEffect(() => {
     if (!open) {
