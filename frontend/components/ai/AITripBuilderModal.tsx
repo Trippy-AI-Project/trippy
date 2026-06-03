@@ -762,7 +762,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
           trip={fullScreenTrip}
           userPrompt={promptPreview}
           userDates={{ start: startDate, end: endDate || startDate }}
-          onBack={() => onClose()}
+          onBack={() => setFullScreenTrip(null)}
           onClose={onClose}
           onSave={() => handleSave(fullScreenTrip.title)}
           saved={savedTrips.has(fullScreenTrip.title)}
