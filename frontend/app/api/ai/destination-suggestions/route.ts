@@ -121,7 +121,7 @@ function fallbackSuggestionResponse(body: SuggestionBody, fallbackReason: string
       interests: body.interests?.length ? body.interests : ["travel"],
       budget: body.budget,
       duration: clampDuration(body.durationDays),
-      region: body.city,
+      region: undefined,
       people: body.people,
       diet: body.diet,
       preferences: body.preferences,

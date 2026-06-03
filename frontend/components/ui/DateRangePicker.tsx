@@ -43,7 +43,7 @@ export default function DateRangePicker({
 
   function handleDayClick(dateStr: string) {
     if (dateStr < today) return;
-    if (!startDate || (startDate && endDate)) {
+    if (!startDate || endDate) {
       onChange(dateStr, "");
     } else if (dateStr < startDate) {
       onChange(dateStr, startDate);

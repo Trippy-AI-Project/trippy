@@ -584,16 +584,6 @@ function datesInRange(startDate: Date, endDate: Date): Set<string> {
   return dates;
 }
 
-function average(values: number[]): number {
-  return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
-}
-
-function mostCommon(values: string[]): string | undefined {
-  const counts = new Map<string, number>();
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0];
-}
-
 function weatherAdvice(condition: string): string {
   const normalized = condition.toLowerCase();
   if (normalized.includes("rain") || normalized.includes("storm") || normalized.includes("snow")) {
@@ -614,6 +604,7 @@ function googleMapsDirectionsUrl(query: string): string {
 
 function isRequested(title: string, preferences?: FallbackItineraryRequest["preferences"]): boolean {
   const normalizedTitle = normalize(title);
+  if (!normalizedTitle) return false;
   return (preferences?.mustSeeAttractions ?? [])
     .map(normalize)
     .some((value) => value && (normalizedTitle.includes(value) || value.includes(normalizedTitle)));
@@ -621,6 +612,7 @@ function isRequested(title: string, preferences?: FallbackItineraryRequest["pref
 
 function isAvoided(title: string, preferences?: FallbackItineraryRequest["preferences"]): boolean {
   const normalizedTitle = normalize(title);
+  if (!normalizedTitle) return false;
   return (preferences?.avoidAttractions ?? [])
     .map(normalize)
     .some((value) => value && (normalizedTitle.includes(value) || value.includes(normalizedTitle)));
