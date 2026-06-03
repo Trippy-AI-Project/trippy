@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  MapPin, Calendar, Users, Sparkles, Loader2, Check, Star,
+  MapPin, Calendar, Users, Sparkles, Loader2, Check,
   DollarSign, Send, ArrowRightLeft, Plus, Trash2,
   Lightbulb, Undo2, ChevronDown, ChevronUp, Pencil,
   Bus, Clock, ArrowLeft,
@@ -557,9 +557,6 @@ export default function TripFullScreenView({
                   </a>
                 </span>
                 <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
-                  <Star size={13} fill="currentColor" className="text-amber-400" /> {draftTrip.rating}
-                </span>
-                <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
                   <Calendar size={13} /> {displayDuration}
                 </span>
                 <span className="flex items-center gap-1.5 text-white/90 text-sm font-medium">
@@ -570,12 +567,11 @@ export default function TripFullScreenView({
           </div>
 
           {/* Trip stats bar */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               { icon: <Sparkles size={16} className="text-purple-500" />, label: "Activities", value: `${totalActivities} planned`, bg: "bg-purple-50 border-purple-100" },
               { icon: <DollarSign size={16} className="text-amber-500" />, label: "Budget", value: draftTrip.budget, bg: "bg-amber-50 border-amber-100" },
               { icon: <Calendar size={16} className="text-trippy-500" />, label: "Duration", value: displayDuration, bg: "bg-trippy-500/5 border-trippy-200" },
-              { icon: <Star size={16} className="text-orange-400" fill="currentColor" />, label: "AI Rating", value: `${draftTrip.rating} / 5`, bg: "bg-orange-50 border-orange-100" },
             ].map((s, i) => (
               <div key={i} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${s.bg}`}>
                 <div className="shrink-0">{s.icon}</div>

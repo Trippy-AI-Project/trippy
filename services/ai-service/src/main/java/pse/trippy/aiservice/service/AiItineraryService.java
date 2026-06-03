@@ -1,12 +1,26 @@
 package pse.trippy.aiservice.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.stereotype.Service;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.stereotype.Service;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.ActivityResponse;
@@ -18,54 +32,16 @@ import pse.trippy.aiservice.model.enums.RequestStatus;
 import pse.trippy.aiservice.model.enums.RequestType;
 import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
-import java.time.Duration;
-import java.time.DateTimeException;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AiItineraryService {
 
-    private static final Duration CACHE_TTL = Duration.ofMinutes(30);
-    private static final String CACHE_TYPE = "itinerary";
-
     private final ChatClient.Builder chatClientBuilder;
     private final AiRequestLogRepository aiRequestLogRepository;
     private final ObjectMapper objectMapper;
-    private final AiCacheService aiCacheService;
 
     public ItineraryGenerationResponse generateItinerary(UUID userId, GenerateItineraryRequest request) {
-        String requestHash = aiCacheService.generateHash(request);
-
-        Optional<String> cached = aiCacheService.getCachedResponse(CACHE_TYPE, requestHash);
-        if (cached.isPresent()) {
-            try {
-                ItineraryGenerationResponse cachedResponse = objectMapper.readValue(
-                        cached.get(), ItineraryGenerationResponse.class);
-                log.info("Returning cached itinerary response for user {}", userId);
-                return new ItineraryGenerationResponse(
-                        cachedResponse.generationId(),
-                        cachedResponse.tripId(),
-                        cachedResponse.days(),
-                        cachedResponse.overview(),
-                        cachedResponse.estimatedTotalCost(),
-                        Instant.now(),
-                        cachedResponse.tokensUsed(),
-                        true
-                );
-            } catch (JsonProcessingException | IllegalArgumentException ex) {
-                log.warn("Failed to parse cached itinerary response, falling through to AI error={}",
-                        LogSanitizer.safeError(ex));
-            }
-        }
-
         long startTime = System.currentTimeMillis();
         String prompt = buildPrompt(request);
         String promptHash = hashPrompt(prompt);
@@ -83,13 +59,6 @@ public class AiItineraryService {
             ItineraryGenerationResponse response = parseResponse(aiResponse, request);
 
             logRequest(userId, promptHash, responseTimeMs, RequestStatus.SUCCESS);
-
-            try {
-                String jsonToCache = objectMapper.writeValueAsString(response);
-                aiCacheService.cacheResponse(CACHE_TYPE, requestHash, jsonToCache, CACHE_TTL);
-            } catch (JsonProcessingException | IllegalArgumentException ex) {
-                log.warn("Failed to cache itinerary response error={}", LogSanitizer.safeError(ex));
-            }
 
             return response;
 
@@ -280,6 +249,13 @@ public class AiItineraryService {
     }
 
     private String hashPrompt(String prompt) {
-        return aiCacheService.generateHash(prompt);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(prompt.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException ex) {
+            log.warn("Prompt hash generation failed error={}", LogSanitizer.safeError(ex));
+            return "unknown";
+        }
     }
 }

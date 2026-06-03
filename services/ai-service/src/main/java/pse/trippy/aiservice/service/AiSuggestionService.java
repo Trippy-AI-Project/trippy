@@ -1,12 +1,22 @@
 package pse.trippy.aiservice.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.stereotype.Service;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.stereotype.Service;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.response.DestinationSuggestion;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
@@ -16,42 +26,16 @@ import pse.trippy.aiservice.model.enums.RequestStatus;
 import pse.trippy.aiservice.model.enums.RequestType;
 import pse.trippy.aiservice.repository.AiRequestLogRepository;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AiSuggestionService {
 
-    private static final Duration CACHE_TTL = Duration.ofHours(1);
-    private static final String CACHE_TYPE = "suggestion";
-
     private final ChatClient.Builder chatClientBuilder;
     private final AiRequestLogRepository aiRequestLogRepository;
     private final ObjectMapper objectMapper;
-    private final AiCacheService aiCacheService;
 
     public DestinationSuggestionResponse getDestinationSuggestions(UUID userId, DestinationSuggestionRequest request) {
-        String requestHash = aiCacheService.generateHash(request);
-
-        Optional<String> cached = aiCacheService.getCachedResponse(CACHE_TYPE, requestHash);
-        if (cached.isPresent()) {
-            try {
-                List<DestinationSuggestion> suggestions = objectMapper.readValue(
-                        cached.get(), new TypeReference<>() {});
-                log.info("Returning cached AI suggestion response userId={} requestHash={}",
-                        userId, LogSanitizer.shortHash(requestHash));
-                return new DestinationSuggestionResponse(suggestions, Instant.now(), true);
-            } catch (Exception ex) {
-                log.warn("Failed to parse cached AI suggestion response requestHash={} error={}",
-                        LogSanitizer.shortHash(requestHash), LogSanitizer.safeError(ex));
-            }
-        }
-
         long startTime = System.currentTimeMillis();
         String prompt = buildPrompt(request);
         String promptHash = hashPrompt(prompt);
@@ -69,14 +53,6 @@ public class AiSuggestionService {
             List<DestinationSuggestion> suggestions = parseResponse(aiResponse);
 
             logRequest(userId, RequestType.DESTINATION_SUGGESTION, promptHash, responseTimeMs, RequestStatus.SUCCESS);
-
-            try {
-                String jsonToCache = objectMapper.writeValueAsString(suggestions);
-                aiCacheService.cacheResponse(CACHE_TYPE, requestHash, jsonToCache, CACHE_TTL);
-            } catch (Exception ex) {
-                log.warn("Failed to cache AI suggestion response requestHash={} error={}",
-                        LogSanitizer.shortHash(requestHash), LogSanitizer.safeError(ex));
-            }
 
             return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
 
@@ -163,6 +139,13 @@ public class AiSuggestionService {
     }
 
     private String hashPrompt(String prompt) {
-        return aiCacheService.generateHash(prompt);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(prompt.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException ex) {
+            log.warn("Prompt hash generation failed error={}", LogSanitizer.safeError(ex));
+            return "unknown";
+        }
     }
 }
