@@ -234,7 +234,7 @@ export default function LandingPage() {
               </motion.h1>
 
               <motion.p variants={revealItem} className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[#5f6f69] sm:text-lg">
-                Search a destination or trip idea, choose your dates, and let AI build the first plan.
+                Your next adventure, planned in seconds by AI.
               </motion.p>
 
               <motion.form
