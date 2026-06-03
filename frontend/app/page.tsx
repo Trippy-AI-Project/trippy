@@ -178,7 +178,7 @@ export default function LandingPage() {
                 size="sm"
                 className="!rounded-xl !border-white/75 !bg-white/62 px-4 !text-[#17312d] shadow-[0_14px_34px_-24px_rgba(20,47,43,0.86)] backdrop-blur-xl hover:!border-white hover:!bg-white/82"
               >
-                Log in / Sign up
+                Log in
               </Button>
             </Link>
           </div>
