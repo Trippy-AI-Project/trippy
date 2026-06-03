@@ -25,6 +25,8 @@ import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.model.entity.GenerationHistory;
 import pse.trippy.aiservice.repository.GenerationHistoryRepository;
+import pse.trippy.aiservice.service.fallback.FallbackDestinationCatalogue;
+import pse.trippy.aiservice.service.fallback.FallbackItineraryGenerator;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -67,6 +69,9 @@ class AiServiceTest {
     private AiService aiService;
     private ExecutorService aiBlockingExecutor;
     private HttpServer testHttpServer;
+    private ObjectMapper objectMapper;
+    private FallbackDestinationCatalogue fallbackDestinationCatalogue;
+    private FallbackItineraryGenerator fallbackItineraryGenerator;
 
     // Fluent chain mocks
     private ChatClient.ChatClientRequestSpec requestSpec;
@@ -75,11 +80,16 @@ class AiServiceTest {
     @BeforeEach
     void setUp() {
         aiBlockingExecutor = Executors.newSingleThreadExecutor();
+        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        fallbackDestinationCatalogue = new FallbackDestinationCatalogue(objectMapper);
+        fallbackItineraryGenerator = new FallbackItineraryGenerator(fallbackDestinationCatalogue);
         aiService = new AiService(
                 chatClient,
-                new ObjectMapper().registerModule(new JavaTimeModule()),
+                objectMapper,
                 generationHistoryRepository,
-                aiBlockingExecutor);
+                aiBlockingExecutor,
+                fallbackDestinationCatalogue,
+                fallbackItineraryGenerator);
 
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callSpec = mock(ChatClient.CallResponseSpec.class);
@@ -137,7 +147,7 @@ class AiServiceTest {
         }
 
         @Test
-        @DisplayName("returns empty list when Groq response is malformed JSON")
+        @DisplayName("returns catalogue fallback when Groq response is malformed JSON")
         void returnsFallbackOnBadJson() {
             when(callSpec.content()).thenReturn("Sorry, I cannot help with that.");
 
@@ -147,14 +157,30 @@ class AiServiceTest {
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
-            assertThat(response.suggestions()).isEmpty();
+            assertThat(response.suggestions()).isNotEmpty();
             assertThat(response.generatedAt()).isNotNull();
         }
 
         @Test
         @DisplayName("strips markdown code fences from Groq response before parsing")
         void stripsMarkdownCodeFences() {
-            String wrapped = "```json\n[]\n```";
+            String wrapped = """
+                    ```json
+                    {
+                      "suggestions": [
+                        {
+                          "destination": "Lisbon, Portugal",
+                          "country": "Portugal",
+                          "description": "Culture, food and river views.",
+                          "estimatedDailyCost": 120,
+                          "bestTimeToVisit": "April to June",
+                          "highlights": ["Belém Tower", "Alfama", "Jerónimos Monastery"],
+                          "matchScore": 0.9
+                        }
+                      ]
+                    }
+                    ```
+                    """;
             when(callSpec.content()).thenReturn(wrapped);
 
             DestinationSuggestionRequest request = new DestinationSuggestionRequest(
@@ -163,7 +189,8 @@ class AiServiceTest {
 
             DestinationSuggestionResponse response = aiService.suggestDestinations(request);
 
-            assertThat(response.suggestions()).isEmpty();
+            assertThat(response.suggestions()).hasSize(1);
+            assertThat(response.suggestions().get(0).destination()).isEqualTo("Lisbon, Portugal");
         }
     }
 
@@ -261,7 +288,7 @@ class AiServiceTest {
 
             GenerateItineraryRequest request = new GenerateItineraryRequest(
                     null,
-                    new TripConstraints("Kyoto, Japan", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5),
+                    new TripConstraints("Kyoto, Japan", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
                             null, null, null),
                     null, null, null);
 
@@ -483,7 +510,8 @@ class AiServiceTest {
 
             assertThat(response.getFallbackUsed()).isTrue();
             assertThat(response.getGenerationId()).isNotNull();
-            assertThat(response.getFallbackReason()).isNotBlank();
+            assertThat(response.getFallbackReason()).isEqualTo("AI_MALFORMED_RESPONSE");
+            assertThat(response.getTokensUsed()).isZero();
             assertThat(response.getDailyPlan()).hasSize(5);
             assertThat(response.getDailyPlan().get(0).getWeather().getCondition())
                     .isEqualTo("Forecast unavailable");
@@ -494,8 +522,8 @@ class AiServiceTest {
         }
 
         @Test
-        @DisplayName("uses iteration index when AI omits day numbers")
-        void usesIterationIndexWhenDayNumbersAreMissing() {
+        @DisplayName("uses fallback when AI omits required day numbers")
+        void fallsBackWhenDayNumbersAreMissing() {
             String groqJson = """
                     {
                       "tripTitle": "Kyoto",
@@ -522,7 +550,8 @@ class AiServiceTest {
 
             ItineraryResponse response = aiService.generateItinerary(request);
 
-            assertThat(response.getFallbackUsed()).isFalse();
+            assertThat(response.getFallbackUsed()).isTrue();
+            assertThat(response.getFallbackReason()).isEqualTo("AI_SCHEMA_INVALID");
             assertThat(response.getDailyPlan()).hasSize(2);
             assertThat(response.getDailyPlan().get(0).getDayNumber()).isEqualTo(1);
             assertThat(response.getDailyPlan().get(0).getDate()).isEqualTo("2026-09-01");
@@ -551,6 +580,8 @@ class AiServiceTest {
             ItineraryResponse response = aiService.generateItinerary(request);
 
             assertThat(response.getFallbackUsed()).isTrue();
+            assertThat(response.getTokensUsed()).isZero();
+            assertThat(response.getFallbackReason()).isEqualTo("AI_UNUSABLE_RESPONSE");
             assertThat(response.getDailyPlan()).hasSize(3);
 
             GenerationHistory history = captureGenerationHistory();
@@ -564,9 +595,11 @@ class AiServiceTest {
             RecordingExecutorService recordingExecutor = new RecordingExecutorService();
             AiService timeoutService = new AiService(
                     chatClient,
-                    new ObjectMapper().registerModule(new JavaTimeModule()),
+                    objectMapper,
                     generationHistoryRepository,
-                    recordingExecutor);
+                    recordingExecutor,
+                    fallbackDestinationCatalogue,
+                    fallbackItineraryGenerator);
             Method method = AiService.class.getDeclaredMethod("requestAiWithTimeout", String.class, Duration.class);
             method.setAccessible(true);
 

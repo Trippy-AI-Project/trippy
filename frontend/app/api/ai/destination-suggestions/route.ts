@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { buildFallbackDestinationSuggestions } from "@/lib/server-ai-fallback";
 import { errorMessage, postToAiService, readJson } from "@/lib/server-ai-proxy";
+
+export const runtime = "nodejs";
 
 interface SuggestionBody {
   prompt?: string;
@@ -51,6 +54,9 @@ export async function POST(request: Request) {
     const data = await readJson(response);
 
     if (!response.ok) {
+      if (shouldUseFallbackForStatus(response.status)) {
+        return fallbackSuggestionResponse(body, `AI_SERVICE_HTTP_${response.status}`);
+      }
       return NextResponse.json(
         { error: errorMessage(data, `AI service request failed (${response.status})`) },
         { status: response.status },
@@ -62,10 +68,7 @@ export async function POST(request: Request) {
       : [];
 
     if (!suggestions.length) {
-      return NextResponse.json(
-        { error: "AI could not generate suggestions for this query. Try different preferences." },
-        { status: 422 },
-      );
+      return fallbackSuggestionResponse(body, "AI_UNUSABLE_RESPONSE");
     }
 
     return NextResponse.json({
@@ -75,10 +78,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error("[AI Proxy] Destination suggestions failed:", err);
-    return NextResponse.json(
-      { error: "Could not connect to AI service. Please make sure the backend is running." },
-      { status: 502 },
-    );
+    return fallbackSuggestionResponse(body, "AI_SERVICE_UNAVAILABLE");
   }
 }
 
@@ -109,4 +109,39 @@ function formatCost(cost?: number | string): string | undefined {
   if (cost === undefined || cost === null || cost === "") return undefined;
   if (typeof cost === "number") return `€${Math.round(cost)}`;
   return cost.startsWith("€") ? cost : `€${cost}`;
+}
+
+function fallbackSuggestionResponse(body: SuggestionBody, fallbackReason: string) {
+  try {
+    const fallbackSuggestions = buildFallbackDestinationSuggestions({
+      prompt: body.prompt,
+      city: body.city,
+      interests: body.interests?.length ? body.interests : ["travel"],
+      budget: body.budget,
+      duration: clampDuration(body.durationDays),
+      region: body.city,
+      people: body.people,
+      diet: body.diet,
+      preferences: body.preferences,
+      customNotes: body.customNotes,
+    }).map(normalizeSuggestion);
+
+    return NextResponse.json({
+      suggestions: fallbackSuggestions,
+      generatedAt: new Date().toISOString(),
+      cached: false,
+      fallbackUsed: true,
+      fallbackReason,
+    });
+  } catch (fallbackError) {
+    console.error("[AI Proxy] Destination fallback failed:", fallbackError);
+    return NextResponse.json(
+      { error: "Could not connect to AI service and fallback data is unavailable." },
+      { status: 502 },
+    );
+  }
+}
+
+function shouldUseFallbackForStatus(status: number): boolean {
+  return status === 429 || status >= 500;
 }

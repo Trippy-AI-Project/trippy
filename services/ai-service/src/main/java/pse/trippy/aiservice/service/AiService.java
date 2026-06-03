@@ -24,6 +24,8 @@ import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
 import pse.trippy.aiservice.logging.LogSanitizer;
 import pse.trippy.aiservice.model.entity.GenerationHistory;
 import pse.trippy.aiservice.repository.GenerationHistoryRepository;
+import pse.trippy.aiservice.service.fallback.FallbackDestinationCatalogue;
+import pse.trippy.aiservice.service.fallback.FallbackItineraryGenerator;
 
 import java.io.IOException;
 import java.net.URI;
@@ -54,7 +56,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -65,11 +70,20 @@ public class AiService {
     private static final Duration WEATHER_REQUEST_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration TRANSPORT_REQUEST_TIMEOUT = Duration.ofSeconds(5);
     private static final int ITINERARY_MAX_ATTEMPTS = 3;
+    private static final String AI_PROVIDER_UNAVAILABLE = "AI_PROVIDER_UNAVAILABLE";
+    private static final String AI_TIMEOUT = "AI_TIMEOUT";
+    private static final String AI_RATE_LIMITED = "AI_RATE_LIMITED";
+    private static final String AI_EMPTY_RESPONSE = "AI_EMPTY_RESPONSE";
+    private static final String AI_MALFORMED_RESPONSE = "AI_MALFORMED_RESPONSE";
+    private static final String AI_SCHEMA_INVALID = "AI_SCHEMA_INVALID";
+    private static final String AI_UNUSABLE_RESPONSE = "AI_UNUSABLE_RESPONSE";
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final GenerationHistoryRepository generationHistoryRepository;
     private final ExecutorService aiBlockingExecutor;
+    private final FallbackDestinationCatalogue fallbackDestinationCatalogue;
+    private final FallbackItineraryGenerator fallbackItineraryGenerator;
 
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
@@ -100,43 +114,21 @@ public class AiService {
         String prompt = buildDestinationPrompt(request);
         log.info("Requesting destination suggestions");
 
-        String rawJson;
         try {
-            rawJson = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-        } catch (Exception ex) {
-            log.warn("Spring AI call failed, falling back to direct Groq API error={}",
-                    LogSanitizer.safeError(ex));
-            rawJson = callGroqDirect(prompt);
-        }
-
-        try {
-            String cleanJson = extractJson(rawJson);
-            log.debug("Extracted destination suggestion JSON chars={}", cleanJson.length());
-
-            List<DestinationSuggestion> suggestions;
-            if (cleanJson.strip().startsWith("[")) {
-                suggestions = objectMapper.readValue(cleanJson, new TypeReference<>() {});
-            } else {
-                JsonNode root = objectMapper.readTree(cleanJson);
-                suggestions = objectMapper.convertValue(root.path("suggestions"), new TypeReference<>() {});
-            }
-
-            if (suggestions == null || suggestions.isEmpty()) {
-                log.warn("AI returned valid JSON but with empty suggestions list");
-                suggestions = List.of();
-            }
+            String rawJson = requestAi(prompt);
+            List<DestinationSuggestion> suggestions = parseDestinationSuggestions(rawJson);
             return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
         } catch (Exception ex) {
-            log.warn("Failed to parse destination suggestions responseChars={} error={}",
-                    rawJson == null ? 0 : rawJson.length(), LogSanitizer.safeError(ex));
-            return new DestinationSuggestionResponse(List.of(), Instant.now(), false);
+            String fallbackReason = fallbackReason(ex);
+            log.warn("Destination suggestions using fallback catalogue reason={} error={}",
+                    fallbackReason, LogSanitizer.safeError(ex));
+            List<DestinationSuggestion> suggestions = fallbackDestinationCatalogue.suggestDestinations(request, 5);
+            return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
         }
     }
 
     public ItineraryResponse generateItinerary(GenerateItineraryRequest request) {
+        validateItineraryRequest(request);
         String prompt = buildItineraryPrompt(request);
         UUID generationId = UUID.randomUUID();
         log.debug("Generating itinerary for destination: {}", request.constraints().destination());
@@ -150,16 +142,21 @@ public class AiService {
             }
             response.setGeneratedAt(Instant.now());
             response.setFallbackUsed(false);
+            validateAiItineraryResponse(response, request);
             enrichItinerary(response, request);
             saveGenerationHistory(request, response, prompt, historyStatus(response));
             return response;
-        } catch (AiServiceTimeoutException ex) {
-            throw ex;
         } catch (Exception ex) {
-            log.warn("AI itinerary generation failed, returning fallback itinerary error={}",
-                    LogSanitizer.safeError(ex));
-            ItineraryResponse fallback = buildFallbackItinerary(request, ex.getMessage());
+            String fallbackReason = fallbackReason(ex);
+            log.warn("AI itinerary generation using fallback catalogue reason={} error={}",
+                    fallbackReason, LogSanitizer.safeError(ex));
+            ItineraryResponse fallback = fallbackItineraryGenerator.generate(request, fallbackReason);
             fallback.setGenerationId(generationId);
+            fallback.setTokensUsed(0);
+            fallback.setFallbackUsed(true);
+            fallback.setFallbackReason(fallbackReason);
+            fallback.setGeneratedAt(Instant.now());
+            enrichItinerary(fallback, request);
             saveGenerationHistory(request, fallback, prompt, "FALLBACK");
             return fallback;
         }
@@ -250,11 +247,11 @@ public class AiService {
 
         List<String> sharedInterests = valuesMentionedByMultipleTravelers(
                 preferences.stream()
-                        .flatMap(p -> safeList(p.interests()).stream())
+                        .flatMap(p -> safeTextList(p.interests()).stream())
                         .toList());
         List<String> mustSeeConsensus = valuesMentionedByMultipleTravelers(
                 preferences.stream()
-                        .flatMap(p -> safeList(p.mustSee()).stream())
+                        .flatMap(p -> safeTextList(p.mustSee()).stream())
                         .toList());
         List<ConsolidatedPreferencesResponse.Conflict> conflicts = detectPreferenceConflicts(preferences);
 
@@ -272,6 +269,112 @@ public class AiService {
                 mustSeeConsensus,
                 conflicts,
                 prompt);
+    }
+
+    private List<DestinationSuggestion> parseDestinationSuggestions(String rawJson) {
+        if (rawJson == null || rawJson.isBlank()) {
+            throw new FallbackTriggerException(AI_EMPTY_RESPONSE, "AI returned an empty suggestion response");
+        }
+
+        try {
+            String cleanJson = extractJson(rawJson);
+            log.debug("Extracted destination suggestion JSON chars={}", cleanJson.length());
+
+            List<DestinationSuggestion> suggestions;
+            if (cleanJson.strip().startsWith("[")) {
+                suggestions = objectMapper.readValue(cleanJson, new TypeReference<>() {
+                });
+            } else {
+                JsonNode root = objectMapper.readTree(cleanJson);
+                JsonNode suggestionsNode = root.path("suggestions");
+                if (!suggestionsNode.isArray()) {
+                    throw new FallbackTriggerException(AI_SCHEMA_INVALID,
+                            "AI suggestion response did not contain a suggestions array");
+                }
+                suggestions = objectMapper.convertValue(suggestionsNode, new TypeReference<>() {
+                });
+            }
+
+            List<DestinationSuggestion> usableSuggestions = safeList(suggestions).stream()
+                    .filter(this::isUsableSuggestion)
+                    .toList();
+            if (usableSuggestions.isEmpty()) {
+                throw new FallbackTriggerException(AI_UNUSABLE_RESPONSE,
+                        "AI returned no usable destination suggestions");
+            }
+            return usableSuggestions;
+        } catch (FallbackTriggerException ex) {
+            throw ex;
+        } catch (JsonProcessingException | IllegalArgumentException ex) {
+            throw new FallbackTriggerException(AI_MALFORMED_RESPONSE,
+                    "AI returned malformed destination suggestion JSON", ex);
+        }
+    }
+
+    private boolean isUsableSuggestion(DestinationSuggestion suggestion) {
+        return suggestion != null
+                && suggestion.destination() != null
+                && !suggestion.destination().isBlank()
+                && suggestion.country() != null
+                && !suggestion.country().isBlank()
+                && suggestion.description() != null
+                && !suggestion.description().isBlank()
+                && suggestion.highlights() != null
+                && !suggestion.highlights().isEmpty()
+                && suggestion.estimatedDailyCost() != null
+                && suggestion.bestTimeToVisit() != null
+                && !suggestion.bestTimeToVisit().isBlank()
+                && Double.isFinite(suggestion.matchScore());
+    }
+
+    private void validateItineraryRequest(GenerateItineraryRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Generate itinerary request is required");
+        }
+        TripConstraints constraints = request.constraints();
+        if (constraints == null) {
+            throw new IllegalArgumentException("Trip constraints are required");
+        }
+        if (constraints.destination() == null || constraints.destination().isBlank()) {
+            throw new IllegalArgumentException("Destination is required");
+        }
+        if (constraints.startDate() == null || constraints.endDate() == null) {
+            throw new IllegalArgumentException("Start date and end date are required");
+        }
+        if (constraints.endDate().isBefore(constraints.startDate())) {
+            throw new IllegalArgumentException("Trip end date must not be before start date");
+        }
+    }
+
+    private void validateAiItineraryResponse(ItineraryResponse response, GenerateItineraryRequest request) {
+        if (response == null || response.getDailyPlan() == null || response.getDailyPlan().isEmpty()) {
+            throw new FallbackTriggerException(AI_UNUSABLE_RESPONSE, "AI returned an empty itinerary");
+        }
+
+        int expectedDays = Math.toIntExact(ChronoUnit.DAYS.between(
+                request.constraints().startDate(),
+                request.constraints().endDate()) + 1);
+        if (response.getDailyPlan().size() != expectedDays) {
+            throw new FallbackTriggerException(AI_SCHEMA_INVALID,
+                    "AI itinerary did not contain the requested number of days");
+        }
+
+        Set<Integer> dayNumbers = new HashSet<>();
+        for (ItineraryResponse.DayPlan day : response.getDailyPlan()) {
+            if (day == null || day.getDayNumber() == null
+                    || day.getDayNumber() < 1 || day.getDayNumber() > expectedDays) {
+                throw new FallbackTriggerException(AI_SCHEMA_INVALID,
+                        "AI itinerary contained an invalid day number");
+            }
+            if (!dayNumbers.add(day.getDayNumber())) {
+                throw new FallbackTriggerException(AI_SCHEMA_INVALID,
+                        "AI itinerary contained duplicate day numbers");
+            }
+            if (day.getActivities() == null || day.getActivities().isEmpty()) {
+                throw new FallbackTriggerException(AI_UNUSABLE_RESPONSE,
+                        "AI itinerary contained a day without activities");
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -913,8 +1016,8 @@ public class AiService {
         Map<String, String> avoid = new LinkedHashMap<>();
 
         for (GroupPreferenceRequest.UserPreference preference : preferences) {
-            safeList(preference.mustSee()).forEach(value -> mustSee.putIfAbsent(value.toLowerCase(), value));
-            safeList(preference.avoid()).forEach(value -> avoid.putIfAbsent(value.toLowerCase(), value));
+            safeTextList(preference.mustSee()).forEach(value -> mustSee.putIfAbsent(value.toLowerCase(), value));
+            safeTextList(preference.avoid()).forEach(value -> avoid.putIfAbsent(value.toLowerCase(), value));
         }
 
         List<ConsolidatedPreferencesResponse.Conflict> conflicts = new ArrayList<>();
@@ -928,9 +1031,14 @@ public class AiService {
         return conflicts;
     }
 
-    private List<String> safeList(List<String> values) {
+    private <T> List<T> safeList(List<T> values) {
         return values == null ? List.of() : values.stream()
                 .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private List<String> safeTextList(List<String> values) {
+        return safeList(values).stream()
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .toList();
@@ -961,6 +1069,22 @@ public class AiService {
     // -------------------------------------------------------------------------
     // Utility
     // -------------------------------------------------------------------------
+
+    private String fallbackReason(Throwable ex) {
+        if (ex instanceof FallbackTriggerException fallbackTriggerException) {
+            return fallbackTriggerException.reason();
+        }
+        if (isTimeoutException(ex)) {
+            return AI_TIMEOUT;
+        }
+        if (isRateLimitException(ex)) {
+            return AI_RATE_LIMITED;
+        }
+        if (isJsonProcessingException(ex)) {
+            return AI_MALFORMED_RESPONSE;
+        }
+        return AI_PROVIDER_UNAVAILABLE;
+    }
 
     private String requestAiWithRetry(String prompt, int maxAttempts, Duration timeout) {
         RuntimeException lastFailure = null;
@@ -1068,6 +1192,17 @@ public class AiService {
                 if (normalized.contains("timed out") || normalized.contains("timeout")) {
                     return true;
                 }
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    private boolean isJsonProcessingException(Throwable ex) {
+        Throwable cause = ex;
+        while (cause != null) {
+            if (cause instanceof JsonProcessingException) {
+                return true;
             }
             cause = cause.getCause();
         }
@@ -1198,6 +1333,24 @@ public class AiService {
             throw new AiServiceTimeoutException(timeoutMessage(ITINERARY_TIMEOUT), ex);
         } catch (Exception ex) {
             throw new RuntimeException("Direct Groq fallback failed", ex);
+        }
+    }
+
+    private static class FallbackTriggerException extends RuntimeException {
+        private final String reason;
+
+        FallbackTriggerException(String reason, String message) {
+            super(message);
+            this.reason = reason;
+        }
+
+        FallbackTriggerException(String reason, String message, Throwable cause) {
+            super(message, cause);
+            this.reason = reason;
+        }
+
+        String reason() {
+            return reason;
         }
     }
 }
