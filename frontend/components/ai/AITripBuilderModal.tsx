@@ -653,7 +653,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
                       >
                         Edit search
                       </button>
-                      <Button size="sm" onClick={() => void handleGenerate()} disabled={isLoading || !startDate} title={!startDate ? "Select travel dates first" : undefined} className="text-xs">
+                      <Button size="sm" onClick={() => void handleGenerate()} disabled={!startDate} title={!startDate ? "Select travel dates first" : undefined} className="text-xs">
                         {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                         {isLoading ? "Generating…" : "Regenerate"}
                       </Button>
@@ -785,7 +785,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       onClick={() => { void handleGenerate(); setShowFormExpanded(false); }}
-                      disabled={isLoading || !startDate}
+                      disabled={!startDate}
                       title={!startDate ? "Please select travel dates first" : undefined}
                     >
                       {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}

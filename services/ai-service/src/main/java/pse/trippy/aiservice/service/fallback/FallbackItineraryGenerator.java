@@ -344,6 +344,9 @@ public class FallbackItineraryGenerator {
 
         boolean isRequested(String title) {
             String normalizedTitle = FallbackDestinationCatalogue.normalize(title);
+            if (normalizedTitle.isBlank()) {
+                return false;
+            }
             return mustSeeAttractions.stream()
                     .map(FallbackDestinationCatalogue::normalize)
                     .anyMatch(value -> !value.isBlank()
@@ -352,6 +355,9 @@ public class FallbackItineraryGenerator {
 
         boolean isAvoided(String title) {
             String normalizedTitle = FallbackDestinationCatalogue.normalize(title);
+            if (normalizedTitle.isBlank()) {
+                return false;
+            }
             return avoidAttractions.stream()
                     .map(FallbackDestinationCatalogue::normalize)
                     .anyMatch(value -> !value.isBlank()

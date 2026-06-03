@@ -8,8 +8,10 @@ import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
 import pse.trippy.aiservice.dto.request.TripConstraints;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -79,6 +81,67 @@ class FallbackItineraryGeneratorTest {
 
         assertThat(activityTitles(response)).contains("Museum Island");
         assertThat(activityTitles(response)).doesNotContain("Brandenburg Gate");
+    }
+
+    @Test
+    @DisplayName("blank activity titles do not match must-see or avoid preferences")
+    void blankActivityTitlesDoNotMatchPreferences() {
+        FallbackDestinationProfile destination = new FallbackDestinationProfile(
+                "blank-title-city",
+                FallbackDestinationCatalogue.SCOPE_WORLDWIDE,
+                "Blank Title City",
+                "Blank Title City",
+                "Testland",
+                "City",
+                List.of("blank-title-city"),
+                List.of("testing"),
+                List.of("Fallback fixture"),
+                "Fixture destination",
+                List.of("Fallback fixture"),
+                BigDecimal.valueOf(100),
+                "Spring",
+                List.of(4, 5),
+                List.of("testing"),
+                List.of("MODERATE"),
+                1,
+                1,
+                1,
+                List.of(new FallbackActivity(
+                        "blank-title-activity",
+                        "",
+                        "Intentional blank title",
+                        "Blank Title City",
+                        "testing",
+                        "MUST_SEE",
+                        1,
+                        60,
+                        "EUR 10",
+                        "LOW",
+                        List.of("testing"),
+                        "MORNING",
+                        "central",
+                        true,
+                        false)),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of("Use this fixture for matching tests.", "Keep fallback behavior deterministic."),
+                List.of("Pack normally.", "Bring comfortable shoes.")
+        );
+        FallbackDestinationCatalogue catalogue = new FallbackDestinationCatalogue(new ObjectMapper()) {
+            @Override
+            public Optional<FallbackDestinationProfile> findBestMatch(String rawInput) {
+                return Optional.of(destination);
+            }
+        };
+        FallbackItineraryGenerator blankTitleGenerator = new FallbackItineraryGenerator(catalogue);
+
+        ItineraryResponse response = blankTitleGenerator.generate(request("Blank Title City", 1, "MODERATE",
+                List.of("museum"), List.of("museum")), "AI_PROVIDER_UNAVAILABLE");
+
+        assertThat(response.getDailyPlan().get(0).getActivities())
+                .extracting(ItineraryResponse.Activity::getTitle)
+                .contains("");
     }
 
     @Test
