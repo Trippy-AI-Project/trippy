@@ -8,7 +8,6 @@ import {
   Lightbulb, Undo2, ChevronDown, ChevronUp, Pencil,
   Bus, Clock, ArrowLeft,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import AmbientBackground from "@/components/layout/AmbientBackground";
 import Button from "@/components/ui/Button";
@@ -113,7 +112,6 @@ const CAT_ICONS: Record<string, string> = {
 export default function TripFullScreenView({
   trip, userPrompt, userDates, onClose, onSave, saved,
 }: TripFullScreenViewProps) {
-  const router = useRouter();
   const [draftTrip, setDraftTrip] = useState<GeneratedTrip>(trip);
   const [itineraryVersion, setItineraryVersion] = useState(0);
   const [itineraryLoading, setItineraryLoading] = useState(false);
@@ -133,6 +131,22 @@ export default function TripFullScreenView({
   const [editActivityForm, setEditActivityForm] = useState({
     title: "", description: "", time: "", location: "", estimatedCost: "",
   });
+
+  // Converts "HH:MM" (24h, from <input type="time">) or "H:MM AM/PM" to minutes for sorting
+  function timeToMinutes(t: string): number {
+    if (!t) return Infinity;
+    const m24 = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (m24) return parseInt(m24[1]) * 60 + parseInt(m24[2]);
+    const m12 = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (m12) {
+      let h = parseInt(m12[1]);
+      const min = parseInt(m12[2]);
+      if (m12[3].toUpperCase() === "PM" && h !== 12) h += 12;
+      if (m12[3].toUpperCase() === "AM" && h === 12) h = 0;
+      return h * 60 + min;
+    }
+    return Infinity;
+  }
 
   useEffect(() => { setDraftTrip(trip); }, [trip]);
 
@@ -256,16 +270,15 @@ export default function TripFullScreenView({
     const { dayNumber, idx } = editingActivity;
     setDraftTrip(prev => ({
       ...prev,
-      aiItinerary: prev.aiItinerary?.map(d =>
-        d.dayNumber === dayNumber
-          ? {
-              ...d,
-              activities: d.activities.map((a, i) =>
-                i === idx ? { ...a, ...editActivityForm } : a
-              ),
-            }
-          : d
-      ),
+      aiItinerary: prev.aiItinerary?.map(d => {
+        if (d.dayNumber !== dayNumber) return d;
+        const updated = d.activities.map((a, i) =>
+          i === idx ? { ...a, ...editActivityForm } : a
+        );
+        // Sort by time so the new/edited activity lands in chronological position
+        updated.sort((a, b) => timeToMinutes(a.time || "") - timeToMinutes(b.time || ""));
+        return { ...d, activities: updated };
+      }),
     }));
     setEditingActivity(null);
   }
@@ -352,13 +365,15 @@ export default function TripFullScreenView({
         <div className="border-b border-white/60 bg-white/36 px-4 py-4 shadow-[0_16px_36px_-34px_rgba(20,47,43,0.65)]">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push("/")}
+              onClick={onClose}
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/50 text-[#3a4a44] shadow-sm transition-all hover:bg-white hover:text-[#123d36] cursor-pointer"
               title="Back to home"
             >
               <ArrowLeft size={15} />
             </button>
-            <Logo size="sm" className="min-w-0 [&>span]:text-xl" />
+            <button onClick={onClose} className="cursor-pointer">
+              <Logo size="sm" className="min-w-0 [&>span]:text-xl" />
+            </button>
           </div>
           {prevItinerary && (
             <button
@@ -801,9 +816,9 @@ export default function TripFullScreenView({
                                                 className="col-span-2 text-xs rounded-lg border border-trippy-300 px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500"
                                               />
                                               <input
+                                                type="time"
                                                 value={editActivityForm.time}
                                                 onChange={(e) => setEditActivityForm(f => ({ ...f, time: e.target.value }))}
-                                                placeholder="Time (e.g. 10:00 AM)"
                                                 className="text-xs rounded-lg border border-border px-2.5 py-1.5 outline-none bg-white focus:border-trippy-500/50"
                                               />
                                               <input
