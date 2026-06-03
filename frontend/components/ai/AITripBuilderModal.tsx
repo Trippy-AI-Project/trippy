@@ -217,6 +217,9 @@ export interface AIBuilderRequest {
   people?: number;
   budget?: string;
   filters?: string[];
+  diet?: string;
+  preferences?: string;
+  customNotes?: string;
   autoGenerate?: boolean;
 }
 
@@ -234,6 +237,8 @@ const QUICK_FILTERS = [
   "Romantic",
   "Food",
   "Nature",
+  "Wellness",
+  "Culture",
   "Budget",
 ];
 
@@ -580,6 +585,10 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       setPeople(initialRequest.people || 2);
       setBudget(initialRequest.budget || "");
       setSelectedFilters(initialRequest.filters || []);
+      setDiet(initialRequest.diet || "");
+      setPreferences(initialRequest.preferences || "");
+      setCustomPreference(initialRequest.customNotes || "");
+      setShowAdvanced(Boolean(initialRequest.budget || initialRequest.diet || initialRequest.preferences || initialRequest.customNotes));
 
       if (
         initialRequest.autoGenerate &&
@@ -600,7 +609,7 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       void handleGenerate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, startDate, endDate, people, selectedFilters]);
+  }, [city, startDate, endDate, people, selectedFilters, budget, diet, preferences, customPreference]);
 
   useEffect(() => {
     if (!open) {
