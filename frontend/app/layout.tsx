@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: "Trippy — Plan your next adventure",
   description:
     "Collaborative trip planning platform. Create itineraries, invite friends, and explore together.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
