@@ -162,6 +162,20 @@ class AiServiceTest {
         }
 
         @Test
+        @DisplayName("does not return unrelated fallback suggestions for unsupported explicit city")
+        void rejectsUnsupportedExplicitCityFallback() {
+            when(callSpec.content()).thenReturn("Sorry, I cannot help with that.");
+
+            DestinationSuggestionRequest request = new DestinationSuggestionRequest(
+                    null, "Delhi", List.of("history"), "MODERATE", null, 5, null, null,
+                    null, null, null, null);
+
+            assertThatThrownBy(() -> aiService.suggestDestinations(request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Fallback is not available for Delhi");
+        }
+
+        @Test
         @DisplayName("strips markdown code fences from Groq response before parsing")
         void stripsMarkdownCodeFences() {
             String wrapped = """
@@ -392,6 +406,45 @@ class AiServiceTest {
         }
 
         @Test
+        @DisplayName("uses OpenWeather forecast when available")
+        void usesOpenWeatherForecastWhenAvailable() throws Exception {
+            String baseUrl = startHttpServer(exchange -> {
+                String path = exchange.getRequestURI().getPath();
+                if (path.contains("geo")) {
+                    writeResponse(exchange, 200, "[{\"lat\":35.0,\"lon\":135.0}]");
+                    return;
+                }
+                writeResponse(exchange, 200, """
+                        {
+                          "list": [
+                            {
+                              "dt_txt": "2026-09-01 12:00:00",
+                              "main": {"temp": 22.4},
+                              "weather": [{"main": "Rain"}]
+                            }
+                          ]
+                        }
+                        """);
+            });
+            setField("openWeatherApiKey", "test-key");
+            setField("openWeatherGeocodingUrl", baseUrl + "/geo");
+            setField("openWeatherForecastUrl", baseUrl + "/forecast");
+            when(callSpec.content()).thenReturn(minimalTwoStopItinerary(false));
+
+            GenerateItineraryRequest request = new GenerateItineraryRequest(
+                    null,
+                    new TripConstraints("Kyoto", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                            null, null, null),
+                    null, null, null);
+
+            ItineraryResponse response = aiService.generateItinerary(request);
+
+            assertThat(response.getDailyPlan().get(0).getWeather().getCondition()).isEqualTo("Rain");
+            assertThat(response.getDailyPlan().get(0).getWeather().getTemperatureCelsius()).isEqualTo(22.4);
+            assertThat(response.getDailyPlan().get(0).getWeather().getAdvice()).contains("umbrella");
+        }
+
+        @Test
         @DisplayName("returns unavailable weather when OpenWeather key is missing")
         void returnsUnavailableWeatherWithoutApiKey() {
             when(callSpec.content()).thenReturn(minimalTwoStopItinerary(false));
@@ -452,8 +505,8 @@ class AiServiceTest {
         }
 
         @Test
-        @DisplayName("falls back when OSRM route lookup fails")
-        void fallsBackWhenOsrmFails() throws Exception {
+        @DisplayName("omits transit recommendations when OSRM route lookup fails")
+        void omitsTransitWhenOsrmFails() throws Exception {
             String baseUrl = startHttpServer(exchange ->
                     writeResponse(exchange, 503, "{\"message\":\"unavailable\"}"));
             setField("osrmBaseUrl", baseUrl);
@@ -467,8 +520,7 @@ class AiServiceTest {
 
             ItineraryResponse response = aiService.generateItinerary(request);
 
-            assertThat(response.getDailyPlan().get(0).getTransportRecommendations().get(0)
-                    .getEstimatedDuration()).isEqualTo("Transit details unavailable");
+            assertThat(response.getDailyPlan().get(0).getTransportRecommendations()).isEmpty();
         }
 
         @Test
@@ -491,8 +543,7 @@ class AiServiceTest {
             ItineraryResponse response = aiService.generateItinerary(request);
 
             assertThat(requestCount).hasValue(0);
-            assertThat(response.getDailyPlan().get(0).getTransportRecommendations().get(0)
-                    .getEstimatedDuration()).isEqualTo("Transit details unavailable");
+            assertThat(response.getDailyPlan().get(0).getTransportRecommendations()).isEmpty();
         }
 
         @Test

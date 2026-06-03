@@ -63,6 +63,7 @@ class AiControllerTest {
                         List.of("Belem Tower", "Trams", "Alfama"),
                         BigDecimal.valueOf(100),
                         "May to September",
+                        "https://www.google.com/maps/dir/?api=1&destination=Lisbon%2C+Portugal",
                         0.92)),
                 Instant.now(),
                 false);

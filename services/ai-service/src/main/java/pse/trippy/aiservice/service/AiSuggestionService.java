@@ -117,6 +117,7 @@ public class AiSuggestionService {
                 - "highlights": array of 3 top highlights/attractions
                 - "estimatedDailyCost": estimated daily cost in EUR as a number
                 - "bestTimeToVisit": best months to visit
+                - "googleMapsUrl": Google Maps directions URL for the destination using https://www.google.com/maps/dir/?api=1&destination=
                 - "matchScore": how well this matches the preferences (0.0 to 1.0)
                 
                 Return ONLY JSON, no markdown and no other text.

@@ -42,6 +42,7 @@ interface AiItineraryActivity {
   title: string;
   description?: string;
   location?: string;
+  googleMapsUrl?: string;
   category?: string;
   estimatedCost?: string;
   tips?: string;
@@ -61,6 +62,7 @@ interface GeneratedTrip {
   reason: string;
   bestTimeToVisit: string;
   image: string;
+  googleMapsUrl?: string;
   aiItinerary?: AiItineraryDay[];
 }
 
@@ -154,25 +156,21 @@ export default function TripFullScreenView({
   }, []);
 
   async function generateItinerary() {
+    if (!userDates?.start || !userDates?.end) {
+      setItineraryError("Select travel dates before generating an itinerary.");
+      return;
+    }
     setItineraryLoading(true);
     setItineraryError("");
     try {
-      const durationMatch = draftTrip.duration.match(/(\d+)/);
-      const days = durationMatch ? parseInt(durationMatch[1]) : 3;
-      const today = new Date();
-      const startDate = today.toISOString().slice(0, 10);
-      const endDateObj = new Date(today);
-      endDateObj.setDate(endDateObj.getDate() + days - 1);
-      const endDate = endDateObj.toISOString().slice(0, 10);
-
       const res = await fetch("/api/ai/itineraries", {
         method: "POST",
         headers: aiRequestHeaders(),
         body: JSON.stringify({
           constraints: {
             destination: draftTrip.destination,
-            startDate: userDates?.start || startDate,
-            endDate: userDates?.end || endDate,
+            startDate: userDates.start,
+            endDate: userDates.end,
             budgetLevel: "MODERATE",
             adults: parseInt(draftTrip.groupSize) || 2,
             children: 0,
@@ -182,14 +180,15 @@ export default function TripFullScreenView({
             : `Highlights: ${draftTrip.highlights.join(", ")}`,
         }),
       });
-      if (!res.ok) throw new Error("Failed");
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed");
       if (data.dailyPlan?.length) {
         setDraftTrip(prev => ({ ...prev, aiItinerary: data.dailyPlan }));
         setExpandedDays(new Set([1]));
       }
-    } catch {
-      setItineraryError("Itinerary details are unavailable right now. Regenerate when the AI service is reachable.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Itinerary details are unavailable right now.";
+      setItineraryError(message);
     }
     finally { setItineraryLoading(false); }
   }
@@ -551,7 +550,21 @@ export default function TripFullScreenView({
                 {actualDays > 0 ? `${draftTrip.destination} — ${actualDays}-Day Trip` : draftTrip.title}
               </h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <span className="flex items-center gap-1 text-white/90 text-xs"><MapPin size={12} /> {draftTrip.destination}</span>
+                <span className="flex items-center gap-1 text-white/90 text-xs">
+                  <MapPin size={12} />
+                  {draftTrip.googleMapsUrl ? (
+                    <a
+                      href={draftTrip.googleMapsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-white hover:underline"
+                    >
+                      {draftTrip.destination}
+                    </a>
+                  ) : (
+                    draftTrip.destination
+                  )}
+                </span>
                 <span className="flex items-center gap-1 text-white/90 text-xs"><Star size={12} fill="currentColor" className="text-amber-400" /> {draftTrip.rating}</span>
               </div>
             </div>
@@ -804,7 +817,19 @@ export default function TripFullScreenView({
                                             )}
                                             {act.location && (
                                               <span className="text-[10px] text-muted flex items-center gap-0.5">
-                                                <MapPin size={9} className="text-trippy-400" /> {act.location}
+                                                <MapPin size={9} className="text-trippy-400" />
+                                                {act.googleMapsUrl ? (
+                                                  <a
+                                                    href={act.googleMapsUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="hover:text-trippy-600 hover:underline"
+                                                  >
+                                                    {act.location}
+                                                  </a>
+                                                ) : (
+                                                  act.location
+                                                )}
                                               </span>
                                             )}
                                             {act.estimatedCost && (
@@ -887,11 +912,11 @@ function DayContextBlocks({ day }: { day: AiItineraryDay }) {
   const temperature = formatTemperature(weather?.temperatureCelsius);
   const weatherAdvice = weather?.advice?.trim() || "Check the local forecast closer to departure.";
   const transport = day.transportRecommendations?.filter((item) =>
-    Boolean(item.from || item.to || item.estimatedDuration || item.notes)
+    Boolean((item.from || item.to) && (item.estimatedDuration || item.notes))
   ) ?? [];
 
   return (
-    <div className="grid gap-2.5 bg-[#fbfaf7] px-4 py-3 sm:grid-cols-2">
+    <div className={`grid gap-2.5 bg-[#fbfaf7] px-4 py-3 ${transport.length > 0 ? "sm:grid-cols-2" : ""}`}>
       <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2.5">
         <div className="flex items-center gap-2">
           <CloudSun size={13} className="text-sky-600" />
@@ -902,12 +927,12 @@ function DayContextBlocks({ day }: { day: AiItineraryDay }) {
         <p className="mt-0.5 text-[10px] leading-relaxed text-muted">{weatherAdvice}</p>
       </div>
 
-      <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Bus size={13} className="text-emerald-600" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Transit</span>
-        </div>
-        {transport.length > 0 ? (
+      {transport.length > 0 && (
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Bus size={13} className="text-emerald-600" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Transit</span>
+          </div>
           <div className="mt-1 space-y-1.5">
             {transport.slice(0, 3).map((item, idx) => (
               <div key={`${item.from}-${item.to}-${idx}`} className="text-[10px] leading-relaxed text-muted">
@@ -915,18 +940,14 @@ function DayContextBlocks({ day }: { day: AiItineraryDay }) {
                   {item.from || "Start"} → {item.to || "Next stop"}
                 </p>
                 <p>
-                  {item.mode || "Route"} · {item.estimatedDuration || "Transit details unavailable"}
+                  {[item.mode || "Route", item.estimatedDuration].filter(Boolean).join(" · ")}
                 </p>
                 {item.notes && <p>{item.notes}</p>}
               </div>
             ))}
           </div>
-        ) : (
-          <p className="mt-1 text-[10px] leading-relaxed text-muted">
-            Transit details unavailable. Check live routes before departure.
-          </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

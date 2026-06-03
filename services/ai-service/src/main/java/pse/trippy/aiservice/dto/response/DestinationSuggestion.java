@@ -10,6 +10,7 @@ public record DestinationSuggestion(
         List<String> highlights,
         BigDecimal estimatedDailyCost,
         String bestTimeToVisit,
+        String googleMapsUrl,
         double matchScore
 ) {
 }

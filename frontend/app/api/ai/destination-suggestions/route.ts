@@ -23,6 +23,7 @@ interface BackendSuggestion {
   highlights?: string[];
   estimatedDailyCost?: number | string;
   bestTimeToVisit?: string;
+  googleMapsUrl?: string;
   matchScore?: number;
 }
 
@@ -99,6 +100,7 @@ function normalizeSuggestion(suggestion: BackendSuggestion) {
     country: suggestion.country,
     estimatedDailyCost: formatCost(suggestion.estimatedDailyCost),
     bestTimeToVisit: suggestion.bestTimeToVisit,
+    googleMapsUrl: suggestion.googleMapsUrl,
     highlights: suggestion.highlights ?? [],
     reason: suggestion.description,
     matchScore: suggestion.matchScore,
@@ -124,10 +126,17 @@ function fallbackSuggestionResponse(body: SuggestionBody, fallbackReason: string
       diet: body.diet,
       preferences: body.preferences,
       customNotes: body.customNotes,
-    }).map(normalizeSuggestion);
+    });
+
+    if (!fallbackSuggestions.length) {
+      return NextResponse.json(
+        { error: fallbackUnavailableMessage(body.city) },
+        { status: 422 },
+      );
+    }
 
     return NextResponse.json({
-      suggestions: fallbackSuggestions,
+      suggestions: fallbackSuggestions.map(normalizeSuggestion),
       generatedAt: new Date().toISOString(),
       cached: false,
       fallbackUsed: true,
@@ -144,4 +153,12 @@ function fallbackSuggestionResponse(body: SuggestionBody, fallbackReason: string
 
 function shouldUseFallbackForStatus(status: number): boolean {
   return status === 429 || status >= 500;
+}
+
+function fallbackUnavailableMessage(city?: string): string {
+  const destination = city?.trim();
+  if (destination) {
+    return `Fallback is not available for ${destination}. Please start the AI service or try a supported fallback destination.`;
+  }
+  return "Could not connect to AI service and fallback data is unavailable.";
 }

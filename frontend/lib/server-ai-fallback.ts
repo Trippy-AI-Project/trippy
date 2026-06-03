@@ -8,6 +8,8 @@ const FALLBACK_FILES = [
   "destinations-worldwide.json",
 ];
 const ACTIVITY_TIMES = ["09:00", "10:45", "12:45", "15:00", "17:30", "19:30"];
+const OPENWEATHER_GEOCODING_URL = process.env.OPENWEATHER_GEOCODING_URL ?? "https://api.openweathermap.org/geo/1.0/direct";
+const OPENWEATHER_FORECAST_URL = process.env.OPENWEATHER_FORECAST_URL ?? "https://api.openweathermap.org/data/2.5/forecast";
 
 interface FallbackActivity {
   title: string;
@@ -87,13 +89,47 @@ interface FallbackItineraryActivity {
   title: string;
   description: string;
   location: string;
+  googleMapsUrl: string;
   category: string;
   estimatedCost: string;
   tips: string;
   bookingRequired: boolean;
 }
 
+interface WeatherSummary {
+  condition: string;
+  temperatureCelsius: number | null;
+  advice: string;
+}
+
+interface OpenWeatherGeoResult {
+  lat?: number;
+  lon?: number;
+}
+
+interface OpenWeatherForecastItem {
+  dt_txt?: string;
+  main?: {
+    temp?: number;
+  };
+  weather?: {
+    main?: string;
+    description?: string;
+  }[];
+}
+
+interface OpenWeatherForecastResponse {
+  list?: OpenWeatherForecastItem[];
+}
+
 let cachedProfiles: FallbackProfile[] | null = null;
+
+export class FallbackDestinationUnavailableError extends Error {
+  constructor(destination: string) {
+    super(`Fallback is not available for ${destination}. Please start the AI service or try a supported fallback destination.`);
+    this.name = "FallbackDestinationUnavailableError";
+  }
+}
 
 export function buildFallbackDestinationSuggestions(
   request: FallbackSuggestionRequest,
@@ -102,6 +138,7 @@ export function buildFallbackDestinationSuggestions(
   const profiles = loadFallbackProfiles();
   const selected: FallbackProfile[] = [];
   const primary = request.city ? findBestProfile(profiles, request.city) : undefined;
+  if (request.city?.trim() && !primary) return [];
   if (primary) selected.push(primary);
 
   profiles
@@ -122,11 +159,12 @@ export function buildFallbackDestinationSuggestions(
     highlights: profile.highlights.slice(0, 3),
     estimatedDailyCost: profile.estimatedDailyCost,
     bestTimeToVisit: profile.bestTimeToVisit,
+    googleMapsUrl: googleMapsDirectionsUrl(profile.destination),
     matchScore: roundScore(suggestionScore(profile, request, primary?.id)),
   }));
 }
 
-export function buildFallbackItinerary(
+export async function buildFallbackItinerary(
   request: FallbackItineraryRequest,
   fallbackReason: string,
 ) {
@@ -139,7 +177,7 @@ export function buildFallbackItinerary(
   }
 
   if (!profile) {
-    return buildUnsupportedFallback(request, startDate, endDate, fallbackReason);
+    throw new FallbackDestinationUnavailableError(request.constraints.destination);
   }
 
   const dayCount = daysBetween(startDate, endDate);
@@ -147,13 +185,15 @@ export function buildFallbackItinerary(
   const includeMeals = preferences?.includeMeals ?? true;
   const usedTitles = new Set<string>();
   const pool = prioritizedActivities(profile, dayCount, preferences);
+  const weatherByDate = await fetchWeatherByDate(profile.destination, startDate, endDate);
   const dailyPlan = Array.from({ length: dayCount }, (_, index) => {
     const dayNumber = index + 1;
+    const date = formatDate(addDays(startDate, index));
     const activities: FallbackItineraryActivity[] = [];
     const dayTripDay = dayNumber === 5 && dayCount >= 5 && profile.dayTrips.length > 0;
 
     if (dayTripDay) {
-      addActivity(activities, profile.dayTrips[0], usedTitles);
+      addActivity(activities, profile.dayTrips[0], usedTitles, profile.destination);
     } else {
       const targetCount = targetCoreActivityCount(preferences?.pacePreference, dayNumber, dayCount);
       while (coreActivityCount(activities) < targetCount) {
@@ -162,18 +202,18 @@ export function buildFallbackItinerary(
           activities.push(flexibleActivity(profile, dayNumber, activities.length));
           break;
         }
-        addActivity(activities, next, usedTitles);
+        addActivity(activities, next, usedTitles, profile.destination);
       }
     }
 
     if (includeMeals) {
       const food = firstAvailable(profile.foodExperiences, preferences, usedTitles);
-      if (food) addActivity(activities, food, usedTitles);
+      if (food) addActivity(activities, food, usedTitles, profile.destination);
     }
 
     if (shouldAddEvening(dayNumber, dayCount, preferences?.pacePreference)) {
       const evening = firstAvailable(profile.eveningOptions, preferences, usedTitles);
-      if (evening) addActivity(activities, evening, usedTitles);
+      if (evening) addActivity(activities, evening, usedTitles, profile.destination);
     }
 
     activities.forEach((activity, activityIndex) => {
@@ -182,9 +222,9 @@ export function buildFallbackItinerary(
 
     return {
       dayNumber,
-      date: formatDate(addDays(startDate, index)),
+      date,
       title: dayTitle(profile, dayNumber, dayCount, dayTripDay),
-      weather: unavailableWeather(),
+      weather: weatherByDate.get(date) ?? unavailableWeather(),
       transportRecommendations: [],
       activities,
     };
@@ -294,6 +334,7 @@ function addActivity(
   activities: FallbackItineraryActivity[],
   activity: FallbackActivity,
   usedTitles: Set<string>,
+  destination: string,
 ) {
   usedTitles.add(normalize(activity.title));
   activities.push({
@@ -302,6 +343,7 @@ function addActivity(
     title: activity.title,
     description: activity.description,
     location: activity.location,
+    googleMapsUrl: googleMapsDirectionsUrl(`${activity.location}, ${destination}`),
     category: activity.category,
     estimatedCost: activity.estimatedCost,
     tips: activity.bookingRecommended
@@ -320,55 +362,11 @@ function flexibleActivity(profile: FallbackProfile, dayNumber: number, activityI
     title: `Slow exploration block in ${profile.city} - Day ${dayNumber}`,
     description: "Use this lower-pressure block for a neighbourhood walk, cafe pause, rest or weather-safe indoor alternative.",
     location: profile.city,
+    googleMapsUrl: googleMapsDirectionsUrl(profile.destination),
     category: "FREE_TIME",
     estimatedCost: "Flexible",
     tips: "Keep this block adaptable instead of forcing another landmark.",
     bookingRequired: false,
-  };
-}
-
-function buildUnsupportedFallback(
-  request: FallbackItineraryRequest,
-  startDate: Date,
-  endDate: Date,
-  fallbackReason: string,
-) {
-  const dayCount = daysBetween(startDate, endDate);
-  const destination = request.constraints.destination;
-  return {
-    generationId: randomUUID(),
-    tripTitle: `${dayCount} Days in ${destination}`,
-    summary: "Fallback generated because AI was unavailable, but this destination is not in the static fallback catalogue.",
-    totalEstimatedCost: "Estimate unavailable",
-    dailyPlan: Array.from({ length: dayCount }, (_, index) => ({
-      dayNumber: index + 1,
-      date: formatDate(addDays(startDate, index)),
-      title: `Day ${index + 1} in ${destination}`,
-      weather: unavailableWeather(),
-      transportRecommendations: [],
-      activities: [
-        {
-          time: "09:30",
-          durationMinutes: 120,
-          title: `Flexible orientation in ${destination}`,
-          description: "Start with a central, well-reviewed area and regenerate when AI is reachable.",
-          location: destination,
-          category: "FREE_TIME",
-          estimatedCost: "Varies",
-          tips: "Use this as a temporary plan.",
-          bookingRequired: false,
-        },
-      ],
-    })),
-    packingTips: ["Comfortable walking shoes", "Weather-appropriate layers"],
-    travelTips: [
-      "Confirm current opening days and tickets before visiting major attractions.",
-      "Use this as a temporary plan and regenerate when AI is reachable.",
-    ],
-    generatedAt: new Date().toISOString(),
-    tokensUsed: 0,
-    fallbackUsed: true,
-    fallbackReason,
   };
 }
 
@@ -427,12 +425,117 @@ function dayTitle(profile: FallbackProfile, dayNumber: number, dayCount: number,
   return `Day ${dayNumber}: ${profile.city} at a comfortable pace`;
 }
 
-function unavailableWeather() {
+function unavailableWeather(): WeatherSummary {
   return {
     condition: "Forecast unavailable",
     temperatureCelsius: null,
     advice: "Check the local forecast closer to departure.",
   };
+}
+
+async function fetchWeatherByDate(destination: string, startDate: Date, endDate: Date): Promise<Map<string, WeatherSummary>> {
+  const apiKey = process.env.OPENWEATHER_API_KEY ?? process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
+  if (!apiKey) return new Map();
+
+  try {
+    const geoUrl = new URL(OPENWEATHER_GEOCODING_URL);
+    geoUrl.searchParams.set("q", destination);
+    geoUrl.searchParams.set("limit", "1");
+    geoUrl.searchParams.set("appid", apiKey);
+    const geo = await fetchJson<OpenWeatherGeoResult[]>(geoUrl.toString());
+    const location = geo?.[0];
+    if (typeof location?.lat !== "number" || typeof location?.lon !== "number") return new Map();
+
+    const forecastUrl = new URL(OPENWEATHER_FORECAST_URL);
+    forecastUrl.searchParams.set("lat", String(location.lat));
+    forecastUrl.searchParams.set("lon", String(location.lon));
+    forecastUrl.searchParams.set("units", "metric");
+    forecastUrl.searchParams.set("appid", apiKey);
+    const forecast = await fetchJson<OpenWeatherForecastResponse>(forecastUrl.toString());
+    if (!forecast?.list?.length) return new Map();
+
+    const requestedDates = datesInRange(startDate, endDate);
+    const tempsByDate = new Map<string, number[]>();
+    const conditionsByDate = new Map<string, string[]>();
+
+    for (const item of forecast.list) {
+      const date = item.dt_txt?.split(" ")[0];
+      if (!date || !requestedDates.has(date)) continue;
+      if (typeof item.main?.temp === "number") {
+        tempsByDate.set(date, [...(tempsByDate.get(date) ?? []), item.main.temp]);
+      }
+      const condition = item.weather?.[0]?.main ?? item.weather?.[0]?.description;
+      if (condition) {
+        conditionsByDate.set(date, [...(conditionsByDate.get(date) ?? []), condition]);
+      }
+    }
+
+    const summaries = new Map<string, WeatherSummary>();
+    for (const date of requestedDates) {
+      const temps = tempsByDate.get(date) ?? [];
+      const condition = mostCommon(conditionsByDate.get(date) ?? []) ?? "Forecast unavailable";
+      if (!temps.length && condition === "Forecast unavailable") continue;
+      summaries.set(date, {
+        condition,
+        temperatureCelsius: temps.length ? average(temps) : null,
+        advice: weatherAdvice(condition),
+      });
+    }
+    return summaries;
+  } catch (error) {
+    console.warn("[AI Fallback] Weather lookup failed:", error instanceof Error ? error.message : error);
+    return new Map();
+  }
+}
+
+async function fetchJson<T>(url: string): Promise<T | undefined> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return undefined;
+    return response.json() as Promise<T>;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function datesInRange(startDate: Date, endDate: Date): Set<string> {
+  const dates = new Set<string>();
+  let cursor = startDate;
+  while (cursor.getTime() <= endDate.getTime()) {
+    dates.add(formatDate(cursor));
+    cursor = addDays(cursor, 1);
+  }
+  return dates;
+}
+
+function average(values: number[]): number {
+  return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
+}
+
+function mostCommon(values: string[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0];
+}
+
+function weatherAdvice(condition: string): string {
+  const normalized = condition.toLowerCase();
+  if (normalized.includes("rain") || normalized.includes("storm") || normalized.includes("snow")) {
+    return "Carry weather protection and keep indoor backup options ready.";
+  }
+  if (normalized.includes("clear")) {
+    return "Good conditions for outdoor sightseeing; bring sun protection.";
+  }
+  if (normalized.includes("cloud")) {
+    return "Comfortable for walking, with layers for changing conditions.";
+  }
+  return "Check the local forecast closer to departure.";
+}
+
+function googleMapsDirectionsUrl(query: string): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
 }
 
 function isRequested(title: string, preferences?: FallbackItineraryRequest["preferences"]): boolean {

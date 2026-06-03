@@ -123,6 +123,10 @@ public class AiService {
             log.warn("Destination suggestions using fallback catalogue reason={} error={}",
                     fallbackReason, LogSanitizer.safeError(ex));
             List<DestinationSuggestion> suggestions = fallbackDestinationCatalogue.suggestDestinations(request, 5);
+            if (suggestions.isEmpty() && request.city() != null && !request.city().isBlank()) {
+                throw new IllegalArgumentException("Fallback is not available for " + request.city()
+                        + ". Please start the AI service or try a supported fallback destination.");
+            }
             return new DestinationSuggestionResponse(suggestions, Instant.now(), false);
         }
     }
@@ -414,6 +418,7 @@ public class AiService {
                       "highlights": ["top highlight 1", "top highlight 2", "top highlight 3"],
                       "estimatedDailyCost": 100,
                       "bestTimeToVisit": "best months to visit",
+                      "googleMapsUrl": "https://www.google.com/maps/dir/?api=1&destination=encoded destination",
                       "matchScore": 0.92
                     }
                   ]
@@ -426,6 +431,7 @@ public class AiService {
                 - "highlights": array of 3 top highlights/attractions
                 - "estimatedDailyCost": estimated daily cost in EUR as a number
                 - "bestTimeToVisit": best months to visit
+                - "googleMapsUrl": Google Maps directions URL for the destination using https://www.google.com/maps/dir/?api=1&destination=
                 - "matchScore": how well this matches the preferences (0.0 to 1.0)
 
                 Return 3 to 5 destination suggestions.
@@ -497,6 +503,7 @@ public class AiService {
                           "estimatedCost": "string",
                           "tips": "string",
                           "bookingRequired": false,
+                          "googleMapsUrl": "https://www.google.com/maps/dir/?api=1&destination=encoded venue",
                           "lat": 35.0,
                           "lng": 135.0
                         }
@@ -563,6 +570,7 @@ public class AiService {
                           "estimatedCost": "€15",
                           "tips": "Useful tip",
                           "bookingRequired": false,
+                          "googleMapsUrl": "https://www.google.com/maps/dir/?api=1&destination=encoded venue",
                           "lat": 48.8566,
                           "lng": 2.3522
                         }
@@ -634,7 +642,7 @@ public class AiService {
             if (day.getDate() == null || day.getDate().isBlank()) {
                 day.setDate(date.toString());
             }
-            if (day.getWeather() == null) {
+            if (day.getWeather() == null || isUnavailableWeather(day.getWeather())) {
                 day.setWeather(weatherByDate.getOrDefault(date, unavailableWeather()));
             }
             if (day.getActivities() == null) {
@@ -664,6 +672,7 @@ public class AiService {
                     .title("Explore " + constraints.destination())
                     .description("Start with a central landmark or neighborhood walk to get oriented.")
                     .location(constraints.destination())
+                    .googleMapsUrl(googleMapsDirectionsUrl(constraints.destination()))
                     .category("SIGHTSEEING")
                     .estimatedCost("Varies")
                     .tips("Check local opening hours before leaving.")
@@ -676,6 +685,7 @@ public class AiService {
                         .title("Local lunch")
                         .description("Choose a well-reviewed local restaurant near the morning stop.")
                         .location(constraints.destination())
+                        .googleMapsUrl(googleMapsDirectionsUrl(constraints.destination()))
                         .category("FOOD")
                         .estimatedCost("€15-€30")
                         .tips("Reserve ahead for popular places.")
@@ -688,6 +698,7 @@ public class AiService {
                     .title("Flexible afternoon activity")
                     .description("Visit a museum, market, park, or viewpoint based on group energy.")
                     .location(constraints.destination())
+                    .googleMapsUrl(googleMapsDirectionsUrl(constraints.destination()))
                     .category("ACTIVITY")
                     .estimatedCost("€0-€25")
                     .tips("Keep this flexible if weather or travel delays change the day.")
@@ -808,8 +819,7 @@ public class AiService {
         for (int i = 0; i < activities.size() - 1; i++) {
             ItineraryResponse.Activity from = activities.get(i);
             ItineraryResponse.Activity to = activities.get(i + 1);
-            recommendations.add(fetchOsrmTransport(from, to)
-                    .orElseGet(() -> fallbackTransport(from, to)));
+            fetchOsrmTransport(from, to).ifPresent(recommendations::add);
         }
         return recommendations;
     }
@@ -863,24 +873,17 @@ public class AiService {
         }
     }
 
-    private ItineraryResponse.TransportRecommendation fallbackTransport(
-            ItineraryResponse.Activity from,
-            ItineraryResponse.Activity to) {
-        return ItineraryResponse.TransportRecommendation.builder()
-                .from(defaultString(from.getLocation(), from.getTitle()))
-                .to(defaultString(to.getLocation(), to.getTitle()))
-                .mode("walk / public transport")
-                .estimatedDuration("Transit details unavailable")
-                .notes("Check live routes before departure.")
-                .build();
-    }
-
     private ItineraryResponse.WeatherSummary unavailableWeather() {
         return ItineraryResponse.WeatherSummary.builder()
                 .condition("Forecast unavailable")
                 .temperatureCelsius(null)
                 .advice("Check the local forecast closer to departure.")
                 .build();
+    }
+
+    private boolean isUnavailableWeather(ItineraryResponse.WeatherSummary weather) {
+        return weather != null
+                && "Forecast unavailable".equalsIgnoreCase(defaultString(weather.getCondition(), ""));
     }
 
     private String weatherAdvice(String condition) {
@@ -918,6 +921,10 @@ public class AiService {
 
     private String encodeQueryParam(String value) {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private String googleMapsDirectionsUrl(String query) {
+        return "https://www.google.com/maps/dir/?api=1&destination=" + encodeQueryParam(query);
     }
 
     private boolean hasValidCoordinates(ItineraryResponse.Activity activity) {

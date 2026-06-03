@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildFallbackItinerary } from "@/lib/server-ai-fallback";
+import { FallbackDestinationUnavailableError, buildFallbackItinerary } from "@/lib/server-ai-fallback";
 import { errorMessage, postToAiService, readJson } from "@/lib/server-ai-proxy";
 
 export const runtime = "nodejs";
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       if (shouldUseFallbackForStatus(response.status)) {
-        return fallbackItineraryResponse(backendBody, `AI_SERVICE_HTTP_${response.status}`);
+        return await fallbackItineraryResponse(backendBody, `AI_SERVICE_HTTP_${response.status}`);
       }
       return NextResponse.json(
         { error: errorMessage(data, `AI itinerary request failed (${response.status})`) },
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json(data);
   } catch (err) {
     console.error("[AI Proxy] Itinerary generation failed:", err);
-    return fallbackItineraryResponse(backendBody, "AI_SERVICE_UNAVAILABLE");
+    return await fallbackItineraryResponse(backendBody, "AI_SERVICE_UNAVAILABLE");
   }
 }
 
@@ -96,13 +96,16 @@ function buildUserPrompt(body: ItineraryBody): string {
   return parts.filter(Boolean).join("\n");
 }
 
-function fallbackItineraryResponse(
+async function fallbackItineraryResponse(
   backendBody: Parameters<typeof buildFallbackItinerary>[0],
   fallbackReason: string,
 ) {
   try {
-    return NextResponse.json(buildFallbackItinerary(backendBody, fallbackReason));
+    return NextResponse.json(await buildFallbackItinerary(backendBody, fallbackReason));
   } catch (fallbackError) {
+    if (fallbackError instanceof FallbackDestinationUnavailableError) {
+      return NextResponse.json({ error: fallbackError.message }, { status: 422 });
+    }
     console.error("[AI Proxy] Itinerary fallback failed:", fallbackError);
     return NextResponse.json(
       { error: "Could not connect to AI service and fallback data is unavailable." },

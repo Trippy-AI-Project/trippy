@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("FallbackItineraryGenerator")
 class FallbackItineraryGeneratorTest {
@@ -90,6 +91,26 @@ class FallbackItineraryGeneratorTest {
         assertThat(response.getFallbackUsed()).isTrue();
         assertThat(response.getFallbackReason()).isEqualTo("AI_PROVIDER_UNAVAILABLE");
         assertThat(response.getTripTitle()).contains("Prague, Czechia");
+    }
+
+    @Test
+    @DisplayName("includes Google Maps direction URLs for generated activities")
+    void includesGoogleMapsUrls() {
+        ItineraryResponse response = generator.generate(request("Berlin", 1, "MODERATE",
+                List.of(), List.of()), "AI_PROVIDER_UNAVAILABLE");
+
+        assertThat(response.getDailyPlan().get(0).getActivities())
+                .allSatisfy(activity -> assertThat(activity.getGoogleMapsUrl())
+                        .startsWith("https://www.google.com/maps/dir/?api=1&destination="));
+    }
+
+    @Test
+    @DisplayName("rejects unsupported destinations instead of producing generic fallback plans")
+    void rejectsUnsupportedDestinations() {
+        assertThatThrownBy(() -> generator.generate(request("Delhi", 3, "MODERATE",
+                List.of(), List.of()), "AI_PROVIDER_UNAVAILABLE"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Fallback is not available for Delhi");
     }
 
     private GenerateItineraryRequest request(String destination, int days, String pace,

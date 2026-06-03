@@ -87,8 +87,31 @@ class FallbackDestinationCatalogueTest {
                 null, null, null, null);
         List<DestinationSuggestion> suggestions = catalogue.suggestDestinations(request, 5);
 
-        assertThat(suggestions).hasSizeLessThanOrEqualTo(5);
+        assertThat(suggestions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("explicit unsupported destinations do not return unrelated fallback profiles")
+    void unsupportedExplicitDestinationReturnsNoSuggestions() {
+        DestinationSuggestionRequest request = new DestinationSuggestionRequest(
+                null, "Delhi", List.of("culture"), "MODERATE", null, 3, null, null,
+                null, null, null, null);
+
+        assertThat(catalogue.suggestDestinations(request, 5)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("fallback destination suggestions include Google Maps direction URLs")
+    void suggestionsIncludeGoogleMapsUrls() {
+        DestinationSuggestionRequest request = new DestinationSuggestionRequest(
+                null, "Berlin", List.of("culture"), "MODERATE", null, 3, null, null,
+                null, null, null, null);
+
+        List<DestinationSuggestion> suggestions = catalogue.suggestDestinations(request, 5);
+
         assertThat(suggestions).isNotEmpty();
+        assertThat(suggestions.get(0).googleMapsUrl())
+                .startsWith("https://www.google.com/maps/dir/?api=1&destination=");
     }
 
     private void assertMatch(String query, String expectedDestination) {
