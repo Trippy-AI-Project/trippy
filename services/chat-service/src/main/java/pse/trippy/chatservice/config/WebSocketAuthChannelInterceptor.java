@@ -118,7 +118,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             jwt = jwtDecoder.decode(token);
         } catch (JwtException ex) {
             log.debug("STOMP CONNECT rejected — JWT validation failed: {}", ex.getMessage());
-            throw new MessageDeliveryException("Invalid or expired JWT: " + ex.getMessage());
+            throw new MessageDeliveryException("Invalid or expired JWT");
         }
 
         String userIdStr   = jwt.getSubject();
@@ -153,7 +153,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
             attrs.put(SESSION_ATTR_DISPLAY_NAME, displayName != null ? displayName : "");
         }
 
-        log.info("STOMP CONNECT authenticated — userId={} displayName={}", userId, displayName);
+        log.info("STOMP CONNECT authenticated — userId={}", userId);
 
         // Rebuild the message so the mutated accessor (with the new principal) is propagated.
         return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
@@ -163,7 +163,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 
     /**
      * Enforces ban and mute before allowing a STOMP SEND (outbound message).
-     * Banned users are fully disconnected; muted users receive a rejection.
+     * Banned and muted users receive a rejection.
      */
     private void handleSend(StompHeaderAccessor accessor) {
         UUID userId = resolveUserId(accessor);

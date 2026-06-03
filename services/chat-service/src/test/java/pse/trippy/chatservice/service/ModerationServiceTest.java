@@ -8,7 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import pse.trippy.chatservice.exception.ChatRoomNotFoundException;
+import pse.trippy.chatservice.exception.MessageNotFoundException;
 import pse.trippy.chatservice.model.entity.ChatMessage;
 import pse.trippy.chatservice.repository.ChatMessageRepository;
 
@@ -96,6 +96,14 @@ class ModerationServiceTest {
         assertThat(moderationService.isBanned(userId)).isFalse();
     }
 
+    @Test
+    @DisplayName("banUser: negative duration is rejected")
+    void banUser_negativeDuration_rejected() {
+        assertThatThrownBy(() -> moderationService.banUser(userId, -1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("durationMinutes must be >= 0");
+    }
+
     // ------------------------------------------------------------------- mute
 
     @Test
@@ -125,6 +133,14 @@ class ModerationServiceTest {
         assertThat(moderationService.isMuted(userId)).isTrue();
     }
 
+    @Test
+    @DisplayName("muteUser: negative duration is rejected")
+    void muteUser_negativeDuration_rejected() {
+        assertThatThrownBy(() -> moderationService.muteUser(userId, -1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("durationMinutes must be >= 0");
+    }
+
     // ---------------------------------------------------------- deleteMessage
 
     @Test
@@ -148,6 +164,6 @@ class ModerationServiceTest {
         when(chatMessageRepository.findById(messageId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> moderationService.deleteMessage(messageId))
-                .isInstanceOf(ChatRoomNotFoundException.class);
+                .isInstanceOf(MessageNotFoundException.class);
     }
 }

@@ -74,24 +74,3 @@ management:
 logging:
   level:
     root: INFO
-
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics
-  endpoint:
-    health:
-      show-details: when-authorized
-      probes:
-        enabled: true
-  health:
-    livenessstate:
-      enabled: true
-    readinessstate:
-      enabled: true
-
-logging:
-  level:
-    root: INFO

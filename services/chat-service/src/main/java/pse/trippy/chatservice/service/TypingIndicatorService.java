@@ -17,8 +17,8 @@ import java.util.UUID;
  * <p>Design: each user-in-room has a Redis key
  * {@code typing:trip:{tripId}:user:{userId}} with a short TTL (ticket 3.8).
  * When a {@code typing=true} event arrives the key is set (or its TTL
- * refreshed). When the key expires — or when a {@code typing=false} event is
- * received — the stop event is broadcast to STOMP subscribers.
+ * refreshed). When a {@code typing=false} event is received — the stop event
+ * is broadcast to STOMP subscribers.
  *
  * <p>This gives natural debouncing: rapid "still typing" frames from the client
  * simply reset the TTL without triggering a new broadcast.
@@ -40,15 +40,13 @@ public class TypingIndicatorService {
      * a {@code typing=true} event only on state transitions (not-typing → typing).
      */
     public void userStartedTyping(UUID tripId, UUID userId, String displayName) {
-        String key     = key(tripId, userId);
-        Boolean existed = redisTemplate.hasKey(key);
-
-        // Refresh TTL unconditionally (debounce)
-        redisTemplate.opsForValue().set(key, "1", TYPING_TTL);
-
-        if (!Boolean.TRUE.equals(existed)) {
+        String key = key(tripId, userId);
+        Boolean created = redisTemplate.opsForValue().setIfAbsent(key, "1", TYPING_TTL);
+        if (Boolean.TRUE.equals(created)) {
             broadcast(new TypingEvent(tripId, userId, displayName, true));
+            return;
         }
+        redisTemplate.expire(key, TYPING_TTL);
     }
 
     /**

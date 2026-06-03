@@ -11,13 +11,11 @@ import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -78,7 +76,7 @@ class ChatPresenceServiceTest {
 
     @Test
     @DisplayName("addUser: duplicate join returns false and does not broadcast")
-    void addUser_duplicate_returnsFalseNobroadcast() {
+    void addUser_duplicate_returnsFalseNoBroadcast() {
         String key = "presence:trip:" + tripId;
         when(setOps.add(eq(key), eq(userId.toString()))).thenReturn(0L);
 

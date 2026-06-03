@@ -59,11 +59,11 @@ class TypingIndicatorServiceTest {
     @DisplayName("userStartedTyping: broadcasts typing=true when key is new")
     void startedTyping_newKey_broadcastsTrue() {
         String key = "typing:trip:" + tripId + ":user:" + userId;
-        when(redisTemplate.hasKey(key)).thenReturn(false);
+        when(valueOps.setIfAbsent(eq(key), eq("1"), eq(TypingIndicatorService.TYPING_TTL))).thenReturn(true);
 
         typingService.userStartedTyping(tripId, userId, "Alice");
 
-        verify(valueOps).set(eq(key), eq("1"), eq(TypingIndicatorService.TYPING_TTL));
+        verify(valueOps).setIfAbsent(eq(key), eq("1"), eq(TypingIndicatorService.TYPING_TTL));
         verify(messagingTemplate).convertAndSend(
                 eq("/topic/trips/" + tripId + "/typing"), any(TypingEvent.class));
     }
@@ -72,11 +72,11 @@ class TypingIndicatorServiceTest {
     @DisplayName("userStartedTyping: debounce — refreshes TTL but no broadcast when already typing")
     void startedTyping_existingKey_refreshesTtlNoBroadcast() {
         String key = "typing:trip:" + tripId + ":user:" + userId;
-        when(redisTemplate.hasKey(key)).thenReturn(true);
+        when(valueOps.setIfAbsent(eq(key), eq("1"), eq(TypingIndicatorService.TYPING_TTL))).thenReturn(false);
 
         typingService.userStartedTyping(tripId, userId, "Alice");
 
-        verify(valueOps).set(eq(key), eq("1"), eq(TypingIndicatorService.TYPING_TTL));
+        verify(redisTemplate).expire(eq(key), eq(TypingIndicatorService.TYPING_TTL));
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
