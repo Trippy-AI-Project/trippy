@@ -4,10 +4,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, MapPin, Calendar, Users, Sparkles, Loader2, Check, Star,
-  DollarSign, MessageSquare, Send, ArrowRightLeft, Plus, Trash2,
+  DollarSign, Send, ArrowRightLeft, Plus, Trash2,
   Lightbulb, Undo2, ChevronDown, ChevronUp, ArrowLeft, Pencil,
   RefreshCw, CloudSun, Bus, Clock,
 } from "lucide-react";
+import Logo from "@/components/Logo";
+import AmbientBackground from "@/components/layout/AmbientBackground";
 import Button from "@/components/ui/Button";
 import { getAccessToken } from "@/lib/api";
 
@@ -84,7 +86,7 @@ interface ChatMsg {
 interface TripFullScreenViewProps {
   trip: GeneratedTrip;
   userPrompt?: string;
-  userDates?: { start: string; end: string };
+  userDates?: { start: string; end?: string };
   onBack: () => void;
   onClose: () => void;
   onSave: () => void;
@@ -156,10 +158,11 @@ export default function TripFullScreenView({
   }, []);
 
   async function generateItinerary() {
-    if (!userDates?.start || !userDates?.end) {
+    if (!userDates?.start) {
       setItineraryError("Select travel dates before generating an itinerary.");
       return;
     }
+    const effectiveEndDate = userDates.end || userDates.start;
     setItineraryLoading(true);
     setItineraryError("");
     try {
@@ -170,7 +173,7 @@ export default function TripFullScreenView({
           constraints: {
             destination: draftTrip.destination,
             startDate: userDates.start,
-            endDate: userDates.end,
+            endDate: effectiveEndDate,
             budgetLevel: "MODERATE",
             adults: parseInt(draftTrip.groupSize) || 2,
             children: 0,
@@ -331,41 +334,44 @@ export default function TripFullScreenView({
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex"
+      className="fixed inset-0 z-[100] isolate flex overflow-hidden text-[#18211f]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-[#f7f6f3]" />
+      <AmbientBackground />
 
       {/* ── LEFT: Chat Panel ──────────────────────────────────────── */}
       <motion.div
-        className="relative z-10 w-[460px] min-w-[400px] max-w-[500px] flex flex-col border-r border-border/60 bg-white"
+        className="relative z-10 flex w-full max-w-[430px] min-w-0 flex-col border-r border-white/60 bg-[#fffaf2]/74 shadow-[30px_0_90px_-62px_rgba(20,47,43,0.82)] backdrop-blur-2xl sm:min-w-[390px]"
         initial={{ x: -40, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
       >
         {/* Chat header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60 bg-gradient-to-r from-trippy-500/5 to-transparent">
-          <button
-            onClick={onBack}
-            title="Back to results"
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface transition-colors cursor-pointer"
-          >
-            <ArrowLeft size={16} className="text-muted" />
-          </button>
-          <div className="w-8 h-8 rounded-xl bg-trippy-500 flex items-center justify-center shadow-sm">
-            <Sparkles size={14} className="text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm truncate">Trippy AI</h3>
-            <p className="text-[10px] text-muted">Modify your trip with chat</p>
+        <div className="border-b border-white/60 bg-white/36 px-4 py-4 shadow-[0_16px_36px_-34px_rgba(20,47,43,0.65)]">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              title="Back to results"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/75 bg-white/68 text-[#51635d] shadow-sm transition-all hover:-translate-x-0.5 hover:bg-white cursor-pointer"
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <Logo size="sm" className="min-w-0 [&>span]:text-xl" />
+            <button
+              onClick={onClose}
+              className="ml-auto grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/54 text-[#6f7c73] transition-all hover:bg-white hover:text-[#17211f] cursor-pointer"
+              title="Close"
+            >
+              <X size={16} />
+            </button>
           </div>
           {prevItinerary && (
             <button
               onClick={() => { setDraftTrip(prev => ({ ...prev, aiItinerary: prevItinerary })); setPrevItinerary(null); }}
-              className="flex items-center gap-1 text-[10px] text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full hover:bg-orange-100 cursor-pointer transition-colors"
+              className="mt-3 inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] text-orange-600 transition-colors hover:bg-orange-100 cursor-pointer"
             >
               <Undo2 size={10} /> Undo
             </button>
@@ -373,51 +379,51 @@ export default function TripFullScreenView({
         </div>
 
         {/* ── Action bar: Regenerate / Change Dates / Close ─────── */}
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/40 flex-wrap bg-gradient-to-r from-trippy-500/[0.02] to-transparent">
+        <div className="grid grid-cols-2 gap-2 border-b border-white/45 bg-white/18 px-4 py-3">
           {onRegenerate && (
             <button
               onClick={onRegenerate}
-              className="flex items-center gap-1.5 text-[10px] font-semibold text-trippy-700 bg-trippy-500/10 border border-trippy-500/20 px-3 py-1.5 rounded-full hover:bg-trippy-500/20 transition-colors cursor-pointer"
+              className="flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#c8d3cd] bg-white/68 px-3 text-xs font-black text-[#123d36] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white cursor-pointer"
             >
-              <RefreshCw size={10} /> Regenerate
+              <RefreshCw size={13} /> Regenerate
             </button>
           )}
           {onEditSearch && (
             <button
               onClick={onEditSearch}
-              className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors cursor-pointer"
+              className="flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#b7d2ff] bg-[#edf5ff]/78 px-3 text-xs font-black text-[#2454d6] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white cursor-pointer"
             >
-              <Calendar size={10} /> Change Dates
+              <Calendar size={13} /> Change Dates
             </button>
           )}
-          <button
-            onClick={onClose}
-            className="ml-auto flex items-center gap-1 text-[10px] text-muted hover:text-foreground cursor-pointer transition-colors"
-          >
-            <X size={11} /> Close
-          </button>
         </div>
 
         {/* Trip version tag */}
-        <div className="px-4 py-2 border-b border-border/40">
-          <div className="inline-flex items-center gap-2 bg-trippy-500/8 border border-trippy-500/20 rounded-lg px-3 py-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-trippy-500 animate-pulse" />
-            <span className="text-[10px] font-semibold text-trippy-700">
-              {actualDays > 0 ? `${draftTrip.destination} — ${actualDays}-Day Trip` : draftTrip.title}
-            </span>
+        <div className="border-b border-white/45 px-4 py-3">
+          <div className="rounded-2xl border border-white/72 bg-white/58 p-3 shadow-[0_18px_42px_-36px_rgba(20,47,43,0.72)]">
+            <div className="flex items-start gap-2.5">
+              <span className="mt-1.5 h-2 w-2 rounded-full bg-[#123d36] shadow-[0_0_0_4px_rgba(18,61,54,0.1)]" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-black text-[#17211f]">
+                  {actualDays > 0 ? `${draftTrip.destination} — ${actualDays}-Day Trip` : draftTrip.title}
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-[#6a788f]">
+                  Latest version · {chatMessages.filter(m => m.hasModification).length} modification(s)
+                </p>
+              </div>
+            </div>
           </div>
-          <p className="text-[9px] text-muted mt-1">Latest version • {chatMessages.filter(m => m.hasModification).length} modification(s)</p>
         </div>
 
         {/* Quick action chips */}
-        <div className="px-4 py-2 border-b border-border/40">
-          <p className="text-[9px] text-muted mb-1.5 uppercase tracking-wider font-semibold">Quick actions</p>
-          <div className="flex flex-wrap gap-1.5">
-            {["Make it vegetarian 🥗", "Budget-friendly 💰", "Add nightlife 🌙", "More relaxed 🧘", "Adventure 🏔️"].map(chip => (
+        <div className="border-b border-white/45 px-4 py-3">
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6b768c]">Quick actions</p>
+          <div className="grid grid-cols-2 gap-2">
+            {["Make it vegetarian 🥗", "Budget-friendly 💰", "Add nightlife 🌙", "More relaxed 🧘"].map(chip => (
               <button
                 key={chip}
                 onClick={() => void handleChatSend(chip)}
-                className="text-[10px] px-2.5 py-1 rounded-full border border-border/60 text-foreground/70 bg-white hover:bg-trippy-500/8 hover:border-trippy-500/30 hover:text-trippy-700 transition-all cursor-pointer"
+                className="min-h-9 rounded-full border border-white/75 bg-white/68 px-3 text-left text-[11px] font-bold text-[#5e6a64] shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#d5653e]/35 hover:bg-white hover:text-[#123d36] cursor-pointer"
               >
                 {chip}
               </button>
@@ -428,14 +434,23 @@ export default function TripFullScreenView({
         {/* Chat messages */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {chatMessages.length === 0 && (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 rounded-2xl bg-trippy-500/10 flex items-center justify-center mx-auto mb-3">
-                <MessageSquare size={20} className="text-trippy-500" />
-              </div>
-              <p className="text-sm font-medium text-foreground">Chat with Trippy AI</p>
-              <p className="text-xs text-muted mt-1 max-w-[250px] mx-auto">
-                Ask me to modify your trip — swap activities, change restaurants, adjust pace, or add new experiences.
+            <div className="flex min-h-[300px] flex-col justify-center rounded-[1.35rem] border border-white/62 bg-white/30 px-6 py-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+              <Logo size="md" showText={false} className="mx-auto mb-4" />
+              <p className="text-base font-black text-[#17211f]">Refine this trip</p>
+              <p className="mx-auto mt-2 max-w-[280px] text-sm leading-6 text-[#657488]">
+                Ask for pacing, food, budget, activity swaps, or a better night plan.
               </p>
+              <div className="mx-auto mt-4 grid w-full max-w-[280px] gap-2 text-left">
+                {["Swap one museum for a neighborhood walk", "Make day 2 slower", "Add a special dinner"].map((prompt) => (
+                  <button
+                    key={prompt}
+                    onClick={() => void handleChatSend(prompt)}
+                    className="rounded-xl border border-white/74 bg-white/62 px-3 py-2 text-[11px] font-bold text-[#53635d] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#123d36] cursor-pointer"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -477,7 +492,7 @@ export default function TripFullScreenView({
                     </div>
                   )}
                   {(!msg.changes || msg.changes.length === 0) && (
-                    <div className="px-3.5 py-2.5 rounded-2xl rounded-bl-sm bg-[#f4f4f0] text-xs text-foreground leading-relaxed">
+                    <div className="px-3.5 py-2.5 rounded-2xl rounded-bl-sm border border-white/70 bg-white/72 text-xs text-foreground leading-relaxed shadow-sm">
                       {msg.content.split("\n").map((line, li) => {
                         if (line.includes("**")) return <p key={li} className="font-semibold mt-1">{line.replace(/\*\*/g, "")}</p>;
                         if (line.startsWith("•") || line.startsWith("-")) return <p key={li} className="pl-2 text-muted">{line}</p>;
@@ -498,7 +513,7 @@ export default function TripFullScreenView({
 
           {chatLoading && (
             <div className="flex justify-start">
-              <div className="bg-[#f4f4f0] px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-2">
+              <div className="border border-white/70 bg-white/72 px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-2 shadow-sm">
                 <Loader2 size={14} className="animate-spin text-trippy-500" />
                 <span className="text-xs text-muted">Updating your trip with AI…</span>
               </div>
@@ -510,19 +525,23 @@ export default function TripFullScreenView({
         {/* Chat input */}
         <form
           onSubmit={(e) => { e.preventDefault(); void handleChatSend(); }}
-          className="px-4 py-3 border-t border-border/60 bg-white"
+          className="border-t border-white/70 bg-[linear-gradient(180deg,rgba(255,250,242,0.72),rgba(255,250,242,0.96))] px-4 pb-4 pt-3 shadow-[0_-24px_56px_-44px_rgba(20,47,43,0.9)] backdrop-blur-2xl"
         >
-          <div className="flex items-center gap-2 bg-[#f7f6f3] rounded-xl px-3 py-2">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#64736b]">Ask Trippy</span>
+            <span className="text-[10px] font-semibold text-[#8b978f]">Trip edits, food, pace, budget</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-[1.15rem] border border-[#d9cec0] bg-white px-3 py-3 shadow-[0_18px_46px_-30px_rgba(20,47,43,0.75),inset_0_1px_0_rgba(255,255,255,0.9)] focus-within:border-[#d5653e] focus-within:shadow-[0_0_0_4px_rgba(213,101,62,0.12),0_22px_52px_-34px_rgba(20,47,43,0.85)]">
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask anything..."
-              className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted/50"
+              placeholder="Tell Trippy what to change..."
+              className="min-h-7 flex-1 bg-transparent text-sm font-semibold text-[#17211f] outline-none placeholder:text-[#a2aca5]"
             />
             <button type="submit" disabled={chatLoading || !chatInput.trim()}
-              className="w-8 h-8 rounded-full bg-trippy-500 flex items-center justify-center text-white disabled:opacity-30 cursor-pointer hover:bg-trippy-600 transition-colors shadow-sm"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#123d36] text-white shadow-[0_16px_30px_-20px_rgba(20,47,43,0.95)] transition-all hover:-translate-y-0.5 hover:bg-[#1d5148] disabled:cursor-not-allowed disabled:bg-[#b8c0bb] disabled:opacity-75 cursor-pointer"
             >
-              <Send size={14} />
+              <Send size={16} />
             </button>
           </div>
         </form>
