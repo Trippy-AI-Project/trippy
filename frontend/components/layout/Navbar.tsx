@@ -11,6 +11,7 @@ import {
   X,
   CreditCard,
   UserCircle,
+  Shield,
 } from "lucide-react";
 import { useState } from "react";
 import Logo from "@/components/Logo";
@@ -25,6 +26,10 @@ const navLinks = [
   { href: "/dashboard/payments", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/dashboard/profile", label: "Profile", icon: UserCircle },
+];
+
+const adminLinks = [
+  { href: "/dashboard/admin/moderation", label: "Moderation", icon: Shield },
 ];
 
 export default function Navbar() {
@@ -48,7 +53,7 @@ export default function Navbar() {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-1">
-          {navLinks.map(({ href, label, icon: Icon }) => {
+          {[...navLinks, ...(user?.role === "ADMIN" ? adminLinks : [])].map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
@@ -94,7 +99,7 @@ export default function Navbar() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="md:hidden border-t border-border pb-4 pt-2">
-          {navLinks.map(({ href, label, icon: Icon }) => {
+          {[...navLinks, ...(user?.role === "ADMIN" ? adminLinks : [])].map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link

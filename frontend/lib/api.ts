@@ -817,3 +817,25 @@ export const chatApi = {
   getParticipants: (tripId: string) =>
     api.get<string[]>(`/chats/${tripId}/participants`),
 };
+
+/* ------------------------------------------------------------------ */
+/*  Chat Moderation (ADMIN only)                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ticket 4.4 — Chat Moderation REST API. All endpoints require ADMIN role
+ * (enforced by the chat-service Spring Security chain via X-User-Role header).
+ * Pass {@code durationMinutes: 0} to apply the maximum 30-day ban/mute.
+ */
+export const moderationApi = {
+  banUser: (userId: string, durationMinutes = 0) =>
+    api.post<void>(`/admin/chat/users/${userId}/ban?durationMinutes=${durationMinutes}`, {}),
+  unbanUser: (userId: string) =>
+    api.delete<void>(`/admin/chat/users/${userId}/ban`),
+  muteUser: (userId: string, durationMinutes = 0) =>
+    api.post<void>(`/admin/chat/users/${userId}/mute?durationMinutes=${durationMinutes}`, {}),
+  unmuteUser: (userId: string) =>
+    api.delete<void>(`/admin/chat/users/${userId}/mute`),
+  deleteMessage: (messageId: string) =>
+    api.delete<void>(`/admin/chat/messages/${messageId}`),
+};
