@@ -440,17 +440,6 @@ export default function TripFullScreenView({
               <p className="mx-auto mt-2 max-w-[280px] text-sm leading-6 text-[#657488]">
                 Ask for pacing, food, budget, activity swaps, or a better night plan.
               </p>
-              <div className="mx-auto mt-4 grid w-full max-w-[280px] gap-2 text-left">
-                {["Swap one museum for a neighborhood walk", "Make day 2 slower", "Add a special dinner"].map((prompt) => (
-                  <button
-                    key={prompt}
-                    onClick={() => void handleChatSend(prompt)}
-                    className="rounded-xl border border-white/74 bg-white/62 px-3 py-2 text-[11px] font-bold text-[#53635d] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#123d36] cursor-pointer"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 
