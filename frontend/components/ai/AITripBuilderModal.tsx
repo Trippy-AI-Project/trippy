@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -630,18 +630,6 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
     setSavedTrips((prev) => new Set(prev).add(title));
   }
 
-  // Minimum loading time to let the animation play
-  const MIN_LOADING_MS = 10000;
-  const loadingStartRef = useRef<number>(0);
-
-  const waitMinimumLoading = useCallback(async () => {
-    const elapsed = Date.now() - loadingStartRef.current;
-    const remaining = MIN_LOADING_MS - elapsed;
-    if (remaining > 0) {
-      await new Promise((resolve) => setTimeout(resolve, remaining));
-    }
-  }, []);
-
   async function handleGenerate() {
     if (isLoading) return;
     if (!startDate || !endDate) return;
@@ -650,7 +638,6 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
     setError("");
     setReply("");
     setFullScreenTrip(null);
-    loadingStartRef.current = Date.now();
 
     try {
       // Build structured payload with ALL user preferences for the AI
@@ -668,9 +655,6 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
       };
 
       const suggestions = await fetchAiSuggestions(payload);
-
-      // Ensure loading animation shows for at least MIN_LOADING_MS
-      await waitMinimumLoading();
 
       if (!suggestions.length) {
         setResults([]);
@@ -722,8 +706,6 @@ export default function AITripBuilderModal({ open, onClose, initialRequest }: AI
         setFullScreenTrip(mapped[0]);
       }
     } catch (err) {
-      // Ensure minimum loading time even on errors
-      await waitMinimumLoading();
       const message = err instanceof Error ? err.message : "Could not connect to AI service.";
       setError(message);
       setResults([]);

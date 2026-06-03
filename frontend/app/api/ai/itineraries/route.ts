@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { buildFallbackItinerary } from "@/lib/server-ai-fallback";
 import { errorMessage, postToAiService, readJson } from "@/lib/server-ai-proxy";
+
+export const runtime = "nodejs";
 
 interface Constraints {
   destination: string;
@@ -36,6 +39,10 @@ export async function POST(request: Request) {
   if (!body.constraints?.destination) {
     return NextResponse.json({ error: "destination is required" }, { status: 400 });
   }
+  const dateValidationError = validateDateRange(body.constraints.startDate, body.constraints.endDate);
+  if (dateValidationError) {
+    return NextResponse.json({ error: dateValidationError }, { status: 400 });
+  }
 
   const backendBody = {
     constraints: {
@@ -65,6 +72,9 @@ export async function POST(request: Request) {
     const data = await readJson(response);
 
     if (!response.ok) {
+      if (shouldUseFallbackForStatus(response.status)) {
+        return fallbackItineraryResponse(backendBody, `AI_SERVICE_HTTP_${response.status}`);
+      }
       return NextResponse.json(
         { error: errorMessage(data, `AI itinerary request failed (${response.status})`) },
         { status: response.status },
@@ -74,10 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json(data);
   } catch (err) {
     console.error("[AI Proxy] Itinerary generation failed:", err);
-    return NextResponse.json(
-      { error: "Could not connect to AI service. Please make sure the backend is running." },
-      { status: 502 },
-    );
+    return fallbackItineraryResponse(backendBody, "AI_SERVICE_UNAVAILABLE");
   }
 }
 
@@ -87,4 +94,32 @@ function buildUserPrompt(body: ItineraryBody): string {
   if (body.diet) parts.push(`Dietary requirements: ${body.diet}`);
   if (body.customNotes) parts.push(`Custom notes: ${body.customNotes}`);
   return parts.filter(Boolean).join("\n");
+}
+
+function fallbackItineraryResponse(
+  backendBody: Parameters<typeof buildFallbackItinerary>[0],
+  fallbackReason: string,
+) {
+  try {
+    return NextResponse.json(buildFallbackItinerary(backendBody, fallbackReason));
+  } catch (fallbackError) {
+    console.error("[AI Proxy] Itinerary fallback failed:", fallbackError);
+    return NextResponse.json(
+      { error: "Could not connect to AI service and fallback data is unavailable." },
+      { status: 502 },
+    );
+  }
+}
+
+function shouldUseFallbackForStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function validateDateRange(startDate?: string, endDate?: string): string | undefined {
+  if (!startDate || !endDate) return "startDate and endDate are required";
+  const start = Date.parse(`${startDate}T00:00:00.000Z`);
+  const end = Date.parse(`${endDate}T00:00:00.000Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) return "startDate and endDate must be valid ISO dates";
+  if (end < start) return "endDate must be on or after startDate";
+  return undefined;
 }
