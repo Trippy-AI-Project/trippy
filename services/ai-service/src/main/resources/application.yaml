@@ -42,15 +42,6 @@ spring:
           model: llama-3.3-70b-versatile
           temperature: 0.7
           max-tokens: 4096
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD}
-  cache:
-    type: redis
-    redis:
-      time-to-live: 3600000
   jackson:
     deserialization:
       fail-on-unknown-properties: false

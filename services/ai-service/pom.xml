@@ -51,12 +51,6 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Redis for Response Caching -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-
         <!-- Validation -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

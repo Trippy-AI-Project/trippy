@@ -1,14 +1,13 @@
 package pse.trippy.aiservice.controller;
 
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import pse.trippy.aiservice.dto.request.AiChatRequest;
 import pse.trippy.aiservice.dto.request.DestinationSuggestionRequest;
 import pse.trippy.aiservice.dto.request.GenerateItineraryRequest;
@@ -19,7 +18,6 @@ import pse.trippy.aiservice.dto.response.ConsolidatedPreferencesResponse;
 import pse.trippy.aiservice.dto.response.DestinationSuggestionResponse;
 import pse.trippy.aiservice.dto.response.ItineraryResponse;
 import pse.trippy.aiservice.dto.response.TravelAdviceResponse;
-import pse.trippy.aiservice.service.AiCacheService;
 import pse.trippy.aiservice.service.AiService;
 
 @RestController
@@ -28,7 +26,6 @@ import pse.trippy.aiservice.service.AiService;
 public class AiController {
 
     private final AiService aiService;
-    private final AiCacheService aiCacheService;
 
     /**
      * POST /ai/destination-suggestions
@@ -79,11 +76,5 @@ public class AiController {
     public ResponseEntity<ConsolidatedPreferencesResponse> consolidatePreferences(
             @Valid @RequestBody GroupPreferenceRequest request) {
         return ResponseEntity.ok(aiService.consolidatePreferences(request));
-    }
-
-    @DeleteMapping("/cache/{type}")
-    public ResponseEntity<Void> evictCache(@PathVariable String type) {
-        aiCacheService.evictCache(type);
-        return ResponseEntity.noContent().build();
     }
 }
