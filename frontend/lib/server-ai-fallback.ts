@@ -8,8 +8,8 @@ const FALLBACK_FILES = [
   "destinations-worldwide.json",
 ];
 const ACTIVITY_TIMES = ["09:00", "10:45", "12:45", "15:00", "17:30", "19:30"];
-const OPENWEATHER_GEOCODING_URL = process.env.OPENWEATHER_GEOCODING_URL ?? "https://api.openweathermap.org/geo/1.0/direct";
-const OPENWEATHER_FORECAST_URL = process.env.OPENWEATHER_FORECAST_URL ?? "https://api.openweathermap.org/data/2.5/forecast";
+const OPEN_METEO_GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
+const OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 
 interface FallbackActivity {
   title: string;
@@ -102,24 +102,20 @@ interface WeatherSummary {
   advice: string;
 }
 
-interface OpenWeatherGeoResult {
-  lat?: number;
-  lon?: number;
+interface OpenMeteoGeoResult {
+  results?: Array<{
+    latitude: number;
+    longitude: number;
+  }>;
 }
 
-interface OpenWeatherForecastItem {
-  dt_txt?: string;
-  main?: {
-    temp?: number;
+interface OpenMeteoForecastResponse {
+  daily?: {
+    time?: string[];
+    temperature_2m_max?: number[];
+    temperature_2m_min?: number[];
+    weathercode?: number[];
   };
-  weather?: {
-    main?: string;
-    description?: string;
-  }[];
-}
-
-interface OpenWeatherForecastResponse {
-  list?: OpenWeatherForecastItem[];
 }
 
 let cachedProfiles: FallbackProfile[] | null = null;
@@ -434,58 +430,136 @@ function unavailableWeather(): WeatherSummary {
 }
 
 async function fetchWeatherByDate(destination: string, startDate: Date, endDate: Date): Promise<Map<string, WeatherSummary>> {
-  const apiKey = process.env.OPENWEATHER_API_KEY ?? process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
-  if (!apiKey) return new Map();
-
   try {
-    const geoUrl = new URL(OPENWEATHER_GEOCODING_URL);
-    geoUrl.searchParams.set("q", destination);
-    geoUrl.searchParams.set("limit", "1");
-    geoUrl.searchParams.set("appid", apiKey);
-    const geo = await fetchJson<OpenWeatherGeoResult[]>(geoUrl.toString());
-    const location = geo?.[0];
-    if (typeof location?.lat !== "number" || typeof location?.lon !== "number") return new Map();
-
-    const forecastUrl = new URL(OPENWEATHER_FORECAST_URL);
-    forecastUrl.searchParams.set("lat", String(location.lat));
-    forecastUrl.searchParams.set("lon", String(location.lon));
-    forecastUrl.searchParams.set("units", "metric");
-    forecastUrl.searchParams.set("appid", apiKey);
-    const forecast = await fetchJson<OpenWeatherForecastResponse>(forecastUrl.toString());
-    if (!forecast?.list?.length) return new Map();
+    const cityName = destination.split(",")[0].trim();
+    const geoUrl = new URL(OPEN_METEO_GEOCODING_URL);
+    geoUrl.searchParams.set("name", cityName);
+    geoUrl.searchParams.set("count", "1");
+    geoUrl.searchParams.set("language", "en");
+    geoUrl.searchParams.set("format", "json");
+    const geo = await fetchJson<OpenMeteoGeoResult>(geoUrl.toString());
+    const location = geo?.results?.[0];
+    if (typeof location?.latitude !== "number" || typeof location?.longitude !== "number") return new Map();
 
     const requestedDates = datesInRange(startDate, endDate);
-    const tempsByDate = new Map<string, number[]>();
-    const conditionsByDate = new Map<string, string[]>();
-
-    for (const item of forecast.list) {
-      const date = item.dt_txt?.split(" ")[0];
-      if (!date || !requestedDates.has(date)) continue;
-      if (typeof item.main?.temp === "number") {
-        tempsByDate.set(date, [...(tempsByDate.get(date) ?? []), item.main.temp]);
-      }
-      const condition = item.weather?.[0]?.main ?? item.weather?.[0]?.description;
-      if (condition) {
-        conditionsByDate.set(date, [...(conditionsByDate.get(date) ?? []), condition]);
-      }
-    }
-
     const summaries = new Map<string, WeatherSummary>();
-    for (const date of requestedDates) {
-      const temps = tempsByDate.get(date) ?? [];
-      const condition = mostCommon(conditionsByDate.get(date) ?? []) ?? "Forecast unavailable";
-      if (!temps.length && condition === "Forecast unavailable") continue;
-      summaries.set(date, {
-        condition,
-        temperatureCelsius: temps.length ? average(temps) : null,
-        advice: weatherAdvice(condition),
-      });
+    const today = new Date();
+    const maxForecastDate = new Date(today.getTime() + 15 * 86_400_000);
+    const forecastDateStrs: string[] = [];
+    const seasonalDateStrs: string[] = [];
+
+    for (const dateStr of requestedDates) {
+      const d = new Date(dateStr + "T00:00:00Z");
+      if (d <= maxForecastDate) {
+        forecastDateStrs.push(dateStr);
+      } else {
+        seasonalDateStrs.push(dateStr);
+      }
     }
+
+    if (forecastDateStrs.length > 0) {
+      const sortedForecast = [...forecastDateStrs].sort();
+      const forecastUrl = new URL(OPEN_METEO_FORECAST_URL);
+      forecastUrl.searchParams.set("latitude", String(location.latitude));
+      forecastUrl.searchParams.set("longitude", String(location.longitude));
+      forecastUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,weathercode");
+      forecastUrl.searchParams.set("timezone", "auto");
+      forecastUrl.searchParams.set("start_date", sortedForecast[0]);
+      forecastUrl.searchParams.set("end_date", sortedForecast[sortedForecast.length - 1]);
+      const forecast = await fetchJson<OpenMeteoForecastResponse>(forecastUrl.toString());
+      if (forecast?.daily?.time) {
+        const { time, temperature_2m_max, temperature_2m_min, weathercode } = forecast.daily;
+        for (let i = 0; i < time.length; i++) {
+          const date = time[i];
+          if (!requestedDates.has(date)) continue;
+          const maxTemp = temperature_2m_max?.[i];
+          const minTemp = temperature_2m_min?.[i];
+          const code = weathercode?.[i];
+          const avgTemp = typeof maxTemp === "number" && typeof minTemp === "number" ? (maxTemp + minTemp) / 2 : null;
+          const condition = wmoCodeToCondition(code);
+          summaries.set(date, {
+            condition,
+            temperatureCelsius: avgTemp,
+            advice: weatherAdvice(condition),
+          });
+        }
+      }
+    }
+
+    for (const dateStr of seasonalDateStrs) {
+      const month = parseInt(dateStr.split("-")[1]) - 1;
+      summaries.set(dateStr, seasonalWeatherEstimate(location.latitude, month));
+    }
+
     return summaries;
   } catch (error) {
     console.warn("[AI Fallback] Weather lookup failed:", error instanceof Error ? error.message : error);
     return new Map();
   }
+}
+
+function wmoCodeToCondition(code: number | undefined): string {
+  if (code === undefined) return "Forecast unavailable";
+  if (code === 0) return "Clear sky";
+  if (code === 1) return "Mainly clear";
+  if (code === 2) return "Partly cloudy";
+  if (code === 3) return "Overcast";
+  if (code === 45 || code === 48) return "Foggy";
+  if (code >= 51 && code <= 55) return "Drizzle";
+  if (code >= 56 && code <= 57) return "Freezing drizzle";
+  if (code >= 61 && code <= 65) return "Rain";
+  if (code >= 66 && code <= 67) return "Freezing rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 80 && code <= 82) return "Rain showers";
+  if (code >= 85 && code <= 86) return "Snow showers";
+  if (code >= 95 && code <= 99) return "Thunderstorm";
+  return "Mixed conditions";
+}
+
+function seasonalWeatherEstimate(latitude: number, month: number): WeatherSummary {
+  const isNorthern = latitude >= 0;
+  const northernSeason =
+    [11, 0, 1].includes(month) ? "winter"
+    : [2, 3, 4].includes(month) ? "spring"
+    : [5, 6, 7].includes(month) ? "summer"
+    : "autumn";
+  const season = isNorthern ? northernSeason
+    : northernSeason === "winter" ? "summer"
+    : northernSeason === "summer" ? "winter"
+    : northernSeason === "spring" ? "autumn"
+    : "spring";
+
+  const absLat = Math.abs(latitude);
+  let tempEst: number;
+  if (absLat < 23) {
+    tempEst = season === "winter" ? 26 : 32;
+  } else if (absLat < 40) {
+    tempEst = season === "summer" ? 30 : season === "winter" ? 12 : 20;
+  } else if (absLat < 60) {
+    tempEst = season === "summer" ? 22 : season === "winter" ? 3 : 13;
+  } else {
+    tempEst = season === "summer" ? 12 : season === "winter" ? -10 : 2;
+  }
+
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const conditions: Record<string, string> = {
+    summer: "Warm & sunny",
+    winter: "Cold, possible frost",
+    spring: "Mild with showers",
+    autumn: "Cool, variable",
+  };
+  const advice: Record<string, string> = {
+    summer: "Pack light clothing and sun protection.",
+    winter: "Bring warm layers and a waterproof jacket.",
+    spring: "Light layers and a rain jacket recommended.",
+    autumn: "Pack warm layers; evenings can be cool.",
+  };
+
+  return {
+    condition: `${conditions[season]} (${MONTHS[month]} seasonal avg)`,
+    temperatureCelsius: tempEst,
+    advice: advice[season],
+  };
 }
 
 async function fetchJson<T>(url: string): Promise<T | undefined> {
