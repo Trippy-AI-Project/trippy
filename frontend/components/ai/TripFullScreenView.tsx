@@ -1001,53 +1001,33 @@ export default function TripFullScreenView({
 }
 
 function DayContextBlocks({ day }: { day: AiItineraryDay }) {
-  const weather = day.weather;
-  const condition = weather?.condition?.trim() || "Forecast unavailable";
-  const isForecastUnavailable = condition === "Forecast unavailable";
-  const temperature = formatTemperature(weather?.temperatureCelsius);
-  const weatherAdvice = weather?.advice?.trim() || "Check the local forecast closer to departure.";
-  const weatherIcon = getWeatherIcon(weather?.condition);
   const transport = day.transportRecommendations?.filter((item) =>
     Boolean((item.from || item.to) && (item.estimatedDuration || item.notes))
   ) ?? [];
 
-  return (
-    <div className={`grid gap-3 bg-[#f9f9f7] px-5 py-4 ${transport.length > 0 ? "sm:grid-cols-2" : ""}`}>
-      <div className={`rounded-xl border px-4 py-3 ${isForecastUnavailable ? "border-slate-200 bg-slate-50/70" : "border-sky-200 bg-sky-50/60"}`}>
-        <div className="flex items-center gap-2">
-          <span className="text-lg leading-none">{isForecastUnavailable ? "🌤️" : weatherIcon}</span>
-          <span className={`text-[11px] font-black uppercase tracking-wider ${isForecastUnavailable ? "text-slate-500" : "text-sky-700"}`}>Weather</span>
-          {temperature && (
-            <span className="ml-auto text-sm font-black text-sky-800 bg-sky-100 border border-sky-200 px-2.5 py-0.5 rounded-lg">
-              {temperature}
-            </span>
-          )}
-        </div>
-        <p className={`mt-1.5 text-sm font-semibold ${isForecastUnavailable ? "text-slate-600" : "text-foreground"}`}>{condition}</p>
-        <p className={`mt-0.5 text-[11px] leading-relaxed ${isForecastUnavailable ? "text-slate-400" : "text-muted"}`}>{weatherAdvice}</p>
-      </div>
+  if (transport.length === 0) return null;
 
-      {transport.length > 0 && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Bus size={14} className="text-emerald-600" />
-            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Transit</span>
-          </div>
-          <div className="mt-1.5 space-y-2">
-            {transport.slice(0, 3).map((item, idx) => (
-              <div key={`${item.from}-${item.to}-${idx}`} className="text-[11px] leading-relaxed">
-                <p className="font-bold text-foreground/80">
-                  {item.from || "Start"} → {item.to || "Next stop"}
-                </p>
-                <p className="text-muted">
-                  {[item.mode || "Route", item.estimatedDuration].filter(Boolean).join(" · ")}
-                </p>
-                {item.notes && <p className="text-muted">{item.notes}</p>}
-              </div>
-            ))}
-          </div>
+  return (
+    <div className="bg-[#f9f9f7] px-5 py-4">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Bus size={14} className="text-emerald-600" />
+          <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Transit</span>
         </div>
-      )}
+        <div className="mt-1.5 space-y-2">
+          {transport.slice(0, 3).map((item, idx) => (
+            <div key={`${item.from}-${item.to}-${idx}`} className="text-[11px] leading-relaxed">
+              <p className="font-bold text-foreground/80">
+                {item.from || "Start"} → {item.to || "Next stop"}
+              </p>
+              <p className="text-muted">
+                {[item.mode || "Route", item.estimatedDuration].filter(Boolean).join(" · ")}
+              </p>
+              {item.notes && <p className="text-muted">{item.notes}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
