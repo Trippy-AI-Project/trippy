@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -29,6 +29,9 @@ import {
   Globe,
   DollarSign,
   Navigation,
+  Crown,
+  Heart,
+  Map,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
@@ -92,23 +95,34 @@ const categoryOptions = [
   { key: "default", label: "Other", icon: MapPin },
 ];
 
-/* ─── Time Picker Popup ──────────────────────────────────────────── */
+/* ─── Time Picker Popup (fixed overlay) ───────────────────────────── */
 const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
-const minutes = ["00", "15", "30", "45"];
+const minutes = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 
 function TimePickerPopup({
   value,
   onChange,
   onClose,
   label,
+  anchorRef,
 }: {
   value: string;
   onChange: (v: string) => void;
   onClose: () => void;
   label: string;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   const [selHour, setSelHour] = useState(value ? value.split(":")[0] : "09");
   const [selMin, setSelMin] = useState(value ? value.split(":")[1] : "00");
+
+  // Position relative to the anchor button
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 8, left: rect.left });
+    }
+  }, [anchorRef]);
 
   function confirm() {
     onChange(`${selHour}:${selMin}`);
@@ -116,62 +130,74 @@ function TimePickerPopup({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.92, y: -6 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92, y: -6 }}
-      className="absolute left-0 top-full mt-2 z-30 w-56 rounded-2xl border border-border bg-white p-4 shadow-2xl"
-    >
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">{label}</p>
-      <div className="flex gap-3">
-        {/* Hours */}
-        <div className="flex-1">
-          <p className="text-[9px] text-muted/60 mb-1 text-center">Hour</p>
-          <div className="h-32 overflow-y-auto rounded-xl border border-border/60 scrollbar-thin">
-            {hours.map((h) => (
-              <button
-                key={h}
-                onClick={() => setSelHour(h)}
-                className={cn(
-                  "w-full py-1.5 text-xs text-center transition-colors cursor-pointer",
-                  selHour === h
-                    ? "bg-accent-500 text-white font-bold"
-                    : "text-foreground hover:bg-shore-50"
-                )}
-              >
-                {h}
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* Minutes */}
-        <div className="flex-1">
-          <p className="text-[9px] text-muted/60 mb-1 text-center">Min</p>
-          <div className="h-32 overflow-y-auto rounded-xl border border-border/60">
-            {minutes.map((m) => (
-              <button
-                key={m}
-                onClick={() => setSelMin(m)}
-                className={cn(
-                  "w-full py-1.5 text-xs text-center transition-colors cursor-pointer",
-                  selMin === m
-                    ? "bg-accent-500 text-white font-bold"
-                    : "text-foreground hover:bg-shore-50"
-                )}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <button
-        onClick={confirm}
-        className="mt-3 w-full rounded-xl bg-accent-500 py-2 text-xs font-bold text-white hover:bg-accent-600 transition-colors cursor-pointer"
+    <>
+      {/* Backdrop */}
+      <motion.div
+        className="fixed inset-0 z-40"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      {/* Picker */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: -6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: -6 }}
+        style={{ top: pos.top, left: pos.left }}
+        className="fixed z-50 w-56 rounded-2xl border border-border bg-white p-4 shadow-2xl"
       >
-        Set {selHour}:{selMin}
-      </button>
-    </motion.div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">{label}</p>
+        <div className="flex gap-3">
+          {/* Hours */}
+          <div className="flex-1">
+            <p className="text-[9px] text-muted/60 mb-1 text-center">Hour</p>
+            <div className="h-36 overflow-y-auto rounded-xl border border-border/60 scrollbar-thin">
+              {hours.map((h) => (
+                <button
+                  key={h}
+                  onClick={() => setSelHour(h)}
+                  className={cn(
+                    "w-full py-1.5 text-xs text-center transition-colors cursor-pointer",
+                    selHour === h
+                      ? "bg-accent-500 text-white font-bold"
+                      : "text-foreground hover:bg-shore-50"
+                  )}
+                >
+                  {h}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Minutes */}
+          <div className="flex-1">
+            <p className="text-[9px] text-muted/60 mb-1 text-center">Min</p>
+            <div className="h-36 overflow-y-auto rounded-xl border border-border/60">
+              {minutes.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setSelMin(m)}
+                  className={cn(
+                    "w-full py-1.5 text-xs text-center transition-colors cursor-pointer",
+                    selMin === m
+                      ? "bg-accent-500 text-white font-bold"
+                      : "text-foreground hover:bg-shore-50"
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={confirm}
+          className="mt-3 w-full rounded-xl bg-accent-500 py-2 text-xs font-bold text-white hover:bg-accent-600 transition-colors cursor-pointer"
+        >
+          Set {selHour}:{selMin}
+        </button>
+      </motion.div>
+    </>
   );
 }
 
@@ -193,6 +219,8 @@ function ActivityRow({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const startBtnRef = useRef<HTMLButtonElement>(null);
+  const endBtnRef = useRef<HTMLButtonElement>(null);
 
   // Parse time range: "09:00 - 11:00" or just "09:00"
   const timeParts = (activity.time ?? "").split("-").map((s) => s.trim());
@@ -289,48 +317,48 @@ function ActivityRow({
         {/* Row 2: Time picker buttons + Cost with currency dropdown */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Start time */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
-              className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-3 py-2 text-xs font-medium text-foreground hover:border-accent-300 hover:bg-accent-50/30 transition-all cursor-pointer"
-            >
-              <Clock size={12} className="text-accent-500" />
-              <span>{startTime || "Start"}</span>
-            </button>
-            <AnimatePresence>
-              {showStartPicker && (
-                <TimePickerPopup
-                  value={startTime}
-                  label="Start time"
-                  onChange={(v) => updateTime(v, endTime)}
-                  onClose={() => setShowStartPicker(false)}
-                />
-              )}
-            </AnimatePresence>
-          </div>
+          <button
+            ref={startBtnRef}
+            onClick={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
+            className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-3 py-2 text-xs font-medium text-foreground hover:border-accent-300 hover:bg-accent-50/30 transition-all cursor-pointer"
+          >
+            <Clock size={12} className="text-accent-500" />
+            <span>{startTime || "Start"}</span>
+          </button>
+          <AnimatePresence>
+            {showStartPicker && (
+              <TimePickerPopup
+                value={startTime}
+                label="Start time"
+                anchorRef={startBtnRef}
+                onChange={(v) => updateTime(v, endTime)}
+                onClose={() => setShowStartPicker(false)}
+              />
+            )}
+          </AnimatePresence>
 
           <span className="text-[10px] text-muted/50 font-medium">→</span>
 
           {/* End time */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
-              className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-3 py-2 text-xs font-medium text-foreground hover:border-accent-300 hover:bg-accent-50/30 transition-all cursor-pointer"
-            >
-              <Clock size={12} className="text-muted/60" />
-              <span>{endTime || "End"}</span>
-            </button>
-            <AnimatePresence>
-              {showEndPicker && (
-                <TimePickerPopup
-                  value={endTime}
-                  label="End time"
-                  onChange={(v) => updateTime(startTime, v)}
-                  onClose={() => setShowEndPicker(false)}
-                />
-              )}
-            </AnimatePresence>
-          </div>
+          <button
+            ref={endBtnRef}
+            onClick={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
+            className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-3 py-2 text-xs font-medium text-foreground hover:border-accent-300 hover:bg-accent-50/30 transition-all cursor-pointer"
+          >
+            <Clock size={12} className="text-muted/60" />
+            <span>{endTime || "End"}</span>
+          </button>
+          <AnimatePresence>
+            {showEndPicker && (
+              <TimePickerPopup
+                value={endTime}
+                label="End time"
+                anchorRef={endBtnRef}
+                onChange={(v) => updateTime(startTime, v)}
+                onClose={() => setShowEndPicker(false)}
+              />
+            )}
+          </AnimatePresence>
 
           {/* Cost with inline currency dropdown */}
           <div className="flex items-center gap-1 rounded-xl bg-shore-50 border border-border/80 px-2 py-1.5 ml-auto">
@@ -968,31 +996,125 @@ export default function TripDetailPage() {
         </div>
       </motion.div>
 
-      {/* ─── Participants Strip ───────────────────────────────────── */}
+      {/* ─── Team Section ──────────────────────────────────────────── */}
       {trip.participants && trip.participants.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <GlassCard className="!p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+          <GlassCard className="!p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users size={15} className="text-accent-500" />
                 <h3 className="text-sm font-bold text-foreground">Team</h3>
-                <div className="flex -space-x-2">
-                  {trip.participants.slice(0, 5).map((p) => (
-                    <Avatar key={p.participantId} name={p.displayName ?? "User"} src={p.avatarUrl} size="sm" />
-                  ))}
-                  {trip.participants.length > 5 && (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-shore-200 border-2 border-surface text-xs font-bold text-muted">
-                      +{trip.participants.length - 5}
-                    </div>
-                  )}
-                </div>
+                <span className="text-[10px] text-muted bg-shore-100 px-2 py-0.5 rounded-full">
+                  {trip.participants.length} member{trip.participants.length !== 1 ? "s" : ""}
+                </span>
               </div>
               <Button variant="secondary" size="sm" className="text-xs">
                 <Plus size={12} /> Invite
               </Button>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {trip.participants.map((p) => {
+                const name = p.displayName ?? "User";
+                const initials = name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const isOwner = p.role === "OWNER";
+                // Dummy stats for hover card display
+                const tripsCount = Math.floor(Math.random() * 12) + 1;
+                const friendliness = Math.floor(Math.random() * 3) + 3;
+
+                return (
+                  <div key={p.participantId} className="group/member relative">
+                    {/* Avatar + name chip */}
+                    <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 transition-all hover:border-accent-300 hover:shadow-sm cursor-default">
+                      <div className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold border-2",
+                        isOwner
+                          ? "bg-gradient-to-br from-accent-100 to-accent-200 text-accent-700 border-accent-300"
+                          : "bg-shore-100 text-trippy-600 border-border"
+                      )}>
+                        {p.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.avatarUrl} alt={name} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          initials
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-semibold text-foreground truncate max-w-[100px]">{name}</span>
+                          {isOwner && <Crown size={10} className="text-accent-500 shrink-0" />}
+                        </div>
+                        <span className="text-[10px] text-muted capitalize">{p.role.toLowerCase()}</span>
+                      </div>
+                    </div>
+
+                    {/* Hover profile card */}
+                    <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-30 w-56 rounded-2xl border border-border bg-white p-4 shadow-2xl opacity-0 scale-95 transition-all duration-200 group-hover/member:opacity-100 group-hover/member:scale-100 group-hover/member:pointer-events-auto">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={cn(
+                          "flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold",
+                          isOwner
+                            ? "bg-gradient-to-br from-accent-200 to-accent-300 text-accent-800"
+                            : "bg-shore-100 text-trippy-600"
+                        )}>
+                          {initials}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-foreground">{name}</p>
+                          <p className="text-[10px] text-muted capitalize flex items-center gap-1">
+                            {isOwner && <Crown size={9} className="text-accent-500" />}
+                            {p.role.toLowerCase()}
+                            {p.status === "ACCEPTED" && " · Active"}
+                            {p.status === "PENDING" && " · Pending"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2 border-t border-border/60 pt-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted flex items-center gap-1.5">
+                            <Map size={10} /> Trips together
+                          </span>
+                          <span className="text-[10px] font-bold text-foreground">{tripsCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted flex items-center gap-1.5">
+                            <Heart size={10} /> Friendliness
+                          </span>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }, (_, i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  i < friendliness ? "bg-accent-500" : "bg-shore-200"
+                                )}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        {p.joinedAt && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-muted flex items-center gap-1.5">
+                              <Calendar size={10} /> Joined
+                            </span>
+                            <span className="text-[10px] font-medium text-foreground">
+                              {new Date(p.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </GlassCard>
         </motion.div>
