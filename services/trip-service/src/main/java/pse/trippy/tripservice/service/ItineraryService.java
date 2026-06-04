@@ -19,6 +19,7 @@ import pse.trippy.tripservice.model.entity.Trip;
 import pse.trippy.tripservice.model.enums.ActivityCategory;
 import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
+import pse.trippy.tripservice.model.enums.TripVisibility;
 import pse.trippy.tripservice.model.enums.VoteType;
 import pse.trippy.tripservice.repository.ActivityRepository;
 import pse.trippy.tripservice.repository.ActivityVoteRepository;
@@ -48,7 +49,11 @@ public class ItineraryService {
     @Transactional(readOnly = true)
     public ItineraryResponse getItinerary(UUID tripId, UUID userId) {
         Trip trip = findTripOrThrow(tripId);
-        ensureParticipant(tripId, userId);
+
+        // Allow read access for public trips, otherwise require participation
+        if (trip.getVisibility() != TripVisibility.PUBLIC) {
+            ensureParticipant(tripId, userId);
+        }
 
         return itineraryRepository.findByTripId(tripId)
                 .map(it -> toItineraryResponse(it, userId))

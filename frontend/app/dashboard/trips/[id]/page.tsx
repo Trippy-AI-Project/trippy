@@ -226,6 +226,7 @@ function ActivityRow({
   votingEnabled,
   votingFrozen,
   onActivityVoteUpdate,
+  isParticipant,
 }: {
   activity: Activity;
   currency: string;
@@ -236,6 +237,7 @@ function ActivityRow({
   votingEnabled: boolean;
   votingFrozen: boolean;
   onActivityVoteUpdate: (activityId: string, summary: ActivityVoteSummary) => void;
+  isParticipant: boolean;
 }) {
   const Icon = getCategoryIcon(activity.category);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -442,14 +444,16 @@ function ActivityRow({
         />
 
         {/* Activity comments */}
-        <ActivityComments activityId={activity.activityId} tripId={tripId} />
+        <ActivityComments activityId={activity.activityId} tripId={tripId} isParticipant={isParticipant} />
       </div>
     </motion.div>
   );
 }
 
 /* ─── Activity Comments ───────────────────────────────────────────── */
-function ActivityComments({ activityId, tripId }: { activityId: string; tripId: string }) {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function ActivityComments({ activityId, tripId, isParticipant }: { activityId: string; tripId: string; isParticipant: boolean }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [comments, setComments] = useState<ActivityCommentType[]>([]);
@@ -457,6 +461,9 @@ function ActivityComments({ activityId, tripId }: { activityId: string; tripId: 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [count, setCount] = useState<number | null>(null);
+
+  // Only show comments for activities saved to backend (valid UUID)
+  if (!UUID_RE.test(activityId)) return null;
 
   async function loadComments() {
     if (!open) {
@@ -540,24 +547,26 @@ function ActivityComments({ activityId, tripId }: { activityId: string; tripId: 
                 </div>
               )}
 
-              {/* New comment form */}
-              <form onSubmit={handleSubmit} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Add a suggestion..."
-                  maxLength={1000}
-                  className="flex-1 rounded-lg bg-white border border-border/60 px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent-300"
-                />
-                <button
-                  type="submit"
-                  disabled={!newComment.trim() || submitting}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  <Send size={11} />
-                </button>
-              </form>
+              {/* New comment form — only for participants */}
+              {isParticipant && (
+                <form onSubmit={handleSubmit} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Add a suggestion..."
+                    maxLength={1000}
+                    className="flex-1 rounded-lg bg-white border border-border/60 px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent-300"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newComment.trim() || submitting}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    <Send size={11} />
+                  </button>
+                </form>
+              )}
             </div>
           </motion.div>
         )}
@@ -770,6 +779,7 @@ function DayCard({
   currency,
   onCurrencyChange,
   onVoteUpdate,
+  isParticipant,
 }: {
   day: DayPlan;
   tripId: string;
@@ -780,6 +790,7 @@ function DayCard({
   currency: string;
   onCurrencyChange: (c: string) => void;
   onVoteUpdate: (dayNumber: number, summary: VoteSummary) => void;
+  isParticipant: boolean;
 }) {
   const dayDate = tripStartDate
     ? new Date(new Date(tripStartDate).getTime() + (day.dayNumber - 1) * 86400000).toLocaleDateString("en-US", {
@@ -926,6 +937,7 @@ function DayCard({
                     votingEnabled={day.votingEnabled ?? false}
                     votingFrozen={day.votingFrozen ?? false}
                     onActivityVoteUpdate={handleActivityVoteUpdate}
+                    isParticipant={isParticipant}
                   />
                 ))}
               </AnimatePresence>
@@ -942,12 +954,14 @@ function DayCard({
               )}
 
               {/* Add activity button */}
-              <button
-                onClick={addActivity}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-xs font-medium text-muted transition-all hover:border-accent-400 hover:text-accent-600 hover:bg-accent-50/50 cursor-pointer"
-              >
-                <Plus size={14} /> Add activity
-              </button>
+              {isParticipant && (
+                <button
+                  onClick={addActivity}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-xs font-medium text-muted transition-all hover:border-accent-400 hover:text-accent-600 hover:bg-accent-50/50 cursor-pointer"
+                >
+                  <Plus size={14} /> Add activity
+                </button>
+              )}
             </div>
           </motion.div>
         )}
@@ -1672,6 +1686,7 @@ export default function TripDetailPage() {
   const [saving, setSaving] = useState(false);
   const [votingSettingsOpen, setVotingSettingsOpen] = useState(false);
   const [isOwnerOrEditor, setIsOwnerOrEditor] = useState(false);
+  const [isParticipant, setIsParticipant] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
@@ -1706,6 +1721,9 @@ export default function TripDetailPage() {
         if (user?.userId && data.participants) {
           const me = data.participants.find((p) => p.userId === user.userId);
           setIsOwnerOrEditor(me?.role === "OWNER" || me?.role === "EDITOR");
+          setIsParticipant(!!me && (me.status === "ACCEPTED" || me.role === "OWNER"));
+        } else {
+          setIsParticipant(false);
         }
 
         // Fetch itinerary from backend
@@ -2124,7 +2142,7 @@ export default function TripDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {hasUnsavedChanges && (
+            {isParticipant && hasUnsavedChanges && (
               <Button size="sm" onClick={handleSave} disabled={saving}>
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {saving ? "Saving..." : "Save"}
@@ -2145,17 +2163,19 @@ export default function TripDetailPage() {
                 Voting
               </button>
             )}
-            <button
-              onClick={() => setAiPanelOpen(true)}
-              className={cn(
-                "flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all cursor-pointer",
-                "bg-gradient-to-r from-trippy-600 to-trippy-700 text-white shadow-md shadow-trippy-500/20",
-                "hover:shadow-lg hover:-translate-y-0.5"
-              )}
-            >
-              <Sparkles size={14} />
-              AI Generate
-            </button>
+            {isParticipant && (
+              <button
+                onClick={() => setAiPanelOpen(true)}
+                className={cn(
+                  "flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all cursor-pointer",
+                  "bg-gradient-to-r from-trippy-600 to-trippy-700 text-white shadow-md shadow-trippy-500/20",
+                  "hover:shadow-lg hover:-translate-y-0.5"
+                )}
+              >
+                <Sparkles size={14} />
+                AI Generate
+              </button>
+            )}
           </div>
         </div>
 
@@ -2186,16 +2206,19 @@ export default function TripDetailPage() {
                 currency={currency}
                 onCurrencyChange={(c) => { setCurrency(c); setHasUnsavedChanges(true); }}
                 onVoteUpdate={handleVoteUpdate}
+                isParticipant={isParticipant}
               />
             ))}
 
             {/* Add day button */}
-            <button
-              onClick={addDay}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-5 text-sm font-medium text-muted transition-all hover:border-accent-400 hover:text-accent-600 hover:bg-accent-50/30 cursor-pointer"
-            >
-              <Plus size={16} /> Add another day
-            </button>
+            {isParticipant && (
+              <button
+                onClick={addDay}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-5 text-sm font-medium text-muted transition-all hover:border-accent-400 hover:text-accent-600 hover:bg-accent-50/30 cursor-pointer"
+              >
+                <Plus size={16} /> Add another day
+              </button>
+            )}
           </div>
         ) : (
           /* Empty itinerary state */
