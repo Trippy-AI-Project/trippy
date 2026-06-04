@@ -92,20 +92,107 @@ const categoryOptions = [
   { key: "default", label: "Other", icon: MapPin },
 ];
 
+/* ─── Time Picker Popup ──────────────────────────────────────────── */
+const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
+const minutes = ["00", "15", "30", "45"];
+
+function TimePickerPopup({
+  value,
+  onChange,
+  onClose,
+  label,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  label: string;
+}) {
+  const [selHour, setSelHour] = useState(value ? value.split(":")[0] : "09");
+  const [selMin, setSelMin] = useState(value ? value.split(":")[1] : "00");
+
+  function confirm() {
+    onChange(`${selHour}:${selMin}`);
+    onClose();
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.92, y: -6 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.92, y: -6 }}
+      className="absolute left-0 top-full mt-2 z-30 w-56 rounded-2xl border border-border bg-white p-4 shadow-2xl"
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">{label}</p>
+      <div className="flex gap-3">
+        {/* Hours */}
+        <div className="flex-1">
+          <p className="text-[9px] text-muted/60 mb-1 text-center">Hour</p>
+          <div className="h-32 overflow-y-auto rounded-xl border border-border/60 scrollbar-thin">
+            {hours.map((h) => (
+              <button
+                key={h}
+                onClick={() => setSelHour(h)}
+                className={cn(
+                  "w-full py-1.5 text-xs text-center transition-colors cursor-pointer",
+                  selHour === h
+                    ? "bg-accent-500 text-white font-bold"
+                    : "text-foreground hover:bg-shore-50"
+                )}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Minutes */}
+        <div className="flex-1">
+          <p className="text-[9px] text-muted/60 mb-1 text-center">Min</p>
+          <div className="h-32 overflow-y-auto rounded-xl border border-border/60">
+            {minutes.map((m) => (
+              <button
+                key={m}
+                onClick={() => setSelMin(m)}
+                className={cn(
+                  "w-full py-1.5 text-xs text-center transition-colors cursor-pointer",
+                  selMin === m
+                    ? "bg-accent-500 text-white font-bold"
+                    : "text-foreground hover:bg-shore-50"
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={confirm}
+        className="mt-3 w-full rounded-xl bg-accent-500 py-2 text-xs font-bold text-white hover:bg-accent-600 transition-colors cursor-pointer"
+      >
+        Set {selHour}:{selMin}
+      </button>
+    </motion.div>
+  );
+}
+
 /* ─── Editable Activity Row ──────────────────────────────────────── */
 function ActivityRow({
   activity,
   currency,
+  onCurrencyChange,
   onUpdate,
   onRemove,
 }: {
   activity: Activity;
   currency: string;
+  onCurrencyChange: (c: string) => void;
   onUpdate: (a: Activity) => void;
   onRemove: () => void;
 }) {
   const Icon = getCategoryIcon(activity.category);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   // Parse time range: "09:00 - 11:00" or just "09:00"
   const timeParts = (activity.time ?? "").split("-").map((s) => s.trim());
@@ -199,29 +286,65 @@ function ActivityRow({
           </button>
         </div>
 
-        {/* Row 2: Time range */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-2.5 py-1.5">
-            <Clock size={12} className="text-accent-500 shrink-0" />
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => updateTime(e.target.value, endTime)}
-              className="w-[5.5rem] bg-transparent text-xs font-medium text-foreground focus:outline-none [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-            />
-            <span className="text-[10px] text-muted/60 font-medium">to</span>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => updateTime(startTime, e.target.value)}
-              className="w-[5.5rem] bg-transparent text-xs font-medium text-foreground focus:outline-none [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-            />
+        {/* Row 2: Time picker buttons + Cost with currency dropdown */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Start time */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
+              className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-3 py-2 text-xs font-medium text-foreground hover:border-accent-300 hover:bg-accent-50/30 transition-all cursor-pointer"
+            >
+              <Clock size={12} className="text-accent-500" />
+              <span>{startTime || "Start"}</span>
+            </button>
+            <AnimatePresence>
+              {showStartPicker && (
+                <TimePickerPopup
+                  value={startTime}
+                  label="Start time"
+                  onChange={(v) => updateTime(v, endTime)}
+                  onClose={() => setShowStartPicker(false)}
+                />
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Cost with currency */}
-          <div className="flex items-center rounded-xl bg-shore-50 border border-border/80 px-2.5 py-1.5 ml-auto">
-            <DollarSign size={12} className="text-accent-500 shrink-0 mr-1" />
-            <span className="text-xs font-medium text-accent-600 mr-1">{currencySymbol}</span>
+          <span className="text-[10px] text-muted/50 font-medium">→</span>
+
+          {/* End time */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
+              className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-3 py-2 text-xs font-medium text-foreground hover:border-accent-300 hover:bg-accent-50/30 transition-all cursor-pointer"
+            >
+              <Clock size={12} className="text-muted/60" />
+              <span>{endTime || "End"}</span>
+            </button>
+            <AnimatePresence>
+              {showEndPicker && (
+                <TimePickerPopup
+                  value={endTime}
+                  label="End time"
+                  onChange={(v) => updateTime(startTime, v)}
+                  onClose={() => setShowEndPicker(false)}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Cost with inline currency dropdown */}
+          <div className="flex items-center rounded-xl bg-shore-50 border border-border/80 px-1.5 py-1 ml-auto">
+            <select
+              value={currency}
+              onChange={(e) => onCurrencyChange(e.target.value)}
+              className="bg-transparent text-[10px] font-bold text-accent-600 focus:outline-none cursor-pointer pr-0.5 appearance-none"
+            >
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.symbol} {c.code}
+                </option>
+              ))}
+            </select>
             <input
               type="number"
               min="0"
@@ -267,6 +390,7 @@ function DayCard({
   onToggle,
   onUpdateDay,
   currency,
+  onCurrencyChange,
 }: {
   day: DayPlan;
   tripStartDate?: string;
@@ -274,6 +398,7 @@ function DayCard({
   onToggle: () => void;
   onUpdateDay: (d: DayPlan) => void;
   currency: string;
+  onCurrencyChange: (c: string) => void;
 }) {
   const dayDate = tripStartDate
     ? new Date(new Date(tripStartDate).getTime() + (day.dayNumber - 1) * 86400000).toLocaleDateString("en-US", {
@@ -397,6 +522,7 @@ function DayCard({
                     key={activity.activityId}
                     activity={activity}
                     currency={currency}
+                    onCurrencyChange={onCurrencyChange}
                     onUpdate={(a) => updateActivity(idx, a)}
                     onRemove={() => removeActivity(idx)}
                   />
@@ -892,18 +1018,6 @@ export default function TripDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Currency selector */}
-            <select
-              value={currency}
-              onChange={(e) => { setCurrency(e.target.value); setHasUnsavedChanges(true); }}
-              className="rounded-xl border border-border bg-white px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-200 cursor-pointer"
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.symbol} {c.code}
-                </option>
-              ))}
-            </select>
             {hasUnsavedChanges && (
               <Button size="sm" onClick={handleSave}>
                 <Save size={14} /> Save
@@ -935,6 +1049,7 @@ export default function TripDetailPage() {
                 onToggle={() => toggleDay(day.dayNumber)}
                 onUpdateDay={updateDay}
                 currency={currency}
+                onCurrencyChange={(c) => { setCurrency(c); setHasUnsavedChanges(true); }}
               />
             ))}
 
