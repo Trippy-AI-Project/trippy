@@ -43,8 +43,13 @@ public class TripService {
 
     @Transactional
     public TripResponse createTrip(CreateTripRequest request, UUID userId) {
-        log.info("Creating trip: title='{}', destination='{}', visibility={}, requestedBy={}",
-                request.title(), request.destination(), request.visibility(), userId);
+        log.info("Creating trip: title='{}' | destination='{}' | dates={}→{} | visibility={} | maxParticipants={} | user={}",
+                request.title(), request.destination(),
+                request.startDate() != null ? request.startDate() : "unset",
+                request.endDate() != null ? request.endDate() : "unset",
+                request.visibility() != null ? request.visibility() : "PRIVATE",
+                request.maxParticipants() != null ? request.maxParticipants() : 10,
+                userId);
         validateDates(request.startDate(), request.endDate());
 
         Trip trip = Trip.builder()
@@ -70,8 +75,14 @@ public class TripService {
                 .build();
         participantRepository.save(owner);
 
-        log.info("Trip created successfully: tripId={}, title='{}', destination='{}', createdBy={}",
-                trip.getId(), trip.getTitle(), trip.getDestination(), userId);
+        long durationDays = (trip.getStartDate() != null && trip.getEndDate() != null)
+                ? java.time.temporal.ChronoUnit.DAYS.between(trip.getStartDate(), trip.getEndDate())
+                : -1;
+        log.info("Trip created: id={} | '{}' → {} | {} | duration={} | visibility={} | owner={}",
+                trip.getId(), trip.getTitle(), trip.getDestination(),
+                trip.getStatus(),
+                durationDays >= 0 ? durationDays + " days" : "dates pending",
+                trip.getVisibility(), userId);
 
         // Notify user-service so it can upgrade the creator's role to HOST
         publishTripCreatedEvent(trip.getId(), userId);
@@ -85,8 +96,9 @@ public class TripService {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "startDate"));
         Page<Trip> tripPage = tripRepository.findTripsByParticipantUserId(userId, pageRequest);
 
-        log.info("Listed {} trip(s) for user={} (page {}/{})",
-                tripPage.getNumberOfElements(), userId, page + 1, tripPage.getTotalPages());
+        log.info("Trips listed: {} of {} total | user={} | page {}/{}",
+                tripPage.getNumberOfElements(), tripPage.getTotalElements(),
+                userId, page + 1, tripPage.getTotalPages());
 
         List<TripResponse> trips = tripPage.getContent().stream()
                 .map(this::toTripResponse)
@@ -226,7 +238,8 @@ public class TripService {
         );
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.created", event);
-            log.info("Published trip.created event: tripId={}, createdBy={}", tripId, createdBy);
+            log.info("Event published: trip.created | tripId={} | owner={} | exchange={}",
+                    tripId, createdBy, RabbitMQConfig.TRIP_EXCHANGE);
         } catch (AmqpException ex) {
             log.error("Failed to publish trip.created event for tripId={}", tripId, ex);
         }
