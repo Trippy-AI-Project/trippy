@@ -333,18 +333,22 @@ function ActivityRow({
           </div>
 
           {/* Cost with inline currency dropdown */}
-          <div className="flex items-center rounded-xl bg-shore-50 border border-border/80 px-1.5 py-1 ml-auto">
-            <select
-              value={currency}
-              onChange={(e) => onCurrencyChange(e.target.value)}
-              className="bg-transparent text-[10px] font-bold text-accent-600 focus:outline-none cursor-pointer pr-0.5 appearance-none"
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.symbol} {c.code}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-1 rounded-xl bg-shore-50 border border-border/80 px-2 py-1.5 ml-auto">
+            <div className="relative flex items-center">
+              <select
+                value={currency}
+                onChange={(e) => onCurrencyChange(e.target.value)}
+                className="bg-transparent text-[11px] font-bold text-accent-600 focus:outline-none cursor-pointer pr-4 appearance-none"
+              >
+                {currencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.symbol} {c.code}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={10} className="pointer-events-none absolute right-0 text-accent-500" />
+            </div>
+            <div className="w-px h-4 bg-border/60 mx-0.5" />
             <input
               type="number"
               min="0"
@@ -440,7 +444,7 @@ function DayCard({
     <motion.div
       layout
       className={cn(
-        "rounded-2xl border-2 transition-all duration-300 overflow-hidden",
+        "rounded-2xl border-2 transition-all duration-300",
         expanded
           ? "border-accent-400/50 shadow-lg shadow-accent-500/5 bg-white"
           : "border-border bg-surface hover:border-accent-300 hover:shadow-sm"
