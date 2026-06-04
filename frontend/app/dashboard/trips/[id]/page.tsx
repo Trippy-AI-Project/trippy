@@ -1687,6 +1687,7 @@ export default function TripDetailPage() {
   const [votingSettingsOpen, setVotingSettingsOpen] = useState(false);
   const [isOwnerOrEditor, setIsOwnerOrEditor] = useState(false);
   const [isParticipant, setIsParticipant] = useState(false);
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
 
@@ -1722,8 +1723,10 @@ export default function TripDetailPage() {
           const me = data.participants.find((p) => p.userId === user.userId);
           setIsOwnerOrEditor(me?.role === "OWNER" || me?.role === "EDITOR");
           setIsParticipant(!!me && (me.status === "ACCEPTED" || me.role === "OWNER"));
+          setIsPendingApproval(!!me && me.status === "PENDING_APPROVAL");
         } else {
           setIsParticipant(false);
+          setIsPendingApproval(false);
         }
 
         // Fetch itinerary from backend
@@ -1910,6 +1913,19 @@ export default function TripDetailPage() {
       >
         <ArrowLeft size={16} /> Back to trips
       </Link>
+
+      {/* Pending approval banner */}
+      {isPendingApproval && (
+        <div className="rounded-xl border border-amber-300/50 bg-amber-50 dark:bg-amber-900/20 px-5 py-3 flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40">
+            <Clock size={16} className="text-amber-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Request Pending</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">Your request to join this trip is awaiting approval from the trip owner.</p>
+          </div>
+        </div>
+      )}
 
       {/* ─── Hero Header ──────────────────────────────────────────── */}
       <motion.div

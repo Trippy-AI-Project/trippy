@@ -82,7 +82,7 @@ public class ParticipantService {
     @Transactional
     public ParticipantActionResponse approveInvite(UUID tripId, UUID targetUserId, UUID approverId) {
         log.info("Owner {} approving invite of user {} for trip {}", approverId, targetUserId, tripId);
-        findTripOrThrow(tripId);
+        Trip trip = findTripOrThrow(tripId);
         ensureOwner(tripId, approverId);
 
         Participant participant = participantRepository.findByTripIdAndUserId(tripId, targetUserId)
@@ -92,13 +92,14 @@ public class ParticipantService {
             throw new InvalidTripDataException("Invite is not pending approval");
         }
 
-        participant.setStatus(ParticipantStatus.INVITED);
+        participant.setStatus(ParticipantStatus.ACCEPTED);
+        participant.setJoinedAt(Instant.now());
         participant = participantRepository.save(participant);
 
-        log.info("Invite approved for user {} on trip {}", targetUserId, tripId);
-        publishEvent("trip.participant.invited", tripId, targetUserId);
+        log.info("Join request approved for user {} on trip {}", targetUserId, tripId);
+        publishApprovalNotification(trip, targetUserId);
 
-        return new ParticipantActionResponse("Invite approved successfully", toResponse(participant));
+        return new ParticipantActionResponse("Join request approved successfully", toResponse(participant));
     }
 
     @Transactional
@@ -221,12 +222,14 @@ public class ParticipantService {
 
     @Transactional(readOnly = true)
     public List<ParticipantResponse> listParticipants(UUID tripId, UUID userId) {
-        findTripOrThrow(tripId);
+        Trip trip = findTripOrThrow(tripId);
 
-        // Only accepted participants can list participants
-        participantRepository.findByTripIdAndUserId(tripId, userId)
-                .filter(p -> p.getStatus() == ParticipantStatus.ACCEPTED)
-                .orElseThrow(() -> new ForbiddenException("You are not a participant of this trip"));
+        // Allow read access for public trips; otherwise require accepted participant
+        if (trip.getVisibility() != TripVisibility.PUBLIC) {
+            participantRepository.findByTripIdAndUserId(tripId, userId)
+                    .filter(p -> p.getStatus() == ParticipantStatus.ACCEPTED)
+                    .orElseThrow(() -> new ForbiddenException("You are not a participant of this trip"));
+        }
 
         return participantRepository.findByTripId(tripId).stream()
                 .map(this::toResponse)
@@ -298,5 +301,16 @@ public class ParticipantService {
         event.put("timestamp", Instant.now().toString());
 
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.invite_proposed", event);
+    }
+
+    private void publishApprovalNotification(Trip trip, UUID approvedUserId) {
+        Map<String, Object> event = new HashMap<>();
+        event.put("eventType", "trip.participant.approved");
+        event.put("tripId", trip.getId().toString());
+        event.put("tripTitle", trip.getTitle());
+        event.put("userId", approvedUserId.toString());
+        event.put("timestamp", Instant.now().toString());
+
+        rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.approved", event);
     }
 }

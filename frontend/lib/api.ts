@@ -291,8 +291,8 @@ export interface Participant {
   userId: string;
   displayName?: string;
   avatarUrl?: string;
-  role: "OWNER" | "EDITOR" | "VIEWER";
-  status: "PENDING" | "ACCEPTED" | "DECLINED" | "LEFT";
+  role: "OWNER" | "EDITOR" | "VIEWER" | "MEMBER";
+  status: "PENDING" | "PENDING_APPROVAL" | "ACCEPTED" | "DECLINED" | "LEFT" | "INVITED";
   invitedAt?: string;
   joinedAt?: string;
 }

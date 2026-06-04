@@ -30,6 +30,7 @@ public class RabbitMQConfig {
     public static final String ROUTING_SYSTEM_NOTIFICATION = "system.notification";
     public static final String ROUTING_JOIN_REQUESTED = "trip.participant.join_requested";
     public static final String ROUTING_INVITE_PROPOSED = "trip.participant.invite_proposed";
+    public static final String ROUTING_JOIN_APPROVED = "trip.participant.approved";
 
     @Bean
     public TopicExchange trippyExchange() {
@@ -138,6 +139,13 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(notificationQueue)
                 .to(trippyExchange)
                 .with(ROUTING_INVITE_PROPOSED);
+    }
+
+    @Bean
+    public Binding joinApprovedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_JOIN_APPROVED);
     }
 
     @Bean

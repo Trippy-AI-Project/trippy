@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [publicTrips, setPublicTrips] = useState<Trip[]>([]);
   const [publicLoading, setPublicLoading] = useState(true);
   const [joiningTripId, setJoiningTripId] = useState<string | null>(null);
+  const [requestedTripIds, setRequestedTripIds] = useState<Set<string>>(new Set());
 
   const fetchTrips = useCallback(async () => {
     setLoading(true);
@@ -89,8 +90,8 @@ export default function DashboardPage() {
     setJoiningTripId(tripId);
     try {
       const res = await participantsApi.requestJoin(tripId);
-      addToast(res.message || "Join request sent! Awaiting admin approval.", "success");
-      setPublicTrips((prev) => prev.filter((t) => t.tripId !== tripId));
+      addToast(res.message || "Join request sent! Awaiting owner approval.", "success");
+      setRequestedTripIds((prev) => new Set(prev).add(tripId));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send join request";
       addToast(msg, "error");
@@ -263,6 +264,7 @@ export default function DashboardPage() {
                     coverImageUrl={trip.coverImageUrl}
                     onJoin={() => handleJoinTrip(trip.tripId)}
                     joinLoading={joiningTripId === trip.tripId}
+                    joinRequested={requestedTripIds.has(trip.tripId)}
                   />
                 </motion.div>
               ))}

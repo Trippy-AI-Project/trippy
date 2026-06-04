@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String TRIP_EXCHANGE = "trip.events";
+    public static final String TRIP_EXCHANGE = "trippy.events";
 
     @Bean
     public TopicExchange tripExchange() {
