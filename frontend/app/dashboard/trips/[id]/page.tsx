@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,7 +17,6 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  GripVertical,
   X,
   Save,
   Plane,
@@ -70,75 +69,192 @@ function getCategoryIcon(category?: string) {
   return categoryIcons[category.toLowerCase()] ?? categoryIcons.default;
 }
 
+/* ─── Currency options ────────────────────────────────────────────── */
+const currencies = [
+  { code: "USD", symbol: "$" },
+  { code: "EUR", symbol: "€" },
+  { code: "GBP", symbol: "£" },
+  { code: "INR", symbol: "₹" },
+  { code: "JPY", symbol: "¥" },
+  { code: "AUD", symbol: "A$" },
+  { code: "CAD", symbol: "C$" },
+];
+
+/* ─── Category options ────────────────────────────────────────────── */
+const categoryOptions = [
+  { key: "sightseeing", label: "Sightseeing", icon: Camera },
+  { key: "breakfast", label: "Breakfast", icon: Coffee },
+  { key: "lunch", label: "Lunch", icon: Utensils },
+  { key: "dinner", label: "Dinner", icon: Utensils },
+  { key: "transport", label: "Transport", icon: Navigation },
+  { key: "morning", label: "Morning", icon: Sun },
+  { key: "evening", label: "Evening", icon: Moon },
+  { key: "default", label: "Other", icon: MapPin },
+];
+
 /* ─── Editable Activity Row ──────────────────────────────────────── */
 function ActivityRow({
   activity,
+  currency,
   onUpdate,
   onRemove,
 }: {
   activity: Activity;
+  currency: string;
   onUpdate: (a: Activity) => void;
   onRemove: () => void;
 }) {
   const Icon = getCategoryIcon(activity.category);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+
+  // Parse time range: "09:00 - 11:00" or just "09:00"
+  const timeParts = (activity.time ?? "").split("-").map((s) => s.trim());
+  const startTime = timeParts[0] ?? "";
+  const endTime = timeParts[1] ?? "";
+
+  function updateTime(start: string, end: string) {
+    const combined = end ? `${start} - ${end}` : start;
+    onUpdate({ ...activity, time: combined });
+  }
+
+  const currencySymbol = currencies.find((c) => c.code === currency)?.symbol ?? "$";
+
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="group flex items-start gap-3 rounded-xl border border-border/60 bg-shore-50 p-3 transition-all hover:border-accent-300 hover:shadow-sm"
+      exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
+      className="group relative rounded-2xl border border-border/60 bg-white shadow-sm transition-all hover:border-accent-300 hover:shadow-md"
     >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 mt-0.5">
-        <Icon size={14} className="text-accent-500" />
-      </div>
-      <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={activity.time ?? ""}
-            onChange={(e) => onUpdate({ ...activity, time: e.target.value })}
-            placeholder="09:00"
-            className="w-16 rounded-lg border border-border bg-white px-2 py-1 text-xs font-medium text-muted focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-200"
-          />
+      {/* Top accent bar */}
+      <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-2xl bg-gradient-to-r from-accent-400/60 via-accent-500/30 to-transparent" />
+
+      <div className="p-4 space-y-3">
+        {/* Row 1: Category icon + Title + Remove */}
+        <div className="flex items-center gap-3">
+          {/* Category picker button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all cursor-pointer",
+                "bg-gradient-to-br from-accent-100 to-accent-50 border border-accent-200",
+                "hover:from-accent-200 hover:to-accent-100 hover:shadow-sm"
+              )}
+              title="Change category"
+            >
+              <Icon size={15} className="text-accent-600" />
+            </button>
+            {/* Category dropdown */}
+            <AnimatePresence>
+              {showCategoryPicker && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                  className="absolute left-0 top-11 z-20 w-40 rounded-xl border border-border bg-white p-1.5 shadow-xl"
+                >
+                  {categoryOptions.map((cat) => {
+                    const CatIcon = cat.icon;
+                    return (
+                      <button
+                        key={cat.key}
+                        onClick={() => {
+                          onUpdate({ ...activity, category: cat.key });
+                          setShowCategoryPicker(false);
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors cursor-pointer",
+                          activity.category === cat.key
+                            ? "bg-accent-50 text-accent-700 font-medium"
+                            : "text-foreground hover:bg-shore-50"
+                        )}
+                      >
+                        <CatIcon size={13} className={activity.category === cat.key ? "text-accent-500" : "text-muted"} />
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Title input */}
           <input
             type="text"
             value={activity.title}
             onChange={(e) => onUpdate({ ...activity, title: e.target.value })}
-            placeholder="Activity name"
-            className="flex-1 rounded-lg border border-border bg-white px-3 py-1 text-sm font-medium text-foreground focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-200"
+            placeholder="What are you doing?"
+            className="flex-1 bg-transparent text-sm font-semibold text-foreground placeholder:text-muted/40 focus:outline-none"
           />
+
+          {/* Remove button */}
+          <button
+            onClick={onRemove}
+            className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-muted/40 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 cursor-pointer"
+          >
+            <X size={13} />
+          </button>
         </div>
+
+        {/* Row 2: Time range */}
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-xl bg-shore-50 border border-border/80 px-2.5 py-1.5">
+            <Clock size={12} className="text-accent-500 shrink-0" />
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => updateTime(e.target.value, endTime)}
+              className="w-[5.5rem] bg-transparent text-xs font-medium text-foreground focus:outline-none [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+            />
+            <span className="text-[10px] text-muted/60 font-medium">to</span>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => updateTime(startTime, e.target.value)}
+              className="w-[5.5rem] bg-transparent text-xs font-medium text-foreground focus:outline-none [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+            />
+          </div>
+
+          {/* Cost with currency */}
+          <div className="flex items-center rounded-xl bg-shore-50 border border-border/80 px-2.5 py-1.5 ml-auto">
+            <DollarSign size={12} className="text-accent-500 shrink-0 mr-1" />
+            <span className="text-xs font-medium text-accent-600 mr-1">{currencySymbol}</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={activity.estimatedCost ?? ""}
+              onChange={(e) => onUpdate({ ...activity, estimatedCost: e.target.value })}
+              placeholder="0.00"
+              className="w-16 bg-transparent text-xs font-medium text-foreground placeholder:text-muted/40 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
+        </div>
+
+        {/* Row 3: Location */}
+        <div className="flex items-center gap-2 rounded-xl bg-shore-50/60 border border-border/50 px-3 py-2">
+          <MapPin size={12} className="text-muted/60 shrink-0" />
           <input
             type="text"
             value={activity.location ?? ""}
             onChange={(e) => onUpdate({ ...activity, location: e.target.value })}
-            placeholder="Location"
-            className="flex-1 rounded-lg border border-border bg-white px-3 py-1 text-xs text-muted focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-200"
-          />
-          <input
-            type="text"
-            value={activity.estimatedCost ?? ""}
-            onChange={(e) => onUpdate({ ...activity, estimatedCost: e.target.value })}
-            placeholder="Cost"
-            className="w-20 rounded-lg border border-border bg-white px-2 py-1 text-xs text-muted focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-200"
+            placeholder="Add a location..."
+            className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted/40 focus:outline-none"
           />
         </div>
+
+        {/* Row 4: Description / notes */}
         <textarea
           value={activity.description ?? ""}
           onChange={(e) => onUpdate({ ...activity, description: e.target.value })}
-          placeholder="Notes or description..."
+          placeholder="Add notes or description..."
           rows={1}
-          className="w-full resize-none rounded-lg border border-border bg-white px-3 py-1.5 text-xs text-muted focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-200"
+          className="w-full resize-none rounded-xl bg-shore-50/40 border border-border/40 px-3 py-2 text-xs text-foreground placeholder:text-muted/40 focus:border-accent-300 focus:outline-none focus:ring-1 focus:ring-accent-100 transition-colors"
         />
       </div>
-      <button
-        onClick={onRemove}
-        className="shrink-0 mt-1 flex h-6 w-6 items-center justify-center rounded-lg text-muted/50 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 cursor-pointer"
-      >
-        <X size={12} />
-      </button>
     </motion.div>
   );
 }
@@ -150,12 +266,14 @@ function DayCard({
   expanded,
   onToggle,
   onUpdateDay,
+  currency,
 }: {
   day: DayPlan;
   tripStartDate?: string;
   expanded: boolean;
   onToggle: () => void;
   onUpdateDay: (d: DayPlan) => void;
+  currency: string;
 }) {
   const dayDate = tripStartDate
     ? new Date(new Date(tripStartDate).getTime() + (day.dayNumber - 1) * 86400000).toLocaleDateString("en-US", {
@@ -246,7 +364,7 @@ function DayCard({
             </span>
             {totalCost > 0 && (
               <span className="text-[11px] text-accent-600 font-medium flex items-center gap-0.5">
-                <DollarSign size={9} /> ~{totalCost.toFixed(0)}
+                <DollarSign size={9} /> ~{currencies.find((c) => c.code === currency)?.symbol ?? "$"}{totalCost.toFixed(0)}
               </span>
             )}
           </div>
@@ -278,6 +396,7 @@ function DayCard({
                   <ActivityRow
                     key={activity.activityId}
                     activity={activity}
+                    currency={currency}
                     onUpdate={(a) => updateActivity(idx, a)}
                     onRemove={() => removeActivity(idx)}
                   />
@@ -512,6 +631,7 @@ export default function TripDetailPage() {
   const [itineraryDays, setItineraryDays] = useState<DayPlan[]>([]);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [currency, setCurrency] = useState("USD");
 
   useEffect(() => {
     if (!tripId) return;
@@ -695,7 +815,7 @@ export default function TripDetailPage() {
               {totalEstimatedCost > 0 && (
                 <div className="flex items-center gap-2 text-white/80">
                   <DollarSign size={14} className="text-accent-400" />
-                  <span className="text-sm font-medium">~${totalEstimatedCost.toFixed(0)} est.</span>
+                  <span className="text-sm font-medium">~{currencies.find((c) => c.code === currency)?.symbol ?? "$"}{totalEstimatedCost.toFixed(0)} est.</span>
                 </div>
               )}
             </div>
@@ -772,6 +892,18 @@ export default function TripDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Currency selector */}
+            <select
+              value={currency}
+              onChange={(e) => { setCurrency(e.target.value); setHasUnsavedChanges(true); }}
+              className="rounded-xl border border-border bg-white px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-200 cursor-pointer"
+            >
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.symbol} {c.code}
+                </option>
+              ))}
+            </select>
             {hasUnsavedChanges && (
               <Button size="sm" onClick={handleSave}>
                 <Save size={14} /> Save
@@ -802,6 +934,7 @@ export default function TripDetailPage() {
                 expanded={expandedDays.has(day.dayNumber)}
                 onToggle={() => toggleDay(day.dayNumber)}
                 onUpdateDay={updateDay}
+                currency={currency}
               />
             ))}
 
