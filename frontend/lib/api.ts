@@ -275,6 +275,7 @@ export interface Trip {
   status: "DRAFT" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
   visibility: "PRIVATE" | "PUBLIC" | "UNLISTED";
   participantCount: number;
+  currentUserStatus?: string | null;
   hasItinerary: boolean;
   createdAt: string;
   updatedAt: string;
@@ -371,6 +372,8 @@ interface RawTrip {
   status: "DRAFT" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
   visibility: "PRIVATE" | "PUBLIC" | "UNLISTED";
   maxParticipants?: number;
+  currentUserStatus?: string | null;
+  memberCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -378,8 +381,8 @@ interface RawTrip {
 interface RawParticipant {
   id: string;
   userId: string;
-  role: "OWNER" | "EDITOR" | "VIEWER";
-  status: "PENDING" | "ACCEPTED" | "DECLINED" | "LEFT";
+  role: "OWNER" | "EDITOR" | "VIEWER" | "MEMBER";
+  status: "PENDING" | "PENDING_APPROVAL" | "ACCEPTED" | "DECLINED" | "LEFT" | "INVITED";
   joinedAt?: string;
 }
 
@@ -407,7 +410,8 @@ function normalizeTrip(raw: RawTrip, participantCount = 0): Trip {
     organizerId: raw.createdBy,
     status: raw.status,
     visibility: raw.visibility,
-    participantCount,
+    participantCount: raw.memberCount ?? participantCount,
+    currentUserStatus: raw.currentUserStatus ?? null,
     hasItinerary: false,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -1690,6 +1690,82 @@ export default function TripDetailPage() {
   const [isPendingApproval, setIsPendingApproval] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [processingRequestUserId, setProcessingRequestUserId] = useState<string | null>(null);
+
+  const applyParticipantFlags = useCallback(
+    (data: TripDetail) => {
+      if (user?.userId && data.participants) {
+        const me = data.participants.find((p) => p.userId === user.userId);
+        setIsOwnerOrEditor(me?.role === "OWNER" || me?.role === "EDITOR");
+        setIsParticipant(!!me && (me.status === "ACCEPTED" || me.role === "OWNER"));
+        setIsPendingApproval(!!me && me.status === "PENDING_APPROVAL");
+      } else {
+        setIsParticipant(false);
+        setIsPendingApproval(false);
+      }
+    },
+    [user?.userId]
+  );
+
+  const enrichParticipants = useCallback(async (data: TripDetail) => {
+    if (data.participants && data.participants.length > 0) {
+      try {
+        const userIds = data.participants.map((p) => p.userId);
+        const profiles = await usersApi.batchProfiles(userIds);
+        const profileMap: Record<string, typeof profiles[number]> = {};
+        for (const p of profiles) profileMap[p.id] = p;
+        data.participants = data.participants.map((p) => {
+          const profile = profileMap[p.userId];
+          return {
+            ...p,
+            displayName: profile?.displayName ?? p.displayName,
+            avatarUrl: profile?.avatarUrl ?? p.avatarUrl,
+          };
+        });
+      } catch {
+        // Silently fall back to missing names
+      }
+    }
+    return data;
+  }, []);
+
+  const refreshTrip = useCallback(async () => {
+    if (!tripId) return;
+    const data = await tripsApi.get(tripId);
+    await enrichParticipants(data);
+    setTrip(data);
+    applyParticipantFlags(data);
+  }, [tripId, enrichParticipants, applyParticipantFlags]);
+
+  async function handleApproveRequest(requesterUserId: string) {
+    if (!tripId) return;
+    setProcessingRequestUserId(requesterUserId);
+    try {
+      await participantsApi.approve(tripId, requesterUserId);
+      addToast("Join request approved.", "success");
+      await refreshTrip();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to approve request";
+      addToast(msg, "error");
+    } finally {
+      setProcessingRequestUserId(null);
+    }
+  }
+
+  async function handleRejectRequest(requesterUserId: string) {
+    if (!tripId) return;
+    setProcessingRequestUserId(requesterUserId);
+    try {
+      await participantsApi.reject(tripId, requesterUserId);
+      addToast("Join request declined.", "success");
+      await refreshTrip();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to decline request";
+      addToast(msg, "error");
+    } finally {
+      setProcessingRequestUserId(null);
+    }
+  }
 
   useEffect(() => {
     if (!tripId) return;
@@ -1698,36 +1774,11 @@ export default function TripDetailPage() {
       .get(tripId)
       .then(async (data) => {
         // Fetch participant display names from user-service
-        if (data.participants && data.participants.length > 0) {
-          try {
-            const userIds = data.participants.map((p) => p.userId);
-            const profiles = await usersApi.batchProfiles(userIds);
-            const profileMap: Record<string, typeof profiles[number]> = {};
-            for (const p of profiles) profileMap[p.id] = p;
-            data.participants = data.participants.map((p) => {
-              const profile = profileMap[p.userId];
-              return {
-                ...p,
-                displayName: profile?.displayName ?? p.displayName,
-                avatarUrl: profile?.avatarUrl ?? p.avatarUrl,
-              };
-            });
-          } catch {
-            // Silently fall back to missing names
-          }
-        }
+        await enrichParticipants(data);
         setTrip(data);
 
         // Check if current user is owner/editor
-        if (user?.userId && data.participants) {
-          const me = data.participants.find((p) => p.userId === user.userId);
-          setIsOwnerOrEditor(me?.role === "OWNER" || me?.role === "EDITOR");
-          setIsParticipant(!!me && (me.status === "ACCEPTED" || me.role === "OWNER"));
-          setIsPendingApproval(!!me && me.status === "PENDING_APPROVAL");
-        } else {
-          setIsParticipant(false);
-          setIsPendingApproval(false);
-        }
+        applyParticipantFlags(data);
 
         // Fetch itinerary from backend
         try {
@@ -1765,7 +1816,7 @@ export default function TripDetailPage() {
       })
       .catch(() => setError("Failed to load trip details"))
       .finally(() => setLoading(false));
-  }, [tripId, user?.userId]);
+  }, [tripId, user?.userId, enrichParticipants, applyParticipantFlags]);
 
   function getNumDays(startDate?: string, endDate?: string): number {
     if (!startDate || !endDate) return 0;
@@ -1774,6 +1825,13 @@ export default function TripDetailPage() {
   }
 
   const numDays = getNumDays(trip?.startDate, trip?.endDate);
+
+  const members = (trip?.participants ?? []).filter(
+    (p) => p.status === "ACCEPTED" || p.role === "OWNER"
+  );
+  const pendingRequests = (trip?.participants ?? []).filter(
+    (p) => p.status === "PENDING_APPROVAL"
+  );
 
   function toggleDay(dayNumber: number) {
     setExpandedDays((prev) => {
@@ -2011,7 +2069,7 @@ export default function TripDetailPage() {
       </motion.div>
 
       {/* ─── Team Section ──────────────────────────────────────────── */}
-      {trip.participants && trip.participants.length > 0 && (
+      {members.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2023,15 +2081,17 @@ export default function TripDetailPage() {
                 <Users size={15} className="text-accent-500" />
                 <h3 className="text-sm font-bold text-foreground">Team</h3>
                 <span className="text-[10px] text-muted bg-shore-100 px-2 py-0.5 rounded-full">
-                  {trip.participants.length} member{trip.participants.length !== 1 ? "s" : ""}
+                  {members.length} member{members.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              <Button variant="secondary" size="sm" className="text-xs" onClick={() => setInviteOpen(true)}>
-                <Plus size={12} /> Invite
-              </Button>
+              {isOwnerOrEditor && (
+                <Button variant="secondary" size="sm" className="text-xs" onClick={() => setInviteOpen(true)}>
+                  <Plus size={12} /> Invite
+                </Button>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
-              {trip.participants.map((p) => {
+              {members.map((p) => {
                 const name = p.displayName ?? "User";
                 const initials = name
                   .split(" ")
@@ -2125,6 +2185,78 @@ export default function TripDetailPage() {
                           </div>
                         )}
                       </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+
+      {/* ─── Join Requests Section (owner/editor only) ─────────────── */}
+      {isOwnerOrEditor && pendingRequests.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+        >
+          <GlassCard className="!p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Users size={15} className="text-amber-500" />
+              <h3 className="text-sm font-bold text-foreground">Join Requests</h3>
+              <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                {pendingRequests.length} pending
+              </span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {pendingRequests.map((p) => {
+                const name = p.displayName ?? "User";
+                const initials = name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const processing = processingRequestUserId === p.userId;
+                return (
+                  <div
+                    key={p.participantId}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold border-2 bg-shore-100 text-trippy-600 border-border">
+                        {p.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.avatarUrl} alt={name} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          initials
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-semibold text-foreground truncate max-w-[160px]">{name}</span>
+                        <span className="text-[10px] text-muted">Wants to join this trip</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="text-xs"
+                        disabled={processing}
+                        onClick={() => handleApproveRequest(p.userId)}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="text-xs"
+                        disabled={processing}
+                        onClick={() => handleRejectRequest(p.userId)}
+                      >
+                        Decline
+                      </Button>
                     </div>
                   </div>
                 );

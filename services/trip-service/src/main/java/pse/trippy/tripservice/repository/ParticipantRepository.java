@@ -72,4 +72,26 @@ public interface ParticipantRepository extends JpaRepository<Participant, UUID> 
      * @return the number of matching participants
      */
     long countByTripIdAndStatusIn(UUID tripId, Collection<ParticipantStatus> statuses);
+
+    /**
+     * Returns participant records for the given user across the provided trips.
+     *
+     * @param userId  the user's UUID
+     * @param tripIds the trip UUIDs to look up
+     * @return matching participant records
+     */
+    @Query("SELECT p FROM Participant p WHERE p.userId = :userId AND p.trip.id IN :tripIds")
+    List<Participant> findByUserIdAndTripIds(@Param("userId") UUID userId,
+                                             @Param("tripIds") Collection<UUID> tripIds);
+
+    /**
+     * Returns participant records for the given trips whose status is in the collection.
+     *
+     * @param tripIds  the trip UUIDs
+     * @param statuses the statuses to include
+     * @return matching participant records
+     */
+    @Query("SELECT p FROM Participant p WHERE p.trip.id IN :tripIds AND p.status IN :statuses")
+    List<Participant> findByTripIdsAndStatusIn(@Param("tripIds") Collection<UUID> tripIds,
+                                               @Param("statuses") Collection<ParticipantStatus> statuses);
 }

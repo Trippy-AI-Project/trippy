@@ -70,6 +70,16 @@ export default function DashboardPage() {
     setPublicLoading(true);
     tripsApi.listPublic(0, 6).then((data) => {
       setPublicTrips(data.content);
+      const requested = data.content
+        .filter((trip) => trip.currentUserStatus === "PENDING_APPROVAL")
+        .map((trip) => trip.tripId);
+      if (requested.length > 0) {
+        setRequestedTripIds((prev) => {
+          const next = new Set(prev);
+          requested.forEach((id) => next.add(id));
+          return next;
+        });
+      }
     }).catch(() => {
       setPublicTrips([]);
     }).finally(() => setPublicLoading(false));
