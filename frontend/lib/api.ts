@@ -262,6 +262,12 @@ export interface DayPlan {
   date?: string;
   title?: string;
   activities: Activity[];
+  votingEnabled?: boolean;
+  votingFrozen?: boolean;
+  votingDeadline?: string;
+  upvotes?: number;
+  downvotes?: number;
+  currentUserVote?: "UPVOTE" | "DOWNVOTE" | null;
 }
 
 export interface Activity {
@@ -272,6 +278,19 @@ export interface Activity {
   location?: string;
   category?: string;
   estimatedCost?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface VoteSummary {
+  dayPlanId: string;
+  dayNumber: number;
+  upvotes: number;
+  downvotes: number;
+  currentUserVote: "UPVOTE" | "DOWNVOTE" | null;
+  votingEnabled: boolean;
+  votingFrozen: boolean;
+  votingDeadline?: string;
 }
 
 export interface TripPage {
@@ -393,6 +412,106 @@ export const tripsApi = {
   update: (id: string, data: Partial<CreateTripRequest>) =>
     api.patch<RawTrip>(`/trips/${id}`, data).then((trip) => normalizeTrip(trip)),
   delete: (id: string) => api.delete<void>(`/trips/${id}`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Itinerary API                                                      */
+/* ------------------------------------------------------------------ */
+
+interface RawDayPlanResponse {
+  dayPlanId: string;
+  dayNumber: number;
+  date?: string;
+  title?: string;
+  activities: Array<{
+    activityId: string;
+    title: string;
+    description?: string;
+    location?: string;
+    startTime?: string;
+    endTime?: string;
+    category?: string;
+    notes?: string;
+    orderIndex: number;
+  }>;
+  votingEnabled: boolean;
+  votingFrozen: boolean;
+  votingDeadline?: string;
+  upvotes: number;
+  downvotes: number;
+  currentUserVote?: string;
+}
+
+interface RawItineraryResponse {
+  tripId: string;
+  dayPlans: RawDayPlanResponse[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+function normalizeItinerary(raw: RawItineraryResponse): { days: DayPlan[]; createdAt?: string; updatedAt?: string } {
+  return {
+    days: (raw.dayPlans ?? []).map((dp) => ({
+      dayPlanId: dp.dayPlanId,
+      dayNumber: dp.dayNumber,
+      date: dp.date,
+      title: dp.title,
+      activities: (dp.activities ?? []).map((a) => ({
+        activityId: a.activityId,
+        title: a.title,
+        description: a.description ?? a.notes,
+        location: a.location,
+        category: a.category?.toLowerCase(),
+        startTime: a.startTime,
+        endTime: a.endTime,
+        time: a.startTime && a.endTime ? `${a.startTime} - ${a.endTime}` : a.startTime || "",
+        estimatedCost: "",
+      })),
+      votingEnabled: dp.votingEnabled,
+      votingFrozen: dp.votingFrozen,
+      votingDeadline: dp.votingDeadline,
+      upvotes: dp.upvotes,
+      downvotes: dp.downvotes,
+      currentUserVote: dp.currentUserVote as "UPVOTE" | "DOWNVOTE" | null,
+    })),
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+export interface UpdateItineraryRequest {
+  dayPlans: Array<{
+    dayNumber: number;
+    date?: string;
+    title?: string;
+    activities: Array<{
+      title: string;
+      description?: string;
+      location?: string;
+      startTime?: string;
+      endTime?: string;
+      category: string;
+      notes?: string;
+    }>;
+  }>;
+}
+
+export const itineraryApi = {
+  get: async (tripId: string) =>
+    normalizeItinerary(await api.get<RawItineraryResponse>(`/trips/${tripId}/itinerary`)),
+  update: async (tripId: string, data: UpdateItineraryRequest) =>
+    normalizeItinerary(await api.put<RawItineraryResponse>(`/trips/${tripId}/itinerary`, data)),
+  castVote: (tripId: string, dayNumber: number, voteType: "UPVOTE" | "DOWNVOTE") =>
+    api.post<VoteSummary>(`/trips/${tripId}/itinerary/days/${dayNumber}/vote`, { voteType }),
+  removeVote: (tripId: string, dayNumber: number) =>
+    api.delete<VoteSummary>(`/trips/${tripId}/itinerary/days/${dayNumber}/vote`),
+  getVoteSummary: (tripId: string, dayNumber: number) =>
+    api.get<VoteSummary>(`/trips/${tripId}/itinerary/days/${dayNumber}/votes`),
+  updateVotingSettings: (tripId: string, votingEnabled: boolean, votingDeadline?: string) =>
+    api.put<VoteSummary[]>(`/trips/${tripId}/itinerary/voting-settings`, {
+      votingEnabled,
+      votingDeadline: votingDeadline ?? null,
+    }),
 };
 
 /* ------------------------------------------------------------------ */

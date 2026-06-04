@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -58,4 +59,15 @@ public class DayPlan {
     @Size(max = 200)
     @Column(name = "title", length = 200)
     private String title;
+
+    @Column(name = "voting_enabled", nullable = false)
+    @Builder.Default
+    private boolean votingEnabled = false;
+
+    @Column(name = "voting_deadline")
+    private Instant votingDeadline;
+
+    @Column(name = "voting_frozen", nullable = false)
+    @Builder.Default
+    private boolean votingFrozen = false;
 }

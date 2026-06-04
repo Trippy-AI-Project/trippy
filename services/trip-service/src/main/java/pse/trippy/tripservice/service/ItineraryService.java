@@ -19,8 +19,10 @@ import pse.trippy.tripservice.model.entity.Trip;
 import pse.trippy.tripservice.model.enums.ActivityCategory;
 import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
+import pse.trippy.tripservice.model.enums.VoteType;
 import pse.trippy.tripservice.repository.ActivityRepository;
 import pse.trippy.tripservice.repository.DayPlanRepository;
+import pse.trippy.tripservice.repository.DayPlanVoteRepository;
 import pse.trippy.tripservice.repository.ItineraryRepository;
 import pse.trippy.tripservice.repository.ParticipantRepository;
 import pse.trippy.tripservice.repository.TripRepository;
@@ -38,6 +40,7 @@ public class ItineraryService {
     private final ItineraryRepository itineraryRepository;
     private final DayPlanRepository dayPlanRepository;
     private final ActivityRepository activityRepository;
+    private final DayPlanVoteRepository dayPlanVoteRepository;
     private final ParticipantRepository participantRepository;
 
     @Transactional(readOnly = true)
@@ -46,7 +49,7 @@ public class ItineraryService {
         ensureParticipant(tripId, userId);
 
         return itineraryRepository.findByTripId(tripId)
-                .map(this::toItineraryResponse)
+                .map(it -> toItineraryResponse(it, userId))
                 .orElseGet(() -> new ItineraryResponse(
                         tripId, Collections.emptyList(), null, null));
     }
@@ -65,10 +68,11 @@ public class ItineraryService {
                     return itineraryRepository.save(newItinerary);
                 });
 
-        // Delete existing day plans and their activities (full replace)
+        // Delete existing day plans and their activities + votes (full replace)
         List<DayPlan> existingDayPlans = dayPlanRepository
                 .findByItineraryIdOrderByDayNumberAsc(itinerary.getId());
         for (DayPlan dp : existingDayPlans) {
+            dayPlanVoteRepository.deleteAllByDayPlanId(dp.getId());
             activityRepository.deleteAllByDayPlanId(dp.getId());
         }
         dayPlanRepository.deleteAll(existingDayPlans);
@@ -106,7 +110,7 @@ public class ItineraryService {
         // Touch itinerary to update updatedAt
         itinerary = itineraryRepository.save(itinerary);
 
-        return toItineraryResponse(itinerary);
+        return toItineraryResponse(itinerary, userId);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -143,12 +147,12 @@ public class ItineraryService {
         }
     }
 
-    private ItineraryResponse toItineraryResponse(Itinerary itinerary) {
+    private ItineraryResponse toItineraryResponse(Itinerary itinerary, UUID userId) {
         List<DayPlan> dayPlans = dayPlanRepository
                 .findByItineraryIdOrderByDayNumberAsc(itinerary.getId());
 
         List<DayPlanResponse> dayPlanResponses = dayPlans.stream()
-                .map(this::toDayPlanResponse)
+                .map(dp -> toDayPlanResponse(dp, userId))
                 .toList();
 
         return new ItineraryResponse(
@@ -159,7 +163,7 @@ public class ItineraryService {
         );
     }
 
-    private DayPlanResponse toDayPlanResponse(DayPlan dayPlan) {
+    private DayPlanResponse toDayPlanResponse(DayPlan dayPlan, UUID userId) {
         List<Activity> activities = activityRepository
                 .findByDayPlanIdOrderByOrderIndexAsc(dayPlan.getId());
 
@@ -167,16 +171,30 @@ public class ItineraryService {
                 .map(this::toActivityResponse)
                 .toList();
 
+        long upvotes = dayPlanVoteRepository.countByDayPlanIdAndVoteType(dayPlan.getId(), VoteType.UPVOTE);
+        long downvotes = dayPlanVoteRepository.countByDayPlanIdAndVoteType(dayPlan.getId(), VoteType.DOWNVOTE);
+        String currentUserVote = dayPlanVoteRepository.findByDayPlanIdAndUserId(dayPlan.getId(), userId)
+                .map(v -> v.getVoteType().name())
+                .orElse(null);
+
         return new DayPlanResponse(
+                dayPlan.getId(),
                 dayPlan.getDayNumber(),
                 dayPlan.getDate(),
                 dayPlan.getTitle(),
-                activityResponses
+                activityResponses,
+                dayPlan.isVotingEnabled(),
+                dayPlan.isVotingFrozen(),
+                dayPlan.getVotingDeadline(),
+                upvotes,
+                downvotes,
+                currentUserVote
         );
     }
 
     private ActivityResponse toActivityResponse(Activity activity) {
         return new ActivityResponse(
+                activity.getId(),
                 activity.getTitle(),
                 activity.getDescription(),
                 activity.getLocation(),

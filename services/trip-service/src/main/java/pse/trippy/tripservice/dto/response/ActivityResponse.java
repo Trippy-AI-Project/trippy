@@ -1,8 +1,10 @@
 package pse.trippy.tripservice.dto.response;
 
 import java.time.LocalTime;
+import java.util.UUID;
 
 public record ActivityResponse(
+        UUID activityId,
         String title,
         String description,
         String location,

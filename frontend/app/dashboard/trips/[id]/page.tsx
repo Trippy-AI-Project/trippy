@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 import {
   ArrowLeft,
   MapPin,
@@ -32,10 +33,15 @@ import {
   Crown,
   Heart,
   Map,
+  ThumbsUp,
+  ThumbsDown,
+  Lock,
+  Vote,
+  Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
-import { tripsApi, usersApi, type TripDetail, type DayPlan, type Activity } from "@/lib/api";
+import { tripsApi, itineraryApi, usersApi, type TripDetail, type DayPlan, type Activity, type VoteSummary } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { cn, tripIdFromSlug } from "@/lib/utils";
 
@@ -415,22 +421,128 @@ function ActivityRow({
 }
 
 /* ─── Day Card ────────────────────────────────────────────────────── */
+function VotingBar({
+  day,
+  tripId,
+  onVoteUpdate,
+}: {
+  day: DayPlan;
+  tripId: string;
+  onVoteUpdate: (dayNumber: number, summary: VoteSummary) => void;
+}) {
+  const [voting, setVoting] = useState(false);
+
+  if (!day.votingEnabled) return null;
+
+  const totalVotes = (day.upvotes ?? 0) + (day.downvotes ?? 0);
+  const upPercent = totalVotes > 0 ? Math.round(((day.upvotes ?? 0) / totalVotes) * 100) : 0;
+
+  async function handleVote(voteType: "UPVOTE" | "DOWNVOTE") {
+    if (day.votingFrozen || voting) return;
+    setVoting(true);
+    try {
+      // If user already voted the same, remove vote
+      if (day.currentUserVote === voteType) {
+        const summary = await itineraryApi.removeVote(tripId, day.dayNumber);
+        onVoteUpdate(day.dayNumber, summary);
+      } else {
+        const summary = await itineraryApi.castVote(tripId, day.dayNumber, voteType);
+        onVoteUpdate(day.dayNumber, summary);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  const deadlineStr = day.votingDeadline
+    ? new Date(day.votingDeadline).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  return (
+    <div className="flex items-center gap-3 mt-2" onClick={(e) => e.stopPropagation()}>
+      {/* Vote buttons */}
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => handleVote("UPVOTE")}
+          disabled={day.votingFrozen || voting}
+          className={cn(
+            "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all cursor-pointer",
+            day.currentUserVote === "UPVOTE"
+              ? "bg-green-100 text-green-700 border border-green-300 shadow-sm"
+              : "bg-shore-50 text-muted border border-border/60 hover:border-green-300 hover:text-green-600",
+            (day.votingFrozen || voting) && "opacity-50 cursor-not-allowed"
+          )}
+        >
+          <ThumbsUp size={12} />
+          <span>{day.upvotes ?? 0}</span>
+        </button>
+        <button
+          onClick={() => handleVote("DOWNVOTE")}
+          disabled={day.votingFrozen || voting}
+          className={cn(
+            "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all cursor-pointer",
+            day.currentUserVote === "DOWNVOTE"
+              ? "bg-red-100 text-red-700 border border-red-300 shadow-sm"
+              : "bg-shore-50 text-muted border border-border/60 hover:border-red-300 hover:text-red-600",
+            (day.votingFrozen || voting) && "opacity-50 cursor-not-allowed"
+          )}
+        >
+          <ThumbsDown size={12} />
+          <span>{day.downvotes ?? 0}</span>
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      {totalVotes > 0 && (
+        <div className="flex-1 max-w-24">
+          <div className="h-1.5 rounded-full bg-shore-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-green-400 to-green-500 transition-all"
+              style={{ width: `${upPercent}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Frozen indicator */}
+      {day.votingFrozen && (
+        <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+          <Lock size={9} /> Frozen
+        </span>
+      )}
+
+      {/* Deadline */}
+      {!day.votingFrozen && deadlineStr && (
+        <span className="text-[10px] text-muted">
+          Ends {deadlineStr}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function DayCard({
   day,
+  tripId,
   tripStartDate,
   expanded,
   onToggle,
   onUpdateDay,
   currency,
   onCurrencyChange,
+  onVoteUpdate,
 }: {
   day: DayPlan;
+  tripId: string;
   tripStartDate?: string;
   expanded: boolean;
   onToggle: () => void;
   onUpdateDay: (d: DayPlan) => void;
   currency: string;
   onCurrencyChange: (c: string) => void;
+  onVoteUpdate: (dayNumber: number, summary: VoteSummary) => void;
 }) {
   const dayDate = tripStartDate
     ? new Date(new Date(tripStartDate).getTime() + (day.dayNumber - 1) * 86400000).toLocaleDateString("en-US", {
@@ -525,6 +637,7 @@ function DayCard({
               </span>
             )}
           </div>
+          <VotingBar day={day} tripId={tripId} onVoteUpdate={onVoteUpdate} />
         </div>
         <div
           className={cn(
@@ -775,11 +888,156 @@ function getDummyActivities(dayIdx: number, destination: string, style: string):
   return base;
 }
 
+/* ─── Voting Settings Panel (admin only) ──────────────────────────── */
+function VotingSettingsPanel({
+  tripId,
+  itineraryDays,
+  onUpdate,
+  onClose,
+}: {
+  tripId: string;
+  itineraryDays: DayPlan[];
+  onUpdate: (days: DayPlan[]) => void;
+  onClose: () => void;
+}) {
+  const { addToast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const votingCurrentlyEnabled = itineraryDays.some((d) => d.votingEnabled);
+  const currentDeadline = itineraryDays.find((d) => d.votingDeadline)?.votingDeadline ?? "";
+  const [deadline, setDeadline] = useState(
+    currentDeadline ? new Date(currentDeadline).toISOString().slice(0, 16) : ""
+  );
+
+  async function toggleVoting(enable: boolean) {
+    setSaving(true);
+    try {
+      const deadlineVal = deadline ? new Date(deadline).toISOString() : undefined;
+      await itineraryApi.updateVotingSettings(tripId, enable, deadlineVal);
+      // Refresh itinerary to get updated voting state
+      const result = await itineraryApi.get(tripId);
+      onUpdate(result.days);
+      addToast(enable ? "Voting enabled for all days" : "Voting disabled", "success");
+    } catch {
+      addToast("Failed to update voting settings", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateDeadline() {
+    if (!deadline) return;
+    setSaving(true);
+    try {
+      const deadlineVal = new Date(deadline).toISOString();
+      await itineraryApi.updateVotingSettings(tripId, true, deadlineVal);
+      const result = await itineraryApi.get(tripId);
+      onUpdate(result.days);
+      addToast("Voting deadline updated", "success");
+    } catch {
+      addToast("Failed to update deadline", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      className="overflow-hidden"
+    >
+      <GlassCard className="!p-5 border-accent-200">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Vote size={16} className="text-accent-500" />
+            <h3 className="text-sm font-bold text-foreground">Voting Settings</h3>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-foreground cursor-pointer">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Toggle voting */}
+          <div className="flex items-center justify-between rounded-xl bg-shore-50 border border-border/60 p-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">Enable voting</p>
+              <p className="text-xs text-muted mt-0.5">
+                Allow participants to vote on each day&apos;s plan
+              </p>
+            </div>
+            <button
+              onClick={() => toggleVoting(!votingCurrentlyEnabled)}
+              disabled={saving}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer",
+                votingCurrentlyEnabled ? "bg-accent-500" : "bg-shore-200",
+                saving && "opacity-50"
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                  votingCurrentlyEnabled ? "translate-x-6" : "translate-x-1"
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Deadline */}
+          {votingCurrentlyEnabled && (
+            <div className="rounded-xl bg-shore-50 border border-border/60 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Voting deadline</p>
+                <p className="text-xs text-muted mt-0.5">
+                  Voting freezes automatically after this time. Leave empty for no deadline.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="datetime-local"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="flex-1 rounded-xl border border-border px-3 py-2 text-sm bg-white focus:border-accent-400 focus:outline-none focus:ring-1 focus:ring-accent-100"
+                />
+                <Button size="sm" onClick={updateDeadline} disabled={saving || !deadline}>
+                  {saving ? <Loader2 size={12} className="animate-spin" /> : <Clock size={12} />}
+                  Set
+                </Button>
+              </div>
+              {currentDeadline && (
+                <p className="text-[11px] text-muted">
+                  Current deadline: {new Date(currentDeadline).toLocaleString("en-US", {
+                    month: "short", day: "numeric", year: "numeric",
+                    hour: "2-digit", minute: "2-digit"
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Info */}
+          <div className="flex items-start gap-2 text-xs text-muted bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <Settings size={12} className="text-blue-500 mt-0.5 shrink-0" />
+            <p>
+              Voting auto-freezes when all participants have voted or the deadline is reached.
+              Once frozen, no one can change their vote.
+            </p>
+          </div>
+        </div>
+      </GlassCard>
+    </motion.div>
+  );
+}
+
 /* ─── Main Page Component ─────────────────────────────────────────── */
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addToast } = useToast();
+  const { user } = useAuth();
   const tripId = tripIdFromSlug(params.id as string);
 
   const [trip, setTrip] = useState<TripDetail | null>(null);
@@ -790,6 +1048,9 @@ export default function TripDetailPage() {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [currency, setCurrency] = useState("USD");
+  const [saving, setSaving] = useState(false);
+  const [votingSettingsOpen, setVotingSettingsOpen] = useState(false);
+  const [isOwnerOrEditor, setIsOwnerOrEditor] = useState(false);
 
   useEffect(() => {
     if (!tripId) return;
@@ -802,9 +1063,10 @@ export default function TripDetailPage() {
           try {
             const userIds = data.participants.map((p) => p.userId);
             const profiles = await usersApi.batchProfiles(userIds);
-            const profileMap = new Map(profiles.map((p) => [p.id, p]));
+            const profileMap: Record<string, typeof profiles[number]> = {};
+            for (const p of profiles) profileMap[p.id] = p;
             data.participants = data.participants.map((p) => {
-              const profile = profileMap.get(p.userId);
+              const profile = profileMap[p.userId];
               return {
                 ...p,
                 displayName: profile?.displayName ?? p.displayName,
@@ -816,10 +1078,34 @@ export default function TripDetailPage() {
           }
         }
         setTrip(data);
-        if (data.itinerary?.days && data.itinerary.days.length > 0) {
-          setItineraryDays(data.itinerary.days);
-        } else {
-          // Initialize empty days based on trip dates
+
+        // Check if current user is owner/editor
+        if (user?.userId && data.participants) {
+          const me = data.participants.find((p) => p.userId === user.userId);
+          setIsOwnerOrEditor(me?.role === "OWNER" || me?.role === "EDITOR");
+        }
+
+        // Fetch itinerary from backend
+        try {
+          const itinerary = await itineraryApi.get(tripId);
+          if (itinerary.days.length > 0) {
+            setItineraryDays(itinerary.days);
+          } else {
+            // Initialize empty days based on trip dates
+            const numDays = getNumDays(data.startDate, data.endDate);
+            if (numDays > 0) {
+              setItineraryDays(
+                Array.from({ length: numDays }, (_, i) => ({
+                  dayPlanId: `day-${i + 1}`,
+                  dayNumber: i + 1,
+                  title: "",
+                  activities: [],
+                }))
+              );
+            }
+          }
+        } catch {
+          // Itinerary not yet created - initialize empty days
           const numDays = getNumDays(data.startDate, data.endDate);
           if (numDays > 0) {
             setItineraryDays(
@@ -835,7 +1121,7 @@ export default function TripDetailPage() {
       })
       .catch(() => setError("Failed to load trip details"))
       .finally(() => setLoading(false));
-  }, [tripId]);
+  }, [tripId, user?.userId]);
 
   function getNumDays(startDate?: string, endDate?: string): number {
     if (!startDate || !endDate) return 0;
@@ -876,10 +1162,56 @@ export default function TripDetailPage() {
     setHasUnsavedChanges(true);
   }
 
-  function handleSave() {
-    // Dummy save — just show success toast
-    setHasUnsavedChanges(false);
-    addToast("Itinerary saved successfully", "success");
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const payload = {
+        dayPlans: itineraryDays.map((day) => ({
+          dayNumber: day.dayNumber,
+          date: day.date ?? undefined,
+          title: day.title || undefined,
+          activities: day.activities.map((a) => {
+            // Parse time "09:00 - 11:00" into startTime/endTime
+            const timeParts = (a.time ?? "").split("-").map((s) => s.trim());
+            const startTime = timeParts[0] || a.startTime || undefined;
+            const endTime = timeParts[1] || a.endTime || undefined;
+            return {
+              title: a.title || "Untitled activity",
+              description: a.description || undefined,
+              location: a.location || undefined,
+              startTime,
+              endTime,
+              category: (a.category ?? "OTHER").toUpperCase(),
+              notes: undefined,
+            };
+          }),
+        })),
+      };
+      const result = await itineraryApi.update(tripId, payload);
+      setItineraryDays(result.days);
+      setHasUnsavedChanges(false);
+      addToast("Itinerary saved successfully", "success");
+    } catch {
+      addToast("Failed to save itinerary", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleVoteUpdate(dayNumber: number, summary: VoteSummary) {
+    setItineraryDays((prev) =>
+      prev.map((d) =>
+        d.dayNumber === dayNumber
+          ? {
+              ...d,
+              upvotes: summary.upvotes,
+              downvotes: summary.downvotes,
+              currentUserVote: summary.currentUserVote,
+              votingFrozen: summary.votingFrozen,
+            }
+          : d
+      )
+    );
   }
 
   async function handleDelete() {
@@ -1163,9 +1495,25 @@ export default function TripDetailPage() {
 
           <div className="flex items-center gap-2">
             {hasUnsavedChanges && (
-              <Button size="sm" onClick={handleSave}>
-                <Save size={14} /> Save
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {saving ? "Saving..." : "Save"}
               </Button>
+            )}
+            {isOwnerOrEditor && (
+              <button
+                onClick={() => setVotingSettingsOpen(!votingSettingsOpen)}
+                className={cn(
+                  "flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all cursor-pointer border",
+                  votingSettingsOpen
+                    ? "bg-accent-50 border-accent-300 text-accent-700"
+                    : "bg-white border-border text-muted hover:border-accent-300 hover:text-accent-600"
+                )}
+                title="Voting settings"
+              >
+                <Vote size={14} />
+                Voting
+              </button>
             )}
             <button
               onClick={() => setAiPanelOpen(true)}
@@ -1181,6 +1529,18 @@ export default function TripDetailPage() {
           </div>
         </div>
 
+        {/* Voting Settings Panel */}
+        <AnimatePresence>
+          {votingSettingsOpen && isOwnerOrEditor && (
+            <VotingSettingsPanel
+              tripId={tripId}
+              itineraryDays={itineraryDays}
+              onUpdate={(days) => setItineraryDays(days)}
+              onClose={() => setVotingSettingsOpen(false)}
+            />
+          )}
+        </AnimatePresence>
+
         {/* Days list */}
         {itineraryDays.length > 0 ? (
           <div className="space-y-4">
@@ -1188,12 +1548,14 @@ export default function TripDetailPage() {
               <DayCard
                 key={day.dayPlanId}
                 day={day}
+                tripId={tripId}
                 tripStartDate={trip.startDate}
                 expanded={expandedDays.has(day.dayNumber)}
                 onToggle={() => toggleDay(day.dayNumber)}
                 onUpdateDay={updateDay}
                 currency={currency}
                 onCurrencyChange={(c) => { setCurrency(c); setHasUnsavedChanges(true); }}
+                onVoteUpdate={handleVoteUpdate}
               />
             ))}
 
