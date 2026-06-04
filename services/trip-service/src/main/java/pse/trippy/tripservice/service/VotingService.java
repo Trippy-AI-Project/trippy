@@ -5,16 +5,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pse.trippy.tripservice.dto.request.CastVoteRequest;
 import pse.trippy.tripservice.dto.request.VotingSettingsRequest;
+import pse.trippy.tripservice.dto.response.ActivityVoteSummaryResponse;
 import pse.trippy.tripservice.dto.response.VoteSummaryResponse;
 import pse.trippy.tripservice.exception.ForbiddenException;
 import pse.trippy.tripservice.exception.InvalidTripDataException;
 import pse.trippy.tripservice.exception.TripNotFoundException;
+import pse.trippy.tripservice.model.entity.Activity;
+import pse.trippy.tripservice.model.entity.ActivityVote;
 import pse.trippy.tripservice.model.entity.DayPlan;
 import pse.trippy.tripservice.model.entity.DayPlanVote;
 import pse.trippy.tripservice.model.entity.Itinerary;
 import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
 import pse.trippy.tripservice.model.enums.VoteType;
+import pse.trippy.tripservice.repository.ActivityRepository;
+import pse.trippy.tripservice.repository.ActivityVoteRepository;
 import pse.trippy.tripservice.repository.DayPlanRepository;
 import pse.trippy.tripservice.repository.DayPlanVoteRepository;
 import pse.trippy.tripservice.repository.ItineraryRepository;
@@ -33,6 +38,8 @@ public class VotingService {
     private final ItineraryRepository itineraryRepository;
     private final DayPlanRepository dayPlanRepository;
     private final DayPlanVoteRepository dayPlanVoteRepository;
+    private final ActivityRepository activityRepository;
+    private final ActivityVoteRepository activityVoteRepository;
     private final ParticipantRepository participantRepository;
 
     @Transactional
@@ -122,6 +129,60 @@ public class VotingService {
                 .toList();
     }
 
+    // ── Activity Voting ────────────────────────────────────────────────
+
+    @Transactional
+    public ActivityVoteSummaryResponse castActivityVote(UUID tripId, UUID activityId, CastVoteRequest request, UUID userId) {
+        ensureParticipant(tripId, userId);
+        Activity activity = findActivityInTrip(tripId, activityId);
+
+        // Check if day-level voting is enabled
+        DayPlan dayPlan = activity.getDayPlan();
+        if (!dayPlan.isVotingEnabled()) {
+            throw new InvalidTripDataException("Voting is not enabled for this day");
+        }
+        if (dayPlan.isVotingFrozen()) {
+            throw new InvalidTripDataException("Voting is frozen for this day");
+        }
+
+        VoteType voteType = parseVoteType(request.voteType());
+
+        ActivityVote vote = activityVoteRepository.findByActivityIdAndUserId(activityId, userId)
+                .map(existing -> {
+                    existing.setVoteType(voteType);
+                    return existing;
+                })
+                .orElseGet(() -> ActivityVote.builder()
+                        .activity(activity)
+                        .userId(userId)
+                        .voteType(voteType)
+                        .build());
+        activityVoteRepository.save(vote);
+
+        return buildActivityVoteSummary(activityId, userId);
+    }
+
+    @Transactional
+    public ActivityVoteSummaryResponse removeActivityVote(UUID tripId, UUID activityId, UUID userId) {
+        ensureParticipant(tripId, userId);
+        Activity activity = findActivityInTrip(tripId, activityId);
+
+        DayPlan dayPlan = activity.getDayPlan();
+        if (dayPlan.isVotingFrozen()) {
+            throw new InvalidTripDataException("Voting is frozen for this day");
+        }
+
+        activityVoteRepository.deleteByActivityIdAndUserId(activityId, userId);
+        return buildActivityVoteSummary(activityId, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public ActivityVoteSummaryResponse getActivityVoteSummary(UUID tripId, UUID activityId, UUID userId) {
+        ensureParticipant(tripId, userId);
+        findActivityInTrip(tripId, activityId);
+        return buildActivityVoteSummary(activityId, userId);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private DayPlan findDayPlan(UUID tripId, int dayNumber) {
@@ -191,5 +252,36 @@ public class VotingService {
                         || p.getRole() == ParticipantRole.EDITOR)
                 .orElseThrow(() -> new ForbiddenException(
                         "Only the trip owner or editor can modify voting settings"));
+    }
+
+    private Activity findActivityInTrip(UUID tripId, UUID activityId) {
+        // Verify trip exists
+        tripRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new InvalidTripDataException("Activity not found: " + activityId));
+
+        // Verify the activity belongs to this trip's itinerary
+        Itinerary itinerary = itineraryRepository.findByTripId(tripId)
+                .orElseThrow(() -> new InvalidTripDataException("No itinerary exists for this trip"));
+
+        DayPlan dayPlan = activity.getDayPlan();
+        if (!dayPlan.getItinerary().getId().equals(itinerary.getId())) {
+            throw new InvalidTripDataException("Activity does not belong to this trip");
+        }
+
+        return activity;
+    }
+
+    private ActivityVoteSummaryResponse buildActivityVoteSummary(UUID activityId, UUID userId) {
+        long upvotes = activityVoteRepository.countByActivityIdAndVoteType(activityId, VoteType.UPVOTE);
+        long downvotes = activityVoteRepository.countByActivityIdAndVoteType(activityId, VoteType.DOWNVOTE);
+
+        String currentUserVote = activityVoteRepository.findByActivityIdAndUserId(activityId, userId)
+                .map(v -> v.getVoteType().name())
+                .orElse(null);
+
+        return new ActivityVoteSummaryResponse(activityId, upvotes, downvotes, currentUserVote);
     }
 }

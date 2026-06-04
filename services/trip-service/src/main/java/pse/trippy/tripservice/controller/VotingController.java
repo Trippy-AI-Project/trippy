@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.tripservice.dto.request.CastVoteRequest;
 import pse.trippy.tripservice.dto.request.VotingSettingsRequest;
+import pse.trippy.tripservice.dto.response.ActivityVoteSummaryResponse;
 import pse.trippy.tripservice.dto.response.VoteSummaryResponse;
 import pse.trippy.tripservice.service.VotingService;
 
@@ -65,6 +66,39 @@ public class VotingController {
             @RequestHeader("X-User-Id") UUID userId) {
 
         List<VoteSummaryResponse> response = votingService.updateVotingSettings(tripId, request, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    // ── Activity-level voting ───────────────────────────────────────────
+
+    @PostMapping("/activities/{activityId}/vote")
+    public ResponseEntity<ActivityVoteSummaryResponse> castActivityVote(
+            @PathVariable UUID tripId,
+            @PathVariable UUID activityId,
+            @RequestBody @Valid CastVoteRequest request,
+            @RequestHeader("X-User-Id") UUID userId) {
+
+        ActivityVoteSummaryResponse response = votingService.castActivityVote(tripId, activityId, request, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/activities/{activityId}/vote")
+    public ResponseEntity<ActivityVoteSummaryResponse> removeActivityVote(
+            @PathVariable UUID tripId,
+            @PathVariable UUID activityId,
+            @RequestHeader("X-User-Id") UUID userId) {
+
+        ActivityVoteSummaryResponse response = votingService.removeActivityVote(tripId, activityId, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/activities/{activityId}/votes")
+    public ResponseEntity<ActivityVoteSummaryResponse> getActivityVoteSummary(
+            @PathVariable UUID tripId,
+            @PathVariable UUID activityId,
+            @RequestHeader("X-User-Id") UUID userId) {
+
+        ActivityVoteSummaryResponse response = votingService.getActivityVoteSummary(tripId, activityId, userId);
         return ResponseEntity.ok(response);
     }
 }

@@ -115,10 +115,34 @@ public class TripService {
     }
 
     @Transactional(readOnly = true)
+    public TripPageResponse listPublicTrips(UUID userId, int page, int size) {
+        log.debug("Listing public trips for user={}, page={}, size={}", userId, page, size);
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Trip> tripPage = tripRepository.findPublicTripsExcludingUser(userId, pageRequest);
+
+        List<TripResponse> trips = tripPage.getContent().stream()
+                .map(this::toTripResponse)
+                .toList();
+
+        return new TripPageResponse(
+                trips,
+                tripPage.getNumber(),
+                tripPage.getSize(),
+                tripPage.getTotalElements(),
+                tripPage.getTotalPages(),
+                tripPage.hasNext()
+        );
+    }
+
+    @Transactional(readOnly = true)
     public TripDetailResponse getTripDetail(UUID tripId, UUID userId) {
         log.debug("Fetching trip detail: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
-        ensureParticipant(tripId, userId);
+
+        // Allow access if public trip or if user is a participant
+        if (trip.getVisibility() != TripVisibility.PUBLIC) {
+            ensureParticipant(tripId, userId);
+        }
 
         List<ParticipantResponse> participants = participantRepository.findByTripId(tripId).stream()
                 .map(this::toParticipantResponse)

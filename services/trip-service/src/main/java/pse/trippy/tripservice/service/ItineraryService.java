@@ -21,6 +21,7 @@ import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
 import pse.trippy.tripservice.model.enums.VoteType;
 import pse.trippy.tripservice.repository.ActivityRepository;
+import pse.trippy.tripservice.repository.ActivityVoteRepository;
 import pse.trippy.tripservice.repository.DayPlanRepository;
 import pse.trippy.tripservice.repository.DayPlanVoteRepository;
 import pse.trippy.tripservice.repository.ItineraryRepository;
@@ -41,6 +42,7 @@ public class ItineraryService {
     private final DayPlanRepository dayPlanRepository;
     private final ActivityRepository activityRepository;
     private final DayPlanVoteRepository dayPlanVoteRepository;
+    private final ActivityVoteRepository activityVoteRepository;
     private final ParticipantRepository participantRepository;
 
     @Transactional(readOnly = true)
@@ -176,7 +178,7 @@ public class ItineraryService {
                 .findByDayPlanIdOrderByOrderIndexAsc(dayPlan.getId());
 
         List<ActivityResponse> activityResponses = activities.stream()
-                .map(this::toActivityResponse)
+                .map(a -> toActivityResponse(a, userId))
                 .toList();
 
         long upvotes = dayPlanVoteRepository.countByDayPlanIdAndVoteType(dayPlan.getId(), VoteType.UPVOTE);
@@ -200,7 +202,13 @@ public class ItineraryService {
         );
     }
 
-    private ActivityResponse toActivityResponse(Activity activity) {
+    private ActivityResponse toActivityResponse(Activity activity, UUID userId) {
+        long upvotes = activityVoteRepository.countByActivityIdAndVoteType(activity.getId(), VoteType.UPVOTE);
+        long downvotes = activityVoteRepository.countByActivityIdAndVoteType(activity.getId(), VoteType.DOWNVOTE);
+        String currentUserVote = activityVoteRepository.findByActivityIdAndUserId(activity.getId(), userId)
+                .map(v -> v.getVoteType().name())
+                .orElse(null);
+
         return new ActivityResponse(
                 activity.getId(),
                 activity.getTitle(),
@@ -210,7 +218,10 @@ public class ItineraryService {
                 activity.getEndTime(),
                 activity.getCategory().name(),
                 activity.getNotes(),
-                activity.getOrderIndex()
+                activity.getOrderIndex(),
+                upvotes,
+                downvotes,
+                currentUserVote
         );
     }
 }

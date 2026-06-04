@@ -12,6 +12,9 @@ public record ActivityResponse(
         LocalTime endTime,
         String category,
         String notes,
-        int orderIndex
+        int orderIndex,
+        long upvotes,
+        long downvotes,
+        String currentUserVote
 ) {
 }

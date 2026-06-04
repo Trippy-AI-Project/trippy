@@ -38,10 +38,14 @@ import {
   Lock,
   Vote,
   Settings,
+  Search,
+  Mail,
+  UserPlus,
+  Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
-import { tripsApi, itineraryApi, usersApi, type TripDetail, type DayPlan, type Activity, type VoteSummary } from "@/lib/api";
+import { tripsApi, itineraryApi, usersApi, participantsApi, type TripDetail, type DayPlan, type Activity, type VoteSummary, type ActivityVoteSummary, type UserPublicProfile } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { cn, tripIdFromSlug } from "@/lib/utils";
 
@@ -214,12 +218,20 @@ function ActivityRow({
   onCurrencyChange,
   onUpdate,
   onRemove,
+  tripId,
+  votingEnabled,
+  votingFrozen,
+  onActivityVoteUpdate,
 }: {
   activity: Activity;
   currency: string;
   onCurrencyChange: (c: string) => void;
   onUpdate: (a: Activity) => void;
   onRemove: () => void;
+  tripId: string;
+  votingEnabled: boolean;
+  votingFrozen: boolean;
+  onActivityVoteUpdate: (activityId: string, summary: ActivityVoteSummary) => void;
 }) {
   const Icon = getCategoryIcon(activity.category);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -415,6 +427,15 @@ function ActivityRow({
           rows={1}
           className="w-full resize-none rounded-xl bg-shore-50/40 border border-border/40 px-3 py-2 text-xs text-foreground placeholder:text-muted/40 focus:border-accent-300 focus:outline-none focus:ring-1 focus:ring-accent-100 transition-colors"
         />
+
+        {/* Activity-level voting */}
+        <ActivityVotingBar
+          activity={activity}
+          tripId={tripId}
+          votingEnabled={votingEnabled}
+          votingFrozen={votingFrozen}
+          onVoteUpdate={onActivityVoteUpdate}
+        />
       </div>
     </motion.div>
   );
@@ -523,6 +544,97 @@ function VotingBar({
   );
 }
 
+/* ─── Activity Voting Bar ─────────────────────────────────────────── */
+function ActivityVotingBar({
+  activity,
+  tripId,
+  votingEnabled,
+  votingFrozen,
+  onVoteUpdate,
+}: {
+  activity: Activity;
+  tripId: string;
+  votingEnabled: boolean;
+  votingFrozen: boolean;
+  onVoteUpdate: (activityId: string, summary: ActivityVoteSummary) => void;
+}) {
+  const [voting, setVoting] = useState(false);
+
+  if (!votingEnabled) return null;
+
+  const up = activity.upvotes ?? 0;
+  const down = activity.downvotes ?? 0;
+  const total = up + down;
+  const upPct = total > 0 ? Math.round((up / total) * 100) : 0;
+
+  async function handleVote(voteType: "UPVOTE" | "DOWNVOTE") {
+    if (votingFrozen || voting) return;
+    setVoting(true);
+    try {
+      if (activity.currentUserVote === voteType) {
+        const summary = await itineraryApi.removeActivityVote(tripId, activity.activityId);
+        onVoteUpdate(activity.activityId, summary);
+      } else {
+        const summary = await itineraryApi.castActivityVote(tripId, activity.activityId, voteType);
+        onVoteUpdate(activity.activityId, summary);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 pt-2 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
+      <span className="text-[10px] text-muted mr-1">Vote:</span>
+      <button
+        onClick={() => handleVote("UPVOTE")}
+        disabled={votingFrozen || voting}
+        className={cn(
+          "flex items-center gap-0.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-all cursor-pointer",
+          activity.currentUserVote === "UPVOTE"
+            ? "bg-green-100 text-green-700 border border-green-300"
+            : "bg-shore-50 text-muted border border-border/60 hover:border-green-300 hover:text-green-600",
+          (votingFrozen || voting) && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <ThumbsUp size={10} />
+        <span>{up}</span>
+      </button>
+      <button
+        onClick={() => handleVote("DOWNVOTE")}
+        disabled={votingFrozen || voting}
+        className={cn(
+          "flex items-center gap-0.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-all cursor-pointer",
+          activity.currentUserVote === "DOWNVOTE"
+            ? "bg-red-100 text-red-700 border border-red-300"
+            : "bg-shore-50 text-muted border border-border/60 hover:border-red-300 hover:text-red-600",
+          (votingFrozen || voting) && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <ThumbsDown size={10} />
+        <span>{down}</span>
+      </button>
+      {total > 0 && (
+        <div className="flex-1 max-w-16">
+          <div className="h-1 rounded-full bg-shore-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-green-400 to-green-500 transition-all"
+              style={{ width: `${upPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+      {votingFrozen && (
+        <span className="flex items-center gap-0.5 text-[9px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+          <Lock size={8} /> Frozen
+        </span>
+      )}
+    </div>
+  );
+}
+
 function DayCard({
   day,
   tripId,
@@ -573,6 +685,15 @@ function DayCard({
 
   function removeActivity(idx: number) {
     onUpdateDay({ ...day, activities: day.activities.filter((_, i) => i !== idx) });
+  }
+
+  function handleActivityVoteUpdate(activityId: string, summary: ActivityVoteSummary) {
+    const acts = day.activities.map((a) =>
+      a.activityId === activityId
+        ? { ...a, upvotes: summary.upvotes, downvotes: summary.downvotes, currentUserVote: summary.currentUserVote }
+        : a
+    );
+    onUpdateDay({ ...day, activities: acts });
   }
 
   const totalCost = day.activities.reduce((sum, a) => {
@@ -670,6 +791,10 @@ function DayCard({
                     onCurrencyChange={onCurrencyChange}
                     onUpdate={(a) => updateActivity(idx, a)}
                     onRemove={() => removeActivity(idx)}
+                    tripId={tripId}
+                    votingEnabled={day.votingEnabled ?? false}
+                    votingFrozen={day.votingFrozen ?? false}
+                    onActivityVoteUpdate={handleActivityVoteUpdate}
                   />
                 ))}
               </AnimatePresence>
@@ -1055,6 +1180,167 @@ function VotingSettingsPanel({
   );
 }
 
+/* ─── Invite Modal ────────────────────────────────────────────────── */
+function InviteModal({
+  tripId,
+  existingParticipantIds,
+  onClose,
+  onInvited,
+}: {
+  tripId: string;
+  existingParticipantIds: string[];
+  onClose: () => void;
+  onInvited: () => void;
+}) {
+  const { addToast } = useToast();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<UserPublicProfile[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [inviting, setInviting] = useState<string | null>(null);
+  const [invited, setInvited] = useState<Set<string>>(new Set());
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  function handleSearch(value: string) {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const users = await usersApi.search(value.trim());
+        // Filter out existing participants
+        setResults(users.filter((u) => !existingParticipantIds.includes(u.id)));
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  }
+
+  async function handleInvite(userId: string, email?: string) {
+    setInviting(userId);
+    try {
+      await participantsApi.invite(tripId, userId, email);
+      setInvited((prev) => new Set([...prev, userId]));
+      addToast("Invitation sent!", "success");
+      onInvited();
+    } catch {
+      addToast("Failed to send invitation", "error");
+    } finally {
+      setInviting(null);
+    }
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl bg-surface border border-border shadow-2xl"
+        initial={{ opacity: 0, scale: 0.9, y: 30 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 30 }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <UserPlus size={18} className="text-accent-500" />
+            <h2 className="text-base font-bold text-foreground">Invite People</h2>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-foreground cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Search input */}
+        <div className="px-6 py-4">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              autoFocus
+              className="w-full rounded-xl border border-border bg-shore-50 pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100 transition-colors"
+            />
+            {searching && (
+              <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-accent-500" />
+            )}
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="px-6 pb-6 max-h-72 overflow-y-auto space-y-2">
+          {results.length === 0 && query.trim().length >= 2 && !searching && (
+            <p className="text-sm text-muted text-center py-4">No users found</p>
+          )}
+          {results.map((user) => {
+            const isInvited = invited.has(user.id);
+            const initials = (user.displayName ?? "U")
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .toUpperCase()
+              .slice(0, 2);
+
+            return (
+              <div
+                key={user.id}
+                className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 transition-all hover:border-accent-300"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-shore-100 text-xs font-bold text-trippy-600 border border-border">
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{user.displayName}</p>
+                  {user.email && (
+                    <p className="text-[11px] text-muted flex items-center gap-1 truncate">
+                      <Mail size={10} /> {user.email}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleInvite(user.id, user.email)}
+                  disabled={isInvited || inviting === user.id}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all cursor-pointer",
+                    isInvited
+                      ? "bg-green-100 text-green-700 border border-green-300"
+                      : "bg-accent-500 text-white hover:bg-accent-600 shadow-sm",
+                    (inviting === user.id) && "opacity-60"
+                  )}
+                >
+                  {isInvited ? (
+                    <><Check size={12} /> Invited</>
+                  ) : inviting === user.id ? (
+                    <><Loader2 size={12} className="animate-spin" /> Sending</>
+                  ) : (
+                    <><UserPlus size={12} /> Invite</>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+          {query.trim().length < 2 && (
+            <p className="text-xs text-muted text-center py-4">
+              Type at least 2 characters to search for users
+            </p>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ─── Main Page Component ─────────────────────────────────────────── */
 export default function TripDetailPage() {
   const params = useParams();
@@ -1074,6 +1360,7 @@ export default function TripDetailPage() {
   const [saving, setSaving] = useState(false);
   const [votingSettingsOpen, setVotingSettingsOpen] = useState(false);
   const [isOwnerOrEditor, setIsOwnerOrEditor] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   useEffect(() => {
     if (!tripId) return;
@@ -1388,7 +1675,7 @@ export default function TripDetailPage() {
                   {trip.participants.length} member{trip.participants.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              <Button variant="secondary" size="sm" className="text-xs">
+              <Button variant="secondary" size="sm" className="text-xs" onClick={() => setInviteOpen(true)}>
                 <Plus size={12} /> Invite
               </Button>
             </div>
@@ -1631,6 +1918,21 @@ export default function TripDetailPage() {
         numDays={numDays > 0 ? numDays : 5}
         onGenerate={handleAIGenerate}
       />
+
+      {/* Invite Modal */}
+      <AnimatePresence>
+        {inviteOpen && (
+          <InviteModal
+            tripId={tripId}
+            existingParticipantIds={trip.participants?.map((p) => p.userId) ?? []}
+            onClose={() => setInviteOpen(false)}
+            onInvited={() => {
+              // Refresh trip data to show new participant
+              tripsApi.get(tripId).then((data) => setTrip(data)).catch(() => {});
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.userservice.dto.request.ResendVerificationRequest;
 import pse.trippy.userservice.dto.request.UpdateProfileRequest;
@@ -125,5 +126,16 @@ public class UserController {
     public ResponseEntity<UserPublicProfileResponse> getPublicProfile(
             @PathVariable UUID userId) {
         return ResponseEntity.ok(userProfileService.getPublicProfile(userId));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<UserPublicProfileResponse>> searchUsers(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "10") int limit) {
+        if (q == null || q.trim().length() < 2) {
+            return ResponseEntity.ok(List.of());
+        }
+        List<UserPublicProfileResponse> results = userProfileService.searchUsers(q.trim(), Math.min(limit, 20));
+        return ResponseEntity.ok(results);
     }
 }

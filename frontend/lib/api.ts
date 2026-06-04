@@ -328,6 +328,16 @@ export interface Activity {
   estimatedCost?: string;
   startTime?: string;
   endTime?: string;
+  upvotes?: number;
+  downvotes?: number;
+  currentUserVote?: "UPVOTE" | "DOWNVOTE" | null;
+}
+
+export interface ActivityVoteSummary {
+  activityId: string;
+  upvotes: number;
+  downvotes: number;
+  currentUserVote: "UPVOTE" | "DOWNVOTE" | null;
 }
 
 export interface VoteSummary {
@@ -451,6 +461,8 @@ export interface CreateTripRequest {
 export const tripsApi = {
   list: async (page = 0, size = 12) =>
     normalizeTripPage(await api.get<RawTripPage>(`/trips?page=${page}&size=${size}`)),
+  listPublic: async (page = 0, size = 12) =>
+    normalizeTripPage(await api.get<RawTripPage>(`/trips/public?page=${page}&size=${size}`)),
   search: async (q: string, page = 0, size = 12) =>
     normalizeTripPage(
       await api.get<RawTripPage>(`/trips?search=${encodeURIComponent(q)}&page=${page}&size=${size}`),
@@ -460,6 +472,23 @@ export const tripsApi = {
   update: (id: string, data: Partial<CreateTripRequest>) =>
     api.patch<RawTrip>(`/trips/${id}`, data).then((trip) => normalizeTrip(trip)),
   delete: (id: string) => api.delete<void>(`/trips/${id}`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Participants API                                                    */
+/* ------------------------------------------------------------------ */
+
+export const participantsApi = {
+  invite: (tripId: string, userId: string, email?: string) =>
+    api.post<{ message: string; participant?: unknown }>(`/trips/${tripId}/participants/invite`, { userId, email }),
+  approve: (tripId: string, userId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/approve`, { userId }),
+  reject: (tripId: string, userId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/reject`, { userId }),
+  accept: (tripId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/accept`, {}),
+  decline: (tripId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/decline`, {}),
 };
 
 /* ------------------------------------------------------------------ */
@@ -481,6 +510,9 @@ interface RawDayPlanResponse {
     category?: string;
     notes?: string;
     orderIndex: number;
+    upvotes?: number;
+    downvotes?: number;
+    currentUserVote?: string;
   }>;
   votingEnabled: boolean;
   votingFrozen: boolean;
@@ -514,6 +546,9 @@ function normalizeItinerary(raw: RawItineraryResponse): { days: DayPlan[]; creat
         endTime: a.endTime,
         time: a.startTime && a.endTime ? `${a.startTime} - ${a.endTime}` : a.startTime || "",
         estimatedCost: "",
+        upvotes: a.upvotes ?? 0,
+        downvotes: a.downvotes ?? 0,
+        currentUserVote: a.currentUserVote as "UPVOTE" | "DOWNVOTE" | null,
       })),
       votingEnabled: dp.votingEnabled,
       votingFrozen: dp.votingFrozen,
@@ -560,6 +595,10 @@ export const itineraryApi = {
       votingEnabled,
       votingDeadline: votingDeadline ?? null,
     }),
+  castActivityVote: (tripId: string, activityId: string, voteType: "UPVOTE" | "DOWNVOTE") =>
+    api.post<ActivityVoteSummary>(`/trips/${tripId}/itinerary/activities/${activityId}/vote`, { voteType }),
+  removeActivityVote: (tripId: string, activityId: string) =>
+    api.delete<ActivityVoteSummary>(`/trips/${tripId}/itinerary/activities/${activityId}/vote`),
 };
 
 /* ------------------------------------------------------------------ */
@@ -571,6 +610,7 @@ export interface UserPublicProfile {
   displayName: string;
   avatarUrl?: string;
   country?: string;
+  email?: string;
 }
 
 export const usersApi = {
@@ -578,6 +618,11 @@ export const usersApi = {
   batchProfiles: async (userIds: string[]): Promise<UserPublicProfile[]> => {
     if (userIds.length === 0) return [];
     return api.post<UserPublicProfile[]>("/users/batch", userIds);
+  },
+  /** Search users by name or email */
+  search: async (query: string, limit = 10): Promise<UserPublicProfile[]> => {
+    if (!query || query.trim().length < 2) return [];
+    return api.get<UserPublicProfile[]>(`/users/search?q=${encodeURIComponent(query)}&limit=${limit}`);
   },
 };
 

@@ -53,6 +53,16 @@ public class TripController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/public")
+    public ResponseEntity<TripPageResponse> listPublicTrips(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.debug("GET /trips/public — user={}, page={}, size={}", userId, page, size);
+        TripPageResponse response = tripService.listPublicTrips(userId, page, size);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{tripId}")
     public ResponseEntity<TripDetailResponse> getTripDetail(
             @PathVariable UUID tripId,

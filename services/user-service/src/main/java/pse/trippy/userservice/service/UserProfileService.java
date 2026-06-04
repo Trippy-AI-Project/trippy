@@ -2,6 +2,8 @@ package pse.trippy.userservice.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pse.trippy.userservice.dto.request.UpdateProfileRequest;
@@ -101,6 +103,20 @@ public class UserProfileService {
                         .displayName(user.getDisplayName())
                         .avatarUrl(user.getAvatarUrl())
                         .country(user.getCountry())
+                        .build())
+                .toList();
+    }
+
+    public List<UserPublicProfileResponse> searchUsers(String query, int limit) {
+        Page<User> results = userRepository.searchByNameOrEmail(
+                query, PageRequest.of(0, limit));
+        return results.getContent().stream()
+                .map(user -> UserPublicProfileResponse.builder()
+                        .id(user.getId())
+                        .displayName(user.getDisplayName())
+                        .avatarUrl(user.getAvatarUrl())
+                        .country(user.getCountry())
+                        .email(user.getEmail())
                         .build())
                 .toList();
     }
