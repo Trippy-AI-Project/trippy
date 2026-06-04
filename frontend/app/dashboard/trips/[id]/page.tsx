@@ -35,9 +35,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
-import { tripsApi, type TripDetail, type DayPlan, type Activity } from "@/lib/api";
+import { tripsApi, usersApi, type TripDetail, type DayPlan, type Activity } from "@/lib/api";
 import { useToast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
+import { cn, tripIdFromSlug } from "@/lib/utils";
 
 const statusVariant: Record<string, "default" | "success" | "warning" | "accent" | "danger"> = {
   DRAFT: "default",
@@ -780,7 +780,7 @@ export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addToast } = useToast();
-  const tripId = params.id as string;
+  const tripId = tripIdFromSlug(params.id as string);
 
   const [trip, setTrip] = useState<TripDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -796,7 +796,25 @@ export default function TripDetailPage() {
     setLoading(true);
     tripsApi
       .get(tripId)
-      .then((data) => {
+      .then(async (data) => {
+        // Fetch participant display names from user-service
+        if (data.participants && data.participants.length > 0) {
+          try {
+            const userIds = data.participants.map((p) => p.userId);
+            const profiles = await usersApi.batchProfiles(userIds);
+            const profileMap = new Map(profiles.map((p) => [p.id, p]));
+            data.participants = data.participants.map((p) => {
+              const profile = profileMap.get(p.userId);
+              return {
+                ...p,
+                displayName: profile?.displayName ?? p.displayName,
+                avatarUrl: profile?.avatarUrl ?? p.avatarUrl,
+              };
+            });
+          } catch {
+            // Silently fall back to missing names
+          }
+        }
         setTrip(data);
         if (data.itinerary?.days && data.itinerary.days.length > 0) {
           setItineraryDays(data.itinerary.days);

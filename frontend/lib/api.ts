@@ -396,6 +396,25 @@ export const tripsApi = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Users API                                                          */
+/* ------------------------------------------------------------------ */
+
+export interface UserPublicProfile {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  country?: string;
+}
+
+export const usersApi = {
+  /** Fetch public profiles for a batch of user IDs */
+  batchProfiles: async (userIds: string[]): Promise<UserPublicProfile[]> => {
+    if (userIds.length === 0) return [];
+    return api.post<UserPublicProfile[]>("/users/batch", userIds);
+  },
+};
+
+/* ------------------------------------------------------------------ */
 /*  Notification API                                                   */
 /* ------------------------------------------------------------------ */
 

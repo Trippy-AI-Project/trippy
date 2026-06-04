@@ -19,7 +19,7 @@ import TripCard from "@/components/trips/TripCard";
 import CreateTripModal from "@/components/trips/CreateTripModal";
 import { tripsApi, type Trip, type CreateTripRequest } from "@/lib/api";
 import { useToast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
+import { cn, tripSlug } from "@/lib/utils";
 
 const STATUS_TABS = [
   { key: "", label: "All trips" },
@@ -65,7 +65,7 @@ export default function DashboardPage() {
       const trip = await tripsApi.create(data);
       addToast("Trip created!", "success");
       setCreateOpen(false);
-      router.push(`/dashboard/trips/${trip.tripId}`);
+      router.push(`/dashboard/trips/${tripSlug(trip.title, trip.tripId)}`);
     } catch {
       addToast("Failed to create trip", "error");
     }
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, delay: i * 0.06 }}
                   onClick={() =>
-                    router.push(`/dashboard/trips/${trip.tripId}`)
+                    router.push(`/dashboard/trips/${tripSlug(trip.title, trip.tripId)}`)
                   }
                   className="cursor-pointer"
                 >

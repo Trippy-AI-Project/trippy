@@ -6,11 +6,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pse.trippy.userservice.dto.request.UpdateProfileRequest;
 import pse.trippy.userservice.dto.response.UserProfileResponse;
+import pse.trippy.userservice.dto.response.UserPublicProfileResponse;
 import pse.trippy.userservice.exception.UserNotFoundException;
 import pse.trippy.userservice.mapper.UserMapper;
 import pse.trippy.userservice.model.entity.User;
 import pse.trippy.userservice.repository.UserRepository;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -73,5 +75,33 @@ public class UserProfileService {
     private User findUser(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
+    }
+
+    /**
+     * Returns a lightweight public profile for a single user.
+     */
+    public UserPublicProfileResponse getPublicProfile(UUID userId) {
+        User user = findUser(userId);
+        return UserPublicProfileResponse.builder()
+                .id(user.getId())
+                .displayName(user.getDisplayName())
+                .avatarUrl(user.getAvatarUrl())
+                .country(user.getCountry())
+                .build();
+    }
+
+    /**
+     * Returns public profiles for a batch of user IDs.
+     * Skips any IDs that don't exist.
+     */
+    public List<UserPublicProfileResponse> getPublicProfiles(List<UUID> userIds) {
+        return userRepository.findAllById(userIds).stream()
+                .map(user -> UserPublicProfileResponse.builder()
+                        .id(user.getId())
+                        .displayName(user.getDisplayName())
+                        .avatarUrl(user.getAvatarUrl())
+                        .country(user.getCountry())
+                        .build())
+                .toList();
     }
 }
