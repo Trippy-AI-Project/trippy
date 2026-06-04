@@ -20,6 +20,7 @@ import {
   Sun,
   CloudSun,
   Navigation,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CreateTripRequest } from "@/lib/api";
@@ -160,6 +161,8 @@ export default function CreateTripModal({
   const [title, setTitle] = useState("");
   const [destination, setDestination] = useState("");
   const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("PRIVATE");
   const [isPackage, setIsPackage] = useState(false);
   const [budget, setBudget] = useState<Budget>("MODERATE");
@@ -179,6 +182,8 @@ export default function CreateTripModal({
         setTitle("");
         setDestination("");
         setDescription("");
+        setStartDate("");
+        setEndDate("");
         setVisibility("PRIVATE");
         setIsPackage(false);
         setBudget("MODERATE");
@@ -198,7 +203,7 @@ export default function CreateTripModal({
     };
   }, [open]);
 
-  const canSubmit = title.trim() && destination.trim();
+  const canSubmit = title.trim() && destination.trim() && startDate && endDate;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -209,6 +214,8 @@ export default function CreateTripModal({
         title,
         destination,
         description: description || undefined,
+        startDate,
+        endDate,
         visibility,
         ...(isPackage ? { budgetLevel: budget } : {}),
       });
@@ -425,6 +432,90 @@ export default function CreateTripModal({
                       </div>
                     </div>
                   </div>
+                </motion.section>
+
+                {/* ─── Section: When ──────────────────────── */}
+                <motion.section
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-accent-500/10">
+                      <Calendar size={12} className="text-accent-500" />
+                    </div>
+                    <h4 className="text-sm font-bold text-foreground">
+                      When?
+                    </h4>
+                    <span className="text-[10px] text-red-400 font-medium ml-1">Required</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="trip-start"
+                        className="text-xs font-semibold text-muted uppercase tracking-wider"
+                      >
+                        Start date
+                      </label>
+                      <div className="relative group">
+                        <Calendar
+                          size={14}
+                          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-accent-300 transition-colors group-focus-within:text-accent-500"
+                        />
+                        <input
+                          id="trip-start"
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => {
+                            setStartDate(e.target.value);
+                            if (endDate && e.target.value > endDate) {
+                              setEndDate("");
+                            }
+                          }}
+                          min={new Date().toISOString().split("T")[0]}
+                          required
+                          className="w-full rounded-xl border border-border bg-shore-50 py-3 pl-10 pr-4 text-sm text-foreground transition-all duration-200 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200/50 focus:bg-white hover:border-accent-300 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="trip-end"
+                        className="text-xs font-semibold text-muted uppercase tracking-wider"
+                      >
+                        End date
+                      </label>
+                      <div className="relative group">
+                        <Calendar
+                          size={14}
+                          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-accent-300 transition-colors group-focus-within:text-accent-500"
+                        />
+                        <input
+                          id="trip-end"
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          min={startDate || new Date().toISOString().split("T")[0]}
+                          required
+                          className="w-full rounded-xl border border-border bg-shore-50 py-3 pl-10 pr-4 text-sm text-foreground transition-all duration-200 focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-200/50 focus:bg-white hover:border-accent-300 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {startDate && endDate && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-xs text-accent-600 font-medium"
+                    >
+                      {Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1} day
+                      {Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1 !== 1 ? "s" : ""} trip
+                    </motion.p>
+                  )}
                 </motion.section>
 
                 {/* ─── Section: Details ───────────────────── */}
