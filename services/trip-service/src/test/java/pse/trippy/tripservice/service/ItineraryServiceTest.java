@@ -23,7 +23,9 @@ import pse.trippy.tripservice.model.enums.ActivityCategory;
 import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
 import pse.trippy.tripservice.repository.ActivityRepository;
+import pse.trippy.tripservice.repository.ActivityVoteRepository;
 import pse.trippy.tripservice.repository.DayPlanRepository;
+import pse.trippy.tripservice.repository.DayPlanVoteRepository;
 import pse.trippy.tripservice.repository.ItineraryRepository;
 import pse.trippy.tripservice.repository.ParticipantRepository;
 import pse.trippy.tripservice.repository.TripRepository;
@@ -57,6 +59,10 @@ class ItineraryServiceTest {
     private ActivityRepository activityRepository;
     @Mock
     private ParticipantRepository participantRepository;
+    @Mock
+    private DayPlanVoteRepository dayPlanVoteRepository;
+    @Mock
+    private ActivityVoteRepository activityVoteRepository;
 
     @InjectMocks
     private ItineraryService itineraryService;
@@ -319,20 +325,23 @@ class ItineraryServiceTest {
         }
 
         @Test
-        @DisplayName("VIEWER gets 403 on PUT")
-        void viewerCannotUpdate() {
+        @DisplayName("VIEWER (accepted) can update itinerary since all participants allowed")
+        void viewerCanUpdate() {
             UpdateItineraryRequest request = new UpdateItineraryRequest(Collections.emptyList());
+            Itinerary itinerary = Itinerary.builder().trip(trip).build();
+            itinerary.setId(UUID.randomUUID());
 
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
             when(participantRepository.findByTripIdAndUserId(TRIP_ID, USER_ID))
                     .thenReturn(Optional.of(participant(ParticipantRole.VIEWER)));
+            when(itineraryRepository.findByTripId(TRIP_ID))
+                    .thenReturn(Optional.of(itinerary));
+            when(dayPlanRepository.findByItineraryIdOrderByDayNumberAsc(itinerary.getId()))
+                    .thenReturn(Collections.emptyList());
+            when(itineraryRepository.save(any())).thenReturn(itinerary);
 
-            assertThatThrownBy(
-                    () -> itineraryService.updateItinerary(TRIP_ID, request, USER_ID))
-                    .isInstanceOf(ForbiddenException.class)
-                    .hasMessageContaining("owner or editor");
-
-            verify(itineraryRepository, never()).save(any());
+            ItineraryResponse response = itineraryService.updateItinerary(TRIP_ID, request, USER_ID);
+            assertThat(response).isNotNull();
         }
 
         @Test

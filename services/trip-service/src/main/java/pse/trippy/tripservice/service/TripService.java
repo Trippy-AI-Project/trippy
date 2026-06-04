@@ -29,7 +29,9 @@ import pse.trippy.tripservice.repository.ParticipantRepository;
 import pse.trippy.tripservice.repository.TripRepository;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -115,10 +117,54 @@ public class TripService {
     }
 
     @Transactional(readOnly = true)
+    public TripPageResponse listPublicTrips(UUID userId, int page, int size) {
+        log.debug("Listing public trips for user={}, page={}, size={}", userId, page, size);
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Trip> tripPage = tripRepository.findPublicTripsExcludingUser(userId, pageRequest);
+
+        List<Trip> pageTrips = tripPage.getContent();
+        List<UUID> tripIds = pageTrips.stream().map(Trip::getId).toList();
+
+        // Resolve the current user's participation status per trip (for "Requested to Join" state)
+        Map<UUID, String> userStatusByTrip = new HashMap<>();
+        // Count accepted members per trip
+        Map<UUID, Integer> memberCountByTrip = new HashMap<>();
+        if (!tripIds.isEmpty()) {
+            for (Participant p : participantRepository.findByUserIdAndTripIds(userId, tripIds)) {
+                userStatusByTrip.put(p.getTrip().getId(), p.getStatus().name());
+            }
+            for (Participant p : participantRepository.findByTripIdsAndStatusIn(
+                    tripIds, List.of(ParticipantStatus.ACCEPTED))) {
+                memberCountByTrip.merge(p.getTrip().getId(), 1, Integer::sum);
+            }
+        }
+
+        List<TripResponse> trips = pageTrips.stream()
+                .map(trip -> toTripResponse(
+                        trip,
+                        userStatusByTrip.get(trip.getId()),
+                        memberCountByTrip.getOrDefault(trip.getId(), 0)))
+                .toList();
+
+        return new TripPageResponse(
+                trips,
+                tripPage.getNumber(),
+                tripPage.getSize(),
+                tripPage.getTotalElements(),
+                tripPage.getTotalPages(),
+                tripPage.hasNext()
+        );
+    }
+
+    @Transactional(readOnly = true)
     public TripDetailResponse getTripDetail(UUID tripId, UUID userId) {
         log.debug("Fetching trip detail: tripId={}, requestedBy={}", tripId, userId);
         Trip trip = findTripOrThrow(tripId);
-        ensureParticipant(tripId, userId);
+
+        // Allow access if public trip or if user is a participant
+        if (trip.getVisibility() != TripVisibility.PUBLIC) {
+            ensureParticipant(tripId, userId);
+        }
 
         List<ParticipantResponse> participants = participantRepository.findByTripId(tripId).stream()
                 .map(this::toParticipantResponse)
@@ -246,6 +292,10 @@ public class TripService {
     }
 
     private TripResponse toTripResponse(Trip trip) {
+        return toTripResponse(trip, null, 0);
+    }
+
+    private TripResponse toTripResponse(Trip trip, String currentUserStatus, int memberCount) {
         return new TripResponse(
                 trip.getId(),
                 trip.getTitle(),
@@ -259,7 +309,9 @@ public class TripService {
                 trip.getCoverImageUrl(),
                 trip.getCreatedBy(),
                 trip.getCreatedAt(),
-                trip.getUpdatedAt()
+                trip.getUpdatedAt(),
+                currentUserStatus,
+                memberCount
         );
     }
 

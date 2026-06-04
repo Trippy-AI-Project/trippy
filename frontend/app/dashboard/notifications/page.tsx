@@ -11,11 +11,14 @@ import {
   CheckCheck,
   Loader2,
   Trash2,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { GlassCard, Button } from "@/components/ui";
-import { notificationsApi, type Notification } from "@/lib/api";
+import { notificationsApi, participantsApi, type Notification } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/lib/toast";
 
 const typeIcon: Record<string, typeof Bell> = {
   TRIP_INVITE: Plane,
@@ -47,11 +50,13 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -114,6 +119,53 @@ export default function NotificationsPage() {
     } catch {
       // ignore
     }
+  }
+
+  async function handleApprove(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    const requesterId = n.metadata?.requesterId as string;
+    if (!tripId || !requesterId) return;
+
+    setProcessingIds((prev) => new Set(prev).add(n.id));
+    try {
+      await participantsApi.approve(tripId, requesterId);
+      addToast("Join request approved!", "success");
+      // Mark notification as read and remove it
+      await notificationsApi.markRead(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to approve";
+      addToast(msg, "error");
+    } finally {
+      setProcessingIds((prev) => { const s = new Set(prev); s.delete(n.id); return s; });
+    }
+  }
+
+  async function handleReject(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    const requesterId = n.metadata?.requesterId as string;
+    if (!tripId || !requesterId) return;
+
+    setProcessingIds((prev) => new Set(prev).add(n.id));
+    try {
+      await participantsApi.reject(tripId, requesterId);
+      addToast("Join request rejected.", "success");
+      await notificationsApi.markRead(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to reject";
+      addToast(msg, "error");
+    } finally {
+      setProcessingIds((prev) => { const s = new Set(prev); s.delete(n.id); return s; });
+    }
+  }
+
+  function isJoinRequest(n: Notification) {
+    return n.type === "TRIP_INVITE" && n.title === "Join Request" && !!n.metadata?.requesterId;
   }
 
   return (
@@ -198,6 +250,25 @@ export default function NotificationsPage() {
                       </div>
                       <p className="text-sm text-muted mt-0.5">{n.message}</p>
                       <p className="text-xs text-muted mt-1">{timeAgo(n.createdAt)}</p>
+                      {/* Approve / Reject actions for join requests */}
+                      {isJoinRequest(n) && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            onClick={(e) => handleApprove(e, n)}
+                            disabled={processingIds.has(n.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-green-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-600 disabled:opacity-50"
+                          >
+                            <UserCheck size={13} /> Approve
+                          </button>
+                          <button
+                            onClick={(e) => handleReject(e, n)}
+                            disabled={processingIds.has(n.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                          >
+                            <UserX size={13} /> Reject
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={(e) => handleDelete(e, n.id)}

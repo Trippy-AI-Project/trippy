@@ -10,7 +10,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -18,26 +18,23 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.UUID;
 
-/**
- * Represents a single day within an itinerary, persisted in {@code trip_schema.day_plans}.
- */
 @Entity
 @Table(
-        name = "day_plans",
+        name = "activity_comments",
         schema = "trip_schema",
-        indexes = @Index(name = "idx_day_plans_itinerary_id", columnList = "itinerary_id")
+        indexes = @Index(name = "idx_activity_comments_activity_id", columnList = "activity_id")
 )
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DayPlan {
+public class ActivityComment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -46,28 +43,19 @@ public class DayPlan {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "itinerary_id", nullable = false, updatable = false)
-    private Itinerary itinerary;
+    @JoinColumn(name = "activity_id", nullable = false, updatable = false)
+    private Activity activity;
 
-    @Min(1)
-    @Column(name = "day_number", nullable = false)
-    private int dayNumber;
+    @NotNull
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
 
-    @Column(name = "date")
-    private LocalDate date;
+    @NotBlank
+    @Size(max = 1000)
+    @Column(name = "content", nullable = false, length = 1000)
+    private String content;
 
-    @Size(max = 200)
-    @Column(name = "title", length = 200)
-    private String title;
-
-    @Column(name = "voting_enabled", nullable = false)
-    @Builder.Default
-    private boolean votingEnabled = false;
-
-    @Column(name = "voting_deadline")
-    private Instant votingDeadline;
-
-    @Column(name = "voting_frozen", nullable = false)
-    @Builder.Default
-    private boolean votingFrozen = false;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 }

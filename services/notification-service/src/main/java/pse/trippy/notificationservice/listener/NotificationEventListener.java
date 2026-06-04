@@ -53,7 +53,9 @@ public class NotificationEventListener {
             case "user.email.verified" -> handleUserEmailVerified(payload);
             case "user.password.reset" -> handlePasswordReset(payload);
             case "trip.invitation.created", "trip.participant.invited" -> handleTripInvitation(payload);
-            case "trip.invitation.accepted", "trip.joined" -> handleTripJoined(payload);
+            case "trip.invitation.accepted", "trip.joined", "trip.participant.joined" -> handleTripJoined(payload);
+            case "trip.participant.join_requested", "trip.participant.invite_proposed" -> handleJoinRequest(payload);
+            case "trip.participant.approved" -> handleJoinApproved(payload);
             case "trip.updated" -> handleTripUpdated(payload);
             case "payment.completed" -> handlePaymentCompleted(payload);
             case "payment.failed" -> handlePaymentFailed(payload);
@@ -199,6 +201,41 @@ public class NotificationEventListener {
                     joinerName + " joined " + tripTitle,
                     actionUrl,
                     metadata(map, "tripId", "inviteeId", "participantId"));
+        }
+    }
+
+    void handleJoinRequest(Object payload) {
+        if (payload instanceof Map<?, ?> map) {
+            String userId = validUuidText(map, "userId", "ownerId");
+            String requesterId = text(map, "requesterId", "userId");
+            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
+            String tripId = text(map, "tripId");
+            String actionUrl = tripUrl(tripId);
+
+            log.info("Processing notification event type=trip.join_requested tripId={}", tripId);
+
+            createNotification(userId, NotificationType.TRIP_INVITE,
+                    "Join Request",
+                    "Someone wants to join " + tripTitle + ". Review and approve or reject the request.",
+                    actionUrl,
+                    metadata(map, "tripId", "requesterId", "tripTitle"));
+        }
+    }
+
+    void handleJoinApproved(Object payload) {
+        if (payload instanceof Map<?, ?> map) {
+            String userId = validUuidText(map, "userId");
+            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
+            String tripId = text(map, "tripId");
+            String actionUrl = tripUrl(tripId);
+
+            log.info("Processing notification event type=trip.participant.approved tripId={}", tripId);
+
+            createNotification(userId, NotificationType.TRIP_JOINED,
+                    "Join Request Approved",
+                    "You are now a participant of " + tripTitle + "! Start exploring the trip.",
+                    actionUrl,
+                    metadata(map, "tripId", "tripTitle"));
         }
     }
 

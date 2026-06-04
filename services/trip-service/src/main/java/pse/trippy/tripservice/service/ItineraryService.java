@@ -19,8 +19,12 @@ import pse.trippy.tripservice.model.entity.Trip;
 import pse.trippy.tripservice.model.enums.ActivityCategory;
 import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
+import pse.trippy.tripservice.model.enums.TripVisibility;
+import pse.trippy.tripservice.model.enums.VoteType;
 import pse.trippy.tripservice.repository.ActivityRepository;
+import pse.trippy.tripservice.repository.ActivityVoteRepository;
 import pse.trippy.tripservice.repository.DayPlanRepository;
+import pse.trippy.tripservice.repository.DayPlanVoteRepository;
 import pse.trippy.tripservice.repository.ItineraryRepository;
 import pse.trippy.tripservice.repository.ParticipantRepository;
 import pse.trippy.tripservice.repository.TripRepository;
@@ -38,15 +42,21 @@ public class ItineraryService {
     private final ItineraryRepository itineraryRepository;
     private final DayPlanRepository dayPlanRepository;
     private final ActivityRepository activityRepository;
+    private final DayPlanVoteRepository dayPlanVoteRepository;
+    private final ActivityVoteRepository activityVoteRepository;
     private final ParticipantRepository participantRepository;
 
     @Transactional(readOnly = true)
     public ItineraryResponse getItinerary(UUID tripId, UUID userId) {
         Trip trip = findTripOrThrow(tripId);
-        ensureParticipant(tripId, userId);
+
+        // Allow read access for public trips, otherwise require participation
+        if (trip.getVisibility() != TripVisibility.PUBLIC) {
+            ensureParticipant(tripId, userId);
+        }
 
         return itineraryRepository.findByTripId(tripId)
-                .map(this::toItineraryResponse)
+                .map(it -> toItineraryResponse(it, userId))
                 .orElseGet(() -> new ItineraryResponse(
                         tripId, Collections.emptyList(), null, null));
     }
@@ -54,7 +64,8 @@ public class ItineraryService {
     @Transactional
     public ItineraryResponse updateItinerary(UUID tripId, UpdateItineraryRequest request, UUID userId) {
         Trip trip = findTripOrThrow(tripId);
-        ensureOwnerOrEditor(tripId, userId);
+        // All accepted participants can contribute to the itinerary
+        ensureParticipant(tripId, userId);
 
         // Find or create itinerary
         Itinerary itinerary = itineraryRepository.findByTripId(tripId)
@@ -65,10 +76,11 @@ public class ItineraryService {
                     return itineraryRepository.save(newItinerary);
                 });
 
-        // Delete existing day plans and their activities (full replace)
+        // Delete existing day plans and their activities + votes (full replace)
         List<DayPlan> existingDayPlans = dayPlanRepository
                 .findByItineraryIdOrderByDayNumberAsc(itinerary.getId());
         for (DayPlan dp : existingDayPlans) {
+            dayPlanVoteRepository.deleteAllByDayPlanId(dp.getId());
             activityRepository.deleteAllByDayPlanId(dp.getId());
         }
         dayPlanRepository.deleteAll(existingDayPlans);
@@ -106,7 +118,7 @@ public class ItineraryService {
         // Touch itinerary to update updatedAt
         itinerary = itineraryRepository.save(itinerary);
 
-        return toItineraryResponse(itinerary);
+        return toItineraryResponse(itinerary, userId);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -136,19 +148,26 @@ public class ItineraryService {
         if (category == null) {
             return ActivityCategory.OTHER;
         }
+        String normalized = category.toUpperCase();
+        // Map common frontend aliases
+        if ("DEFAULT".equals(normalized) || "MORNING".equals(normalized)
+                || "EVENING".equals(normalized) || "BREAKFAST".equals(normalized)
+                || "LUNCH".equals(normalized) || "DINNER".equals(normalized)) {
+            return ActivityCategory.OTHER;
+        }
         try {
-            return ActivityCategory.valueOf(category.toUpperCase());
+            return ActivityCategory.valueOf(normalized);
         } catch (IllegalArgumentException e) {
-            throw new InvalidTripDataException("Invalid activity category: " + category);
+            return ActivityCategory.OTHER;
         }
     }
 
-    private ItineraryResponse toItineraryResponse(Itinerary itinerary) {
+    private ItineraryResponse toItineraryResponse(Itinerary itinerary, UUID userId) {
         List<DayPlan> dayPlans = dayPlanRepository
                 .findByItineraryIdOrderByDayNumberAsc(itinerary.getId());
 
         List<DayPlanResponse> dayPlanResponses = dayPlans.stream()
-                .map(this::toDayPlanResponse)
+                .map(dp -> toDayPlanResponse(dp, userId))
                 .toList();
 
         return new ItineraryResponse(
@@ -159,24 +178,44 @@ public class ItineraryService {
         );
     }
 
-    private DayPlanResponse toDayPlanResponse(DayPlan dayPlan) {
+    private DayPlanResponse toDayPlanResponse(DayPlan dayPlan, UUID userId) {
         List<Activity> activities = activityRepository
                 .findByDayPlanIdOrderByOrderIndexAsc(dayPlan.getId());
 
         List<ActivityResponse> activityResponses = activities.stream()
-                .map(this::toActivityResponse)
+                .map(a -> toActivityResponse(a, userId))
                 .toList();
 
+        long upvotes = dayPlanVoteRepository.countByDayPlanIdAndVoteType(dayPlan.getId(), VoteType.UPVOTE);
+        long downvotes = dayPlanVoteRepository.countByDayPlanIdAndVoteType(dayPlan.getId(), VoteType.DOWNVOTE);
+        String currentUserVote = dayPlanVoteRepository.findByDayPlanIdAndUserId(dayPlan.getId(), userId)
+                .map(v -> v.getVoteType().name())
+                .orElse(null);
+
         return new DayPlanResponse(
+                dayPlan.getId(),
                 dayPlan.getDayNumber(),
                 dayPlan.getDate(),
                 dayPlan.getTitle(),
-                activityResponses
+                activityResponses,
+                dayPlan.isVotingEnabled(),
+                dayPlan.isVotingFrozen(),
+                dayPlan.getVotingDeadline(),
+                upvotes,
+                downvotes,
+                currentUserVote
         );
     }
 
-    private ActivityResponse toActivityResponse(Activity activity) {
+    private ActivityResponse toActivityResponse(Activity activity, UUID userId) {
+        long upvotes = activityVoteRepository.countByActivityIdAndVoteType(activity.getId(), VoteType.UPVOTE);
+        long downvotes = activityVoteRepository.countByActivityIdAndVoteType(activity.getId(), VoteType.DOWNVOTE);
+        String currentUserVote = activityVoteRepository.findByActivityIdAndUserId(activity.getId(), userId)
+                .map(v -> v.getVoteType().name())
+                .orElse(null);
+
         return new ActivityResponse(
+                activity.getId(),
                 activity.getTitle(),
                 activity.getDescription(),
                 activity.getLocation(),
@@ -184,7 +223,10 @@ public class ItineraryService {
                 activity.getEndTime(),
                 activity.getCategory().name(),
                 activity.getNotes(),
-                activity.getOrderIndex()
+                activity.getOrderIndex(),
+                upvotes,
+                downvotes,
+                currentUserVote
         );
     }
 }

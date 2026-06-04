@@ -17,6 +17,8 @@ public record TripResponse(
         String coverImageUrl,
         UUID createdBy,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String currentUserStatus,
+        int memberCount
 ) {
 }

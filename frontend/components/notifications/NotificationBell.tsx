@@ -11,8 +11,10 @@ import {
   CheckCheck,
   Info,
   Trash2,
+  UserCheck,
+  UserX,
 } from "lucide-react";
-import { notificationsApi, type Notification } from "@/lib/api";
+import { notificationsApi, participantsApi, type Notification } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const typeIcon: Record<string, typeof Bell> = {
@@ -149,6 +151,40 @@ export default function NotificationBell() {
     }
   }
 
+  function isJoinRequest(n: Notification) {
+    return n.type === "TRIP_INVITE" && n.title === "Join Request" && !!n.metadata?.requesterId;
+  }
+
+  async function handleApprove(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    const requesterId = n.metadata?.requesterId as string;
+    if (!tripId || !requesterId) return;
+    try {
+      await participantsApi.approve(tripId, requesterId);
+      await notificationsApi.markRead(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleReject(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    const requesterId = n.metadata?.requesterId as string;
+    if (!tripId || !requesterId) return;
+    try {
+      await participantsApi.reject(tripId, requesterId);
+      await notificationsApi.markRead(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Bell icon with badge */}
@@ -220,6 +256,22 @@ export default function NotificationBell() {
                       <p className="text-[10px] text-muted mt-1">
                         {timeAgo(n.createdAt)}
                       </p>
+                      {isJoinRequest(n) && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => handleApprove(e, n)}
+                            className="inline-flex items-center gap-1 rounded bg-green-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-green-600"
+                          >
+                            <UserCheck size={10} /> Approve
+                          </button>
+                          <button
+                            onClick={(e) => handleReject(e, n)}
+                            className="inline-flex items-center gap-1 rounded bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-600"
+                          >
+                            <UserX size={10} /> Reject
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {!n.read && (
                       <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-trippy-500" />

@@ -1,6 +1,5 @@
 {
-  
-"users": [
+  "users": [
     {
       "name": "trippy_mq",
       "password": "CHANGE_ME_RABBITMQ_PASSWORD_789!",
@@ -138,6 +137,30 @@
       "destination": "notification.events",
       "destination_type": "queue",
       "routing_key": "system.notification",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "trip.participant.join_requested",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "trip.participant.invite_proposed",
+      "arguments": {}
+    },
+    {
+      "source": "trippy.events",
+      "vhost": "trippy",
+      "destination": "notification.events",
+      "destination_type": "queue",
+      "routing_key": "trip.participant.approved",
       "arguments": {}
     }
   ]

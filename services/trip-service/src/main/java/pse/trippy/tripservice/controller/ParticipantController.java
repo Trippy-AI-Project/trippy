@@ -39,6 +39,26 @@ public class ParticipantController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/approve")
+    public ResponseEntity<ParticipantActionResponse> approve(
+            @PathVariable UUID tripId,
+            @Valid @RequestBody InviteParticipantRequest request,
+            @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips/{}/participants/approve — Approve user={}, by={}", tripId, request.userId(), userId);
+        ParticipantActionResponse response = participantService.approveInvite(tripId, request.userId(), userId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reject")
+    public ResponseEntity<ParticipantActionResponse> reject(
+            @PathVariable UUID tripId,
+            @Valid @RequestBody InviteParticipantRequest request,
+            @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips/{}/participants/reject — Reject user={}, by={}", tripId, request.userId(), userId);
+        ParticipantActionResponse response = participantService.rejectInvite(tripId, request.userId(), userId);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/accept")
     public ResponseEntity<ParticipantActionResponse> accept(
             @PathVariable UUID tripId,
@@ -55,6 +75,15 @@ public class ParticipantController {
         log.info("POST /trips/{}/participants/decline — user={}", tripId, userId);
         ParticipantActionResponse response = participantService.declineInvite(tripId, userId);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/request-join")
+    public ResponseEntity<ParticipantActionResponse> requestJoin(
+            @PathVariable UUID tripId,
+            @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips/{}/participants/request-join — user={}", tripId, userId);
+        ParticipantActionResponse response = participantService.requestJoin(tripId, userId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @DeleteMapping("/leave")

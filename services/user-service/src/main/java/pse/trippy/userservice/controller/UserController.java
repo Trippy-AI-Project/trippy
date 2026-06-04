@@ -6,18 +6,22 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import pse.trippy.userservice.dto.request.ResendVerificationRequest;
 import pse.trippy.userservice.dto.request.UpdateProfileRequest;
 import pse.trippy.userservice.dto.request.VerifyEmailRequest;
 import pse.trippy.userservice.dto.response.UserProfileResponse;
+import pse.trippy.userservice.dto.response.UserPublicProfileResponse;
 import pse.trippy.userservice.service.EmailVerificationService;
 import pse.trippy.userservice.service.UserProfileService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -97,5 +101,41 @@ public class UserController {
             @Valid @RequestBody ResendVerificationRequest request) {
         emailVerificationService.resendVerification(request.getEmail());
         return ResponseEntity.ok(Map.of("message", "Verification email sent."));
+    }
+
+    /**
+     * Returns public profiles for a batch of user IDs.
+     * Used internally to resolve participant names for trip details.
+     *
+     * @param userIds list of user UUIDs to look up
+     * @return 200 with list of public profile responses (only found users)
+     */
+    @PostMapping("/batch")
+    public ResponseEntity<List<UserPublicProfileResponse>> getBatchProfiles(
+            @RequestBody List<UUID> userIds) {
+        return ResponseEntity.ok(userProfileService.getPublicProfiles(userIds));
+    }
+
+    /**
+     * Returns the public profile for a single user by ID.
+     *
+     * @param userId the user's UUID
+     * @return 200 with public profile, or 404 if not found
+     */
+    @GetMapping("/{userId}")
+    public ResponseEntity<UserPublicProfileResponse> getPublicProfile(
+            @PathVariable UUID userId) {
+        return ResponseEntity.ok(userProfileService.getPublicProfile(userId));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<UserPublicProfileResponse>> searchUsers(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "10") int limit) {
+        if (q == null || q.trim().length() < 2) {
+            return ResponseEntity.ok(List.of());
+        }
+        List<UserPublicProfileResponse> results = userProfileService.searchUsers(q.trim(), Math.min(limit, 20));
+        return ResponseEntity.ok(results);
     }
 }

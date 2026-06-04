@@ -11,6 +11,7 @@ import {
 import {
   getAccessToken,
   clearTokens,
+  getUserFromToken,
   login as apiLogin,
   logout as apiLogout,
   refreshAccessToken,
@@ -40,10 +41,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return;
     }
-    // Try to refresh to get user profile
+
+    // First, immediately restore user from JWT claims (instant, no network)
+    const cachedUser = getUserFromToken(token);
+    if (cachedUser) {
+      setUser(cachedUser);
+    }
+
+    // Then try to refresh the token to get a fresh one
     refreshAccessToken()
       .then((res) => setUser(res.user))
-      .catch(() => clearTokens())
+      .catch(() => {
+        // If refresh fails but we have a valid decoded user, keep them logged in
+        // (the access token may still be valid). Only clear if no user at all.
+        if (!cachedUser) {
+          clearTokens();
+          setUser(null);
+        }
+      })
       .finally(() => setIsLoading(false));
   }, []);
 

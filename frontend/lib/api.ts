@@ -28,6 +28,36 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_KEY);
 }
 
+/** Decode JWT payload without verification (claims are already server-validated). */
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(json);
+  } catch {
+    return {};
+  }
+}
+
+/** Extract UserProfile from JWT access token claims. */
+export function getUserFromToken(token: string): UserProfile | null {
+  const claims = decodeJwtPayload(token);
+  if (!claims.sub) return null;
+  return {
+    userId: claims.sub as string,
+    email: (claims.email as string) ?? "",
+    displayName: (claims.displayName as string) ?? "",
+    role: (claims.role as UserProfile["role"]) ?? "MEMBER",
+    emailVerified: (claims.emailVerified as boolean) ?? false,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Generic fetch wrapper                                              */
 /* ------------------------------------------------------------------ */
@@ -184,16 +214,34 @@ export async function logout(): Promise<void> {
   clearTokens();
 }
 
+interface TokenRefreshResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
 export async function refreshAccessToken(): Promise<LoginResponse> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) throw new Error("No refresh token");
 
-  const data = await request<LoginResponse>("/auth/refresh", {
+  const data = await request<TokenRefreshResponse>("/auth/refresh", {
     method: "POST",
     body: JSON.stringify({ refreshToken }),
   });
   setTokens(data.accessToken, data.refreshToken);
-  return data;
+
+  // Backend refresh endpoint returns tokens only (no user field).
+  // Extract user profile from the JWT claims.
+  const user = getUserFromToken(data.accessToken);
+  if (!user) throw new Error("Invalid token payload");
+
+  return {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresIn: data.expiresIn,
+    tokenType: "Bearer",
+    user,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -227,6 +275,7 @@ export interface Trip {
   status: "DRAFT" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
   visibility: "PRIVATE" | "PUBLIC" | "UNLISTED";
   participantCount: number;
+  currentUserStatus?: string | null;
   hasItinerary: boolean;
   createdAt: string;
   updatedAt: string;
@@ -243,8 +292,8 @@ export interface Participant {
   userId: string;
   displayName?: string;
   avatarUrl?: string;
-  role: "OWNER" | "EDITOR" | "VIEWER";
-  status: "PENDING" | "ACCEPTED" | "DECLINED" | "LEFT";
+  role: "OWNER" | "EDITOR" | "VIEWER" | "MEMBER";
+  status: "PENDING" | "PENDING_APPROVAL" | "ACCEPTED" | "DECLINED" | "LEFT" | "INVITED";
   invitedAt?: string;
   joinedAt?: string;
 }
@@ -262,6 +311,12 @@ export interface DayPlan {
   date?: string;
   title?: string;
   activities: Activity[];
+  votingEnabled?: boolean;
+  votingFrozen?: boolean;
+  votingDeadline?: string;
+  upvotes?: number;
+  downvotes?: number;
+  currentUserVote?: "UPVOTE" | "DOWNVOTE" | null;
 }
 
 export interface Activity {
@@ -272,6 +327,29 @@ export interface Activity {
   location?: string;
   category?: string;
   estimatedCost?: string;
+  startTime?: string;
+  endTime?: string;
+  upvotes?: number;
+  downvotes?: number;
+  currentUserVote?: "UPVOTE" | "DOWNVOTE" | null;
+}
+
+export interface ActivityVoteSummary {
+  activityId: string;
+  upvotes: number;
+  downvotes: number;
+  currentUserVote: "UPVOTE" | "DOWNVOTE" | null;
+}
+
+export interface VoteSummary {
+  dayPlanId: string;
+  dayNumber: number;
+  upvotes: number;
+  downvotes: number;
+  currentUserVote: "UPVOTE" | "DOWNVOTE" | null;
+  votingEnabled: boolean;
+  votingFrozen: boolean;
+  votingDeadline?: string;
 }
 
 export interface TripPage {
@@ -294,6 +372,8 @@ interface RawTrip {
   status: "DRAFT" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
   visibility: "PRIVATE" | "PUBLIC" | "UNLISTED";
   maxParticipants?: number;
+  currentUserStatus?: string | null;
+  memberCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -301,8 +381,8 @@ interface RawTrip {
 interface RawParticipant {
   id: string;
   userId: string;
-  role: "OWNER" | "EDITOR" | "VIEWER";
-  status: "PENDING" | "ACCEPTED" | "DECLINED" | "LEFT";
+  role: "OWNER" | "EDITOR" | "VIEWER" | "MEMBER";
+  status: "PENDING" | "PENDING_APPROVAL" | "ACCEPTED" | "DECLINED" | "LEFT" | "INVITED";
   joinedAt?: string;
 }
 
@@ -330,7 +410,8 @@ function normalizeTrip(raw: RawTrip, participantCount = 0): Trip {
     organizerId: raw.createdBy,
     status: raw.status,
     visibility: raw.visibility,
-    participantCount,
+    participantCount: raw.memberCount ?? participantCount,
+    currentUserStatus: raw.currentUserStatus ?? null,
     hasItinerary: false,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
@@ -378,12 +459,15 @@ export interface CreateTripRequest {
   startDate?: string;
   endDate?: string;
   visibility?: string;
+  status?: string;
   budgetLevel?: "ECONOMY" | "MODERATE" | "LUXURY";
 }
 
 export const tripsApi = {
   list: async (page = 0, size = 12) =>
     normalizeTripPage(await api.get<RawTripPage>(`/trips?page=${page}&size=${size}`)),
+  listPublic: async (page = 0, size = 12) =>
+    normalizeTripPage(await api.get<RawTripPage>(`/trips/public?page=${page}&size=${size}`)),
   search: async (q: string, page = 0, size = 12) =>
     normalizeTripPage(
       await api.get<RawTripPage>(`/trips?search=${encodeURIComponent(q)}&page=${page}&size=${size}`),
@@ -393,6 +477,181 @@ export const tripsApi = {
   update: (id: string, data: Partial<CreateTripRequest>) =>
     api.patch<RawTrip>(`/trips/${id}`, data).then((trip) => normalizeTrip(trip)),
   delete: (id: string) => api.delete<void>(`/trips/${id}`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Participants API                                                    */
+/* ------------------------------------------------------------------ */
+
+export const participantsApi = {
+  invite: (tripId: string, userId: string, email?: string) =>
+    api.post<{ message: string; participant?: unknown }>(`/trips/${tripId}/participants/invite`, { userId, email }),
+  approve: (tripId: string, userId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/approve`, { userId }),
+  reject: (tripId: string, userId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/reject`, { userId }),
+  accept: (tripId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/accept`, {}),
+  decline: (tripId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/decline`, {}),
+  requestJoin: (tripId: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/request-join`, {}),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Itinerary API                                                      */
+/* ------------------------------------------------------------------ */
+
+interface RawDayPlanResponse {
+  dayPlanId: string;
+  dayNumber: number;
+  date?: string;
+  title?: string;
+  activities: Array<{
+    activityId: string;
+    title: string;
+    description?: string;
+    location?: string;
+    startTime?: string;
+    endTime?: string;
+    category?: string;
+    notes?: string;
+    orderIndex: number;
+    upvotes?: number;
+    downvotes?: number;
+    currentUserVote?: string;
+  }>;
+  votingEnabled: boolean;
+  votingFrozen: boolean;
+  votingDeadline?: string;
+  upvotes: number;
+  downvotes: number;
+  currentUserVote?: string;
+}
+
+interface RawItineraryResponse {
+  tripId: string;
+  dayPlans: RawDayPlanResponse[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+function normalizeItinerary(raw: RawItineraryResponse): { days: DayPlan[]; createdAt?: string; updatedAt?: string } {
+  return {
+    days: (raw.dayPlans ?? []).map((dp) => ({
+      dayPlanId: dp.dayPlanId,
+      dayNumber: dp.dayNumber,
+      date: dp.date,
+      title: dp.title,
+      activities: (dp.activities ?? []).map((a) => ({
+        activityId: a.activityId,
+        title: a.title,
+        description: a.description ?? a.notes,
+        location: a.location,
+        category: a.category?.toLowerCase(),
+        startTime: a.startTime,
+        endTime: a.endTime,
+        time: a.startTime && a.endTime ? `${a.startTime} - ${a.endTime}` : a.startTime || "",
+        estimatedCost: "",
+        upvotes: a.upvotes ?? 0,
+        downvotes: a.downvotes ?? 0,
+        currentUserVote: a.currentUserVote as "UPVOTE" | "DOWNVOTE" | null,
+      })),
+      votingEnabled: dp.votingEnabled,
+      votingFrozen: dp.votingFrozen,
+      votingDeadline: dp.votingDeadline,
+      upvotes: dp.upvotes,
+      downvotes: dp.downvotes,
+      currentUserVote: dp.currentUserVote as "UPVOTE" | "DOWNVOTE" | null,
+    })),
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+export interface UpdateItineraryRequest {
+  dayPlans: Array<{
+    dayNumber: number;
+    date?: string;
+    title?: string;
+    activities: Array<{
+      title: string;
+      description?: string;
+      location?: string;
+      startTime?: string;
+      endTime?: string;
+      category: string;
+      notes?: string;
+    }>;
+  }>;
+}
+
+export const itineraryApi = {
+  get: async (tripId: string) =>
+    normalizeItinerary(await api.get<RawItineraryResponse>(`/trips/${tripId}/itinerary`)),
+  update: async (tripId: string, data: UpdateItineraryRequest) =>
+    normalizeItinerary(await api.put<RawItineraryResponse>(`/trips/${tripId}/itinerary`, data)),
+  castVote: (tripId: string, dayNumber: number, voteType: "UPVOTE" | "DOWNVOTE") =>
+    api.post<VoteSummary>(`/trips/${tripId}/itinerary/days/${dayNumber}/vote`, { voteType }),
+  removeVote: (tripId: string, dayNumber: number) =>
+    api.delete<VoteSummary>(`/trips/${tripId}/itinerary/days/${dayNumber}/vote`),
+  getVoteSummary: (tripId: string, dayNumber: number) =>
+    api.get<VoteSummary>(`/trips/${tripId}/itinerary/days/${dayNumber}/votes`),
+  updateVotingSettings: (tripId: string, votingEnabled: boolean, votingDeadline?: string) =>
+    api.put<VoteSummary[]>(`/trips/${tripId}/itinerary/voting-settings`, {
+      votingEnabled,
+      votingDeadline: votingDeadline ?? null,
+    }),
+  castActivityVote: (tripId: string, activityId: string, voteType: "UPVOTE" | "DOWNVOTE") =>
+    api.post<ActivityVoteSummary>(`/trips/${tripId}/itinerary/activities/${activityId}/vote`, { voteType }),
+  removeActivityVote: (tripId: string, activityId: string) =>
+    api.delete<ActivityVoteSummary>(`/trips/${tripId}/itinerary/activities/${activityId}/vote`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Activity Comments API                                              */
+/* ------------------------------------------------------------------ */
+
+export interface ActivityComment {
+  id: string;
+  activityId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+}
+
+export const commentsApi = {
+  list: (tripId: string, activityId: string) =>
+    api.get<ActivityComment[]>(`/trips/${tripId}/activities/${activityId}/comments`),
+  add: (tripId: string, activityId: string, content: string) =>
+    api.post<ActivityComment>(`/trips/${tripId}/activities/${activityId}/comments`, { content }),
+  delete: (tripId: string, activityId: string, commentId: string) =>
+    api.delete<void>(`/trips/${tripId}/activities/${activityId}/comments/${commentId}`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Users API                                                          */
+/* ------------------------------------------------------------------ */
+
+export interface UserPublicProfile {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  country?: string;
+  email?: string;
+}
+
+export const usersApi = {
+  /** Fetch public profiles for a batch of user IDs */
+  batchProfiles: async (userIds: string[]): Promise<UserPublicProfile[]> => {
+    if (userIds.length === 0) return [];
+    return api.post<UserPublicProfile[]>("/users/batch", userIds);
+  },
+  /** Search users by name or email */
+  search: async (query: string, limit = 10): Promise<UserPublicProfile[]> => {
+    if (!query || query.trim().length < 2) return [];
+    return api.get<UserPublicProfile[]>(`/users/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  },
 };
 
 /* ------------------------------------------------------------------ */
