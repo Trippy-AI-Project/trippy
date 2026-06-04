@@ -455,6 +455,7 @@ export interface CreateTripRequest {
   startDate?: string;
   endDate?: string;
   visibility?: string;
+  status?: string;
   budgetLevel?: "ECONOMY" | "MODERATE" | "LUXURY";
 }
 
@@ -601,6 +602,27 @@ export const itineraryApi = {
     api.post<ActivityVoteSummary>(`/trips/${tripId}/itinerary/activities/${activityId}/vote`, { voteType }),
   removeActivityVote: (tripId: string, activityId: string) =>
     api.delete<ActivityVoteSummary>(`/trips/${tripId}/itinerary/activities/${activityId}/vote`),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Activity Comments API                                              */
+/* ------------------------------------------------------------------ */
+
+export interface ActivityComment {
+  id: string;
+  activityId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+}
+
+export const commentsApi = {
+  list: (tripId: string, activityId: string) =>
+    api.get<ActivityComment[]>(`/trips/${tripId}/activities/${activityId}/comments`),
+  add: (tripId: string, activityId: string, content: string) =>
+    api.post<ActivityComment>(`/trips/${tripId}/activities/${activityId}/comments`, { content }),
+  delete: (tripId: string, activityId: string, commentId: string) =>
+    api.delete<void>(`/trips/${tripId}/activities/${activityId}/comments/${commentId}`),
 };
 
 /* ------------------------------------------------------------------ */

@@ -42,10 +42,14 @@ import {
   Mail,
   UserPlus,
   Check,
+  MessageCircle,
+  Send,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard, Button, Badge, Avatar } from "@/components/ui";
-import { tripsApi, itineraryApi, usersApi, participantsApi, type TripDetail, type DayPlan, type Activity, type VoteSummary, type ActivityVoteSummary, type UserPublicProfile } from "@/lib/api";
+import { tripsApi, itineraryApi, commentsApi, usersApi, participantsApi, type TripDetail, type DayPlan, type Activity, type VoteSummary, type ActivityVoteSummary, type ActivityComment as ActivityCommentType, type UserPublicProfile } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { cn, tripIdFromSlug } from "@/lib/utils";
 
@@ -436,8 +440,129 @@ function ActivityRow({
           votingFrozen={votingFrozen}
           onVoteUpdate={onActivityVoteUpdate}
         />
+
+        {/* Activity comments */}
+        <ActivityComments activityId={activity.activityId} tripId={tripId} />
       </div>
     </motion.div>
+  );
+}
+
+/* ─── Activity Comments ───────────────────────────────────────────── */
+function ActivityComments({ activityId, tripId }: { activityId: string; tripId: string }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [comments, setComments] = useState<ActivityCommentType[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [count, setCount] = useState<number | null>(null);
+
+  async function loadComments() {
+    if (!open) {
+      setOpen(true);
+      setLoading(true);
+      try {
+        const data = await commentsApi.list(tripId, activityId);
+        setComments(data);
+        setCount(data.length);
+      } catch { /* ignore */ }
+      finally { setLoading(false); }
+    } else {
+      setOpen(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newComment.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const c = await commentsApi.add(tripId, activityId, newComment.trim());
+      setComments((prev) => [...prev, c]);
+      setCount((prev) => (prev ?? 0) + 1);
+      setNewComment("");
+    } catch { /* ignore */ }
+    finally { setSubmitting(false); }
+  }
+
+  async function handleDelete(commentId: string) {
+    try {
+      await commentsApi.delete(tripId, activityId, commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      setCount((prev) => Math.max(0, (prev ?? 1) - 1));
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="border-t border-border/30 pt-2">
+      <button
+        onClick={loadComments}
+        className="flex items-center gap-1.5 text-[11px] text-muted hover:text-foreground transition-colors cursor-pointer"
+      >
+        <MessageCircle size={11} />
+        <span>{open ? "Hide" : "Comments"}{count !== null && count > 0 ? ` (${count})` : ""}</span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 space-y-2">
+              {loading ? (
+                <p className="text-[10px] text-muted">Loading...</p>
+              ) : comments.length === 0 ? (
+                <p className="text-[10px] text-muted italic">No comments yet. Be the first to suggest something!</p>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {comments.map((c) => (
+                    <div key={c.id} className="flex items-start gap-2 rounded-lg bg-shore-50/60 px-2.5 py-1.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-foreground leading-snug">{c.content}</p>
+                        <p className="text-[9px] text-muted mt-0.5">
+                          {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      {c.userId === user?.userId && (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          className="shrink-0 text-muted/50 hover:text-red-500 transition-colors cursor-pointer"
+                        >
+                          <X size={10} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* New comment form */}
+              <form onSubmit={handleSubmit} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a suggestion..."
+                  maxLength={1000}
+                  className="flex-1 rounded-lg bg-white border border-border/60 px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted/50 focus:outline-none focus:border-accent-300"
+                />
+                <button
+                  type="submit"
+                  disabled={!newComment.trim() || submitting}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  <Send size={11} />
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -1347,6 +1472,187 @@ function InviteModal({
   );
 }
 
+/* ─── Edit Trip Modal ─────────────────────────────────────────────── */
+function EditTripModal({
+  trip,
+  onClose,
+  onSave,
+}: {
+  trip: TripDetail;
+  onClose: () => void;
+  onSave: (updates: { title?: string; description?: string; destination?: string; startDate?: string; endDate?: string; status?: string; visibility?: string }) => Promise<void>;
+}) {
+  const [title, setTitle] = useState(trip.title);
+  const [description, setDescription] = useState(trip.description ?? "");
+  const [destination, setDestination] = useState(trip.destination);
+  const [startDate, setStartDate] = useState(trip.startDate ?? "");
+  const [endDate, setEndDate] = useState(trip.endDate ?? "");
+  const [status, setStatus] = useState(trip.status);
+  const [visibility, setVisibility] = useState(trip.visibility);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    await onSave({
+      title: title.trim(),
+      description: description.trim() || undefined,
+      destination: destination.trim(),
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      status,
+      visibility,
+    });
+    setSaving(false);
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative z-10 w-full max-w-lg rounded-2xl bg-white border border-border shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
+          <h2 className="text-lg font-bold text-foreground">Edit Trip</h2>
+          <button onClick={onClose} className="text-muted hover:text-foreground transition-colors cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Title */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">Trip Name</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              className="w-full rounded-xl border border-border px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full rounded-xl border border-border px-3 py-2.5 text-sm text-foreground resize-none focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100"
+              placeholder="Describe your trip..."
+            />
+          </div>
+
+          {/* Destination */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">Destination</label>
+            <input
+              type="text"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              required
+              className="w-full rounded-xl border border-border px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100"
+            />
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-xl border border-border px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full rounded-xl border border-border px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100"
+              />
+            </div>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as typeof status)}
+              className="w-full rounded-xl border border-border px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100 cursor-pointer"
+            >
+              <option value="DRAFT">Draft</option>
+              <option value="ONGOING">Active</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+
+          {/* Visibility */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">Visibility</label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setVisibility("PUBLIC")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all cursor-pointer",
+                  visibility === "PUBLIC"
+                    ? "border-accent-400 bg-accent-50 text-accent-700"
+                    : "border-border text-muted hover:border-accent-300"
+                )}
+              >
+                <Eye size={14} /> Public
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibility("PRIVATE")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all cursor-pointer",
+                  visibility === "PRIVATE"
+                    ? "border-accent-400 bg-accent-50 text-accent-700"
+                    : "border-border text-muted hover:border-accent-300"
+                )}
+              >
+                <EyeOff size={14} /> Private
+              </button>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" disabled={saving || !title.trim() || !destination.trim()}>
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ─── Main Page Component ─────────────────────────────────────────── */
 export default function TripDetailPage() {
   const params = useParams();
@@ -1367,6 +1673,7 @@ export default function TripDetailPage() {
   const [votingSettingsOpen, setVotingSettingsOpen] = useState(false);
   const [isOwnerOrEditor, setIsOwnerOrEditor] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   useEffect(() => {
     if (!tripId) return;
@@ -1655,12 +1962,16 @@ export default function TripDetailPage() {
                 <MessageSquare size={14} /> Chat
               </Button>
             </Link>
-            <Button variant="secondary" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
-              <Edit size={14} /> Edit
-            </Button>
-            <Button variant="danger" size="sm" onClick={handleDelete} className="bg-red-500/80 border-red-400/30 hover:bg-red-500">
-              <Trash2 size={14} /> Delete
-            </Button>
+            {isOwnerOrEditor && (
+              <>
+                <Button variant="secondary" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20" onClick={() => setEditModalOpen(true)}>
+                  <Edit size={14} /> Edit
+                </Button>
+                <Button variant="danger" size="sm" onClick={handleDelete} className="bg-red-500/80 border-red-400/30 hover:bg-red-500">
+                  <Trash2 size={14} /> Delete
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </motion.div>
@@ -1924,6 +2235,27 @@ export default function TripDetailPage() {
         numDays={numDays > 0 ? numDays : 5}
         onGenerate={handleAIGenerate}
       />
+
+      {/* Edit Trip Modal */}
+      <AnimatePresence>
+        {editModalOpen && (
+          <EditTripModal
+            trip={trip}
+            onClose={() => setEditModalOpen(false)}
+            onSave={async (updates) => {
+              try {
+                await tripsApi.update(tripId, updates);
+                const refreshed = await tripsApi.get(tripId);
+                setTrip(refreshed);
+                setEditModalOpen(false);
+                addToast("Trip updated!", "success");
+              } catch {
+                addToast("Failed to update trip", "error");
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Invite Modal */}
       <AnimatePresence>

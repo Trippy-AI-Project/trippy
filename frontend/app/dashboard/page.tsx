@@ -26,7 +26,6 @@ const STATUS_TABS = [
   { key: "", label: "All trips" },
   { key: "MY", label: "My trips" },
   { key: "DRAFT", label: "Drafts" },
-  { key: "PLANNED", label: "Planned" },
   { key: "ONGOING", label: "Active" },
   { key: "COMPLETED", label: "Completed" },
 ] as const;
