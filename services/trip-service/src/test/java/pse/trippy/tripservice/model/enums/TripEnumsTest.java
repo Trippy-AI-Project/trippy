@@ -88,10 +88,11 @@ class TripEnumsTest {
     // =========================================================================
 
     @Test
-    @DisplayName("ParticipantStatus has exactly five values")
+    @DisplayName("ParticipantStatus has exactly six values")
     void participantStatusHasFiveValues() {
         assertThat(ParticipantStatus.values()).containsExactlyInAnyOrder(
-                ParticipantStatus.PENDING, ParticipantStatus.INVITED,
+                ParticipantStatus.PENDING, ParticipantStatus.PENDING_APPROVAL,
+                ParticipantStatus.INVITED,
                 ParticipantStatus.ACCEPTED, ParticipantStatus.DECLINED,
                 ParticipantStatus.LEFT);
     }
@@ -100,6 +101,7 @@ class TripEnumsTest {
     @DisplayName("ParticipantStatus.valueOf returns correct constants")
     void participantStatusValueOf() {
         assertThat(ParticipantStatus.valueOf("PENDING")).isEqualTo(ParticipantStatus.PENDING);
+        assertThat(ParticipantStatus.valueOf("PENDING_APPROVAL")).isEqualTo(ParticipantStatus.PENDING_APPROVAL);
         assertThat(ParticipantStatus.valueOf("INVITED")).isEqualTo(ParticipantStatus.INVITED);
         assertThat(ParticipantStatus.valueOf("ACCEPTED")).isEqualTo(ParticipantStatus.ACCEPTED);
         assertThat(ParticipantStatus.valueOf("DECLINED")).isEqualTo(ParticipantStatus.DECLINED);

@@ -19,6 +19,7 @@ import pse.trippy.tripservice.model.entity.Participant;
 import pse.trippy.tripservice.model.entity.Trip;
 import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
+import pse.trippy.tripservice.model.enums.TripVisibility;
 import pse.trippy.tripservice.repository.ParticipantRepository;
 import pse.trippy.tripservice.repository.TripRepository;
 
@@ -366,6 +367,223 @@ class ParticipantServiceTest {
 
             assertThatThrownBy(() -> participantService.listParticipants(TRIP_ID, INVITEE_ID))
                     .isInstanceOf(TripNotFoundException.class);
+        }
+    }
+
+    // =========================================================================
+    // requestJoin
+    // =========================================================================
+
+    @Nested
+    @DisplayName("requestJoin")
+    class RequestJoin {
+
+        @BeforeEach
+        void makePublic() {
+            trip.setVisibility(TripVisibility.PUBLIC);
+        }
+
+        @Test
+        @DisplayName("user can request to join a public trip")
+        void canRequestJoin() {
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(false);
+            when(participantRepository.countByTripIdAndStatusIn(eq(TRIP_ID), any(Collection.class))).thenReturn(1L);
+            when(participantRepository.save(any(Participant.class))).thenAnswer(invocation -> {
+                Participant p = invocation.getArgument(0);
+                p.setId(UUID.randomUUID());
+                return p;
+            });
+            when(participantRepository.findByTripId(TRIP_ID)).thenReturn(List.of(ownerParticipant()));
+
+            ParticipantActionResponse response = participantService.requestJoin(TRIP_ID, INVITEE_ID);
+
+            assertThat(response.message()).contains("request to join");
+            assertThat(response.participant().status()).isEqualTo("PENDING_APPROVAL");
+            assertThat(response.participant().role()).isEqualTo("MEMBER");
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE),
+                    eq("trip.participant.join_requested"), any(java.util.Map.class));
+        }
+
+        @Test
+        @DisplayName("throws for non-public trip")
+        void throwsForPrivateTrip() {
+            trip.setVisibility(TripVisibility.PRIVATE);
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+
+            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessageContaining("not public");
+        }
+
+        @Test
+        @DisplayName("throws when already a participant")
+        void throwsWhenAlreadyParticipant() {
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(true);
+
+            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID))
+                    .isInstanceOf(InvalidTripDataException.class)
+                    .hasMessageContaining("already a participant");
+        }
+
+        @Test
+        @DisplayName("throws when max participants reached")
+        void throwsWhenMaxReached() {
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(false);
+            when(participantRepository.countByTripIdAndStatusIn(eq(TRIP_ID), any(Collection.class))).thenReturn(20L);
+
+            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID))
+                    .isInstanceOf(InvalidTripDataException.class)
+                    .hasMessageContaining("maximum");
+        }
+    }
+
+    // =========================================================================
+    // approveInvite
+    // =========================================================================
+
+    @Nested
+    @DisplayName("approveInvite")
+    class ApproveInvite {
+
+        @Test
+        @DisplayName("owner can approve a pending join request")
+        void ownerCanApprove() {
+            Participant pending = Participant.builder()
+                    .trip(trip).userId(INVITEE_ID)
+                    .role(ParticipantRole.MEMBER)
+                    .status(ParticipantStatus.PENDING_APPROVAL)
+                    .build();
+            pending.setId(UUID.randomUUID());
+
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, OWNER_ID))
+                    .thenReturn(Optional.of(ownerParticipant()));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, INVITEE_ID))
+                    .thenReturn(Optional.of(pending));
+            when(participantRepository.save(any(Participant.class))).thenAnswer(i -> i.getArgument(0));
+
+            ParticipantActionResponse response = participantService.approveInvite(TRIP_ID, INVITEE_ID, OWNER_ID);
+
+            assertThat(response.message()).contains("approved");
+            assertThat(response.participant().status()).isEqualTo("ACCEPTED");
+            assertThat(response.participant().joinedAt()).isNotNull();
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE),
+                    eq("trip.participant.approved"), any(java.util.Map.class));
+        }
+
+        @Test
+        @DisplayName("non-owner cannot approve")
+        void nonOwnerCannotApprove() {
+            UUID nonOwner = UUID.randomUUID();
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, nonOwner))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> participantService.approveInvite(TRIP_ID, INVITEE_ID, nonOwner))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessageContaining("owner");
+        }
+
+        @Test
+        @DisplayName("throws when invite is not PENDING_APPROVAL")
+        void throwsWhenNotPending() {
+            Participant accepted = acceptedMember();
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, OWNER_ID))
+                    .thenReturn(Optional.of(ownerParticipant()));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, INVITEE_ID))
+                    .thenReturn(Optional.of(accepted));
+
+            assertThatThrownBy(() -> participantService.approveInvite(TRIP_ID, INVITEE_ID, OWNER_ID))
+                    .isInstanceOf(InvalidTripDataException.class)
+                    .hasMessageContaining("not pending");
+        }
+    }
+
+    // =========================================================================
+    // rejectInvite
+    // =========================================================================
+
+    @Nested
+    @DisplayName("rejectInvite")
+    class RejectInvite {
+
+        @Test
+        @DisplayName("owner can reject a pending join request")
+        void ownerCanReject() {
+            Participant pending = Participant.builder()
+                    .trip(trip).userId(INVITEE_ID)
+                    .role(ParticipantRole.MEMBER)
+                    .status(ParticipantStatus.PENDING_APPROVAL)
+                    .build();
+            pending.setId(UUID.randomUUID());
+
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, OWNER_ID))
+                    .thenReturn(Optional.of(ownerParticipant()));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, INVITEE_ID))
+                    .thenReturn(Optional.of(pending));
+
+            ParticipantActionResponse response = participantService.rejectInvite(TRIP_ID, INVITEE_ID, OWNER_ID);
+
+            assertThat(response.message()).contains("rejected");
+            assertThat(response.participant()).isNull();
+            verify(participantRepository).delete(pending);
+        }
+
+        @Test
+        @DisplayName("throws when invite is not PENDING_APPROVAL")
+        void throwsWhenNotPending() {
+            Participant accepted = acceptedMember();
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, OWNER_ID))
+                    .thenReturn(Optional.of(ownerParticipant()));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, INVITEE_ID))
+                    .thenReturn(Optional.of(accepted));
+
+            assertThatThrownBy(() -> participantService.rejectInvite(TRIP_ID, INVITEE_ID, OWNER_ID))
+                    .isInstanceOf(InvalidTripDataException.class)
+                    .hasMessageContaining("not pending");
+        }
+
+        @Test
+        @DisplayName("non-owner cannot reject")
+        void nonOwnerCannotReject() {
+            UUID nonOwner = UUID.randomUUID();
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, nonOwner))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> participantService.rejectInvite(TRIP_ID, INVITEE_ID, nonOwner))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessageContaining("owner");
+        }
+    }
+
+    // =========================================================================
+    // listParticipants on public trips
+    // =========================================================================
+
+    @Nested
+    @DisplayName("listParticipants (public trip)")
+    class ListParticipantsPublicTrip {
+
+        @Test
+        @DisplayName("anyone can list participants of a public trip")
+        void publicTripAllowsAll() {
+            trip.setVisibility(TripVisibility.PUBLIC);
+            UUID randomUser = UUID.randomUUID();
+            Participant owner = ownerParticipant();
+
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripId(TRIP_ID)).thenReturn(List.of(owner));
+
+            List<ParticipantResponse> result = participantService.listParticipants(TRIP_ID, randomUser);
+
+            assertThat(result).hasSize(1);
         }
     }
 }

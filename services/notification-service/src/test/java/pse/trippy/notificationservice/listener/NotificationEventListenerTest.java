@@ -405,8 +405,7 @@ class NotificationEventListenerTest {
     void tripParticipantJoinedIsIgnoredWithoutRecipientContext() {
         Map<String, Object> payload = Map.of(
                 "eventType", "trip.participant.joined",
-                "tripId", "223e4567-e89b-12d3-a456-426614174000",
-                "userId", "123e4567-e89b-12d3-a456-426614174000");
+                "tripId", "223e4567-e89b-12d3-a456-426614174000");
 
         listener.handleEvent(payload, "trip.participant.joined");
 
