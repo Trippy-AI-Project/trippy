@@ -98,8 +98,12 @@ public class VotingService {
     public List<VoteSummaryResponse> updateVotingSettings(UUID tripId, VotingSettingsRequest request, UUID userId) {
         ensureOwnerOrEditor(tripId, userId);
 
-        Itinerary itinerary = itineraryRepository.findByTripId(tripId)
+        tripRepository.findById(tripId)
                 .orElseThrow(() -> new TripNotFoundException(tripId));
+
+        Itinerary itinerary = itineraryRepository.findByTripId(tripId)
+                .orElseThrow(() -> new InvalidTripDataException(
+                        "No itinerary exists for this trip. Save the itinerary first."));
 
         List<DayPlan> dayPlans = dayPlanRepository.findByItineraryIdOrderByDayNumberAsc(itinerary.getId());
 
@@ -121,8 +125,13 @@ public class VotingService {
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private DayPlan findDayPlan(UUID tripId, int dayNumber) {
-        Itinerary itinerary = itineraryRepository.findByTripId(tripId)
+        // Verify trip exists first
+        tripRepository.findById(tripId)
                 .orElseThrow(() -> new TripNotFoundException(tripId));
+
+        Itinerary itinerary = itineraryRepository.findByTripId(tripId)
+                .orElseThrow(() -> new InvalidTripDataException(
+                        "No itinerary exists for this trip. Save the itinerary first."));
 
         return dayPlanRepository.findByItineraryIdAndDayNumber(itinerary.getId(), dayNumber)
                 .orElseThrow(() -> new InvalidTripDataException("Day " + dayNumber + " not found"));

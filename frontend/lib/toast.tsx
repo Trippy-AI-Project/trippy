@@ -8,9 +8,9 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
-import { CheckCircle, XCircle, Info, X } from "lucide-react";
+import { CheckCircle, XCircle, Info, AlertTriangle, X } from "lucide-react";
 
-type ToastType = "success" | "error" | "info";
+type ToastType = "success" | "error" | "info" | "warning";
 
 interface Toast {
   id: number;
@@ -44,6 +44,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     success: <CheckCircle size={16} className="text-green-400" />,
     error: <XCircle size={16} className="text-red-400" />,
     info: <Info size={16} className="text-trippy-400" />,
+    warning: <AlertTriangle size={16} className="text-amber-400" />,
   };
 
   return (

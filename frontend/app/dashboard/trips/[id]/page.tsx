@@ -908,7 +908,16 @@ function VotingSettingsPanel({
     currentDeadline ? new Date(currentDeadline).toISOString().slice(0, 16) : ""
   );
 
+  // Check if itinerary has been saved to backend (temp IDs start with "day-" or "ai-")
+  const itinerarySaved = itineraryDays.length > 0 &&
+    !itineraryDays[0].dayPlanId.startsWith("day-") &&
+    !itineraryDays[0].dayPlanId.startsWith("ai-");
+
   async function toggleVoting(enable: boolean) {
+    if (!itinerarySaved) {
+      addToast("Save the itinerary first before enabling voting", "warning");
+      return;
+    }
     setSaving(true);
     try {
       const deadlineVal = deadline ? new Date(deadline).toISOString() : undefined;
@@ -917,8 +926,9 @@ function VotingSettingsPanel({
       const result = await itineraryApi.get(tripId);
       onUpdate(result.days);
       addToast(enable ? "Voting enabled for all days" : "Voting disabled", "success");
-    } catch {
-      addToast("Failed to update voting settings", "error");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to update voting settings";
+      addToast(msg, "error");
     } finally {
       setSaving(false);
     }
@@ -926,6 +936,10 @@ function VotingSettingsPanel({
 
   async function updateDeadline() {
     if (!deadline) return;
+    if (!itinerarySaved) {
+      addToast("Save the itinerary first before setting a deadline", "warning");
+      return;
+    }
     setSaving(true);
     try {
       const deadlineVal = new Date(deadline).toISOString();
@@ -933,8 +947,9 @@ function VotingSettingsPanel({
       const result = await itineraryApi.get(tripId);
       onUpdate(result.days);
       addToast("Voting deadline updated", "success");
-    } catch {
-      addToast("Failed to update deadline", "error");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to update deadline";
+      addToast(msg, "error");
     } finally {
       setSaving(false);
     }
@@ -959,6 +974,14 @@ function VotingSettingsPanel({
         </div>
 
         <div className="space-y-4">
+          {/* Unsaved warning */}
+          {!itinerarySaved && (
+            <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <Save size={12} className="text-amber-500 mt-0.5 shrink-0" />
+              <p>Save the itinerary first before enabling voting. Voting requires persisted day plans.</p>
+            </div>
+          )}
+
           {/* Toggle voting */}
           <div className="flex items-center justify-between rounded-xl bg-shore-50 border border-border/60 p-4">
             <div>
@@ -1175,13 +1198,16 @@ export default function TripDetailPage() {
             const timeParts = (a.time ?? "").split("-").map((s) => s.trim());
             const startTime = timeParts[0] || a.startTime || undefined;
             const endTime = timeParts[1] || a.endTime || undefined;
+            // Map frontend "default" category to backend "OTHER"
+            const rawCat = (a.category ?? "OTHER").toUpperCase();
+            const category = rawCat === "DEFAULT" ? "OTHER" : rawCat;
             return {
               title: a.title || "Untitled activity",
               description: a.description || undefined,
               location: a.location || undefined,
               startTime,
               endTime,
-              category: (a.category ?? "OTHER").toUpperCase(),
+              category,
               notes: undefined,
             };
           }),

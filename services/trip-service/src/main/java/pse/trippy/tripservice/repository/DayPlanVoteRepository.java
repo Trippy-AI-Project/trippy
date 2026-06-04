@@ -1,6 +1,7 @@
 package pse.trippy.tripservice.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 import pse.trippy.tripservice.model.entity.DayPlanVote;
 import pse.trippy.tripservice.model.enums.VoteType;
@@ -18,7 +19,9 @@ public interface DayPlanVoteRepository extends JpaRepository<DayPlanVote, UUID> 
 
     long countByDayPlanIdAndVoteType(UUID dayPlanId, VoteType voteType);
 
+    @Modifying
     void deleteByDayPlanIdAndUserId(UUID dayPlanId, UUID userId);
 
+    @Modifying
     void deleteAllByDayPlanId(UUID dayPlanId);
 }

@@ -57,7 +57,8 @@ public class ItineraryService {
     @Transactional
     public ItineraryResponse updateItinerary(UUID tripId, UpdateItineraryRequest request, UUID userId) {
         Trip trip = findTripOrThrow(tripId);
-        ensureOwnerOrEditor(tripId, userId);
+        // All accepted participants can contribute to the itinerary
+        ensureParticipant(tripId, userId);
 
         // Find or create itinerary
         Itinerary itinerary = itineraryRepository.findByTripId(tripId)
@@ -140,10 +141,17 @@ public class ItineraryService {
         if (category == null) {
             return ActivityCategory.OTHER;
         }
+        String normalized = category.toUpperCase();
+        // Map common frontend aliases
+        if ("DEFAULT".equals(normalized) || "MORNING".equals(normalized)
+                || "EVENING".equals(normalized) || "BREAKFAST".equals(normalized)
+                || "LUNCH".equals(normalized) || "DINNER".equals(normalized)) {
+            return ActivityCategory.OTHER;
+        }
         try {
-            return ActivityCategory.valueOf(category.toUpperCase());
+            return ActivityCategory.valueOf(normalized);
         } catch (IllegalArgumentException e) {
-            throw new InvalidTripDataException("Invalid activity category: " + category);
+            return ActivityCategory.OTHER;
         }
     }
 

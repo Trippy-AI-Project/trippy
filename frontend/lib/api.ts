@@ -28,6 +28,36 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_KEY);
 }
 
+/** Decode JWT payload without verification (claims are already server-validated). */
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(json);
+  } catch {
+    return {};
+  }
+}
+
+/** Extract UserProfile from JWT access token claims. */
+export function getUserFromToken(token: string): UserProfile | null {
+  const claims = decodeJwtPayload(token);
+  if (!claims.sub) return null;
+  return {
+    userId: claims.sub as string,
+    email: (claims.email as string) ?? "",
+    displayName: (claims.displayName as string) ?? "",
+    role: (claims.role as UserProfile["role"]) ?? "MEMBER",
+    emailVerified: (claims.emailVerified as boolean) ?? false,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Generic fetch wrapper                                              */
 /* ------------------------------------------------------------------ */
@@ -184,16 +214,34 @@ export async function logout(): Promise<void> {
   clearTokens();
 }
 
+interface TokenRefreshResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
 export async function refreshAccessToken(): Promise<LoginResponse> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) throw new Error("No refresh token");
 
-  const data = await request<LoginResponse>("/auth/refresh", {
+  const data = await request<TokenRefreshResponse>("/auth/refresh", {
     method: "POST",
     body: JSON.stringify({ refreshToken }),
   });
   setTokens(data.accessToken, data.refreshToken);
-  return data;
+
+  // Backend refresh endpoint returns tokens only (no user field).
+  // Extract user profile from the JWT claims.
+  const user = getUserFromToken(data.accessToken);
+  if (!user) throw new Error("Invalid token payload");
+
+  return {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresIn: data.expiresIn,
+    tokenType: "Bearer",
+    user,
+  };
 }
 
 /* ------------------------------------------------------------------ */

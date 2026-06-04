@@ -37,30 +37,85 @@ public class ParticipantService {
     public ParticipantActionResponse inviteParticipant(UUID tripId, InviteParticipantRequest request, UUID inviterId) {
         log.info("Inviting user {} to trip {} by inviter {}", request.userId(), tripId, inviterId);
         Trip trip = findTripOrThrow(tripId);
-        ensureOwner(tripId, inviterId);
+
+        // Any accepted participant can propose an invite
+        Participant inviter = participantRepository.findByTripIdAndUserId(tripId, inviterId)
+                .filter(p -> p.getStatus() == ParticipantStatus.ACCEPTED)
+                .orElseThrow(() -> new ForbiddenException("You are not a participant of this trip"));
 
         if (participantRepository.existsByTripIdAndUserId(tripId, request.userId())) {
             throw new InvalidTripDataException("User is already a participant of this trip");
         }
 
         long currentCount = participantRepository.countByTripIdAndStatusIn(
-                tripId, List.of(ParticipantStatus.INVITED, ParticipantStatus.ACCEPTED));
+                tripId, List.of(ParticipantStatus.INVITED, ParticipantStatus.ACCEPTED, ParticipantStatus.PENDING_APPROVAL));
         if (currentCount >= trip.getMaxParticipants()) {
             throw new InvalidTripDataException("Trip has reached maximum number of participants");
         }
+
+        // If inviter is owner/editor, directly invite. Otherwise, needs owner approval.
+        boolean directInvite = inviter.getRole() == ParticipantRole.OWNER
+                || inviter.getRole() == ParticipantRole.EDITOR;
 
         Participant participant = Participant.builder()
                 .trip(trip)
                 .userId(request.userId())
                 .role(ParticipantRole.MEMBER)
-                .status(ParticipantStatus.INVITED)
+                .status(directInvite ? ParticipantStatus.INVITED : ParticipantStatus.PENDING_APPROVAL)
                 .build();
         participant = participantRepository.save(participant);
 
-        log.info("User {} invited to trip {} successfully", request.userId(), tripId);
-        publishEvent("trip.participant.invited", tripId, request.userId());
+        if (directInvite) {
+            log.info("User {} invited to trip {} directly by owner/editor", request.userId(), tripId);
+            publishEvent("trip.participant.invited", tripId, request.userId());
+            return new ParticipantActionResponse("Participant invited successfully", toResponse(participant));
+        } else {
+            log.info("User {} invite proposed for trip {} — awaiting owner approval", request.userId(), tripId);
+            publishEvent("trip.participant.invite_proposed", tripId, request.userId());
+            return new ParticipantActionResponse("Invite proposed — awaiting owner approval", toResponse(participant));
+        }
+    }
 
-        return new ParticipantActionResponse("Participant invited successfully", toResponse(participant));
+    @Transactional
+    public ParticipantActionResponse approveInvite(UUID tripId, UUID targetUserId, UUID approverId) {
+        log.info("Owner {} approving invite of user {} for trip {}", approverId, targetUserId, tripId);
+        findTripOrThrow(tripId);
+        ensureOwner(tripId, approverId);
+
+        Participant participant = participantRepository.findByTripIdAndUserId(tripId, targetUserId)
+                .orElseThrow(() -> new InvalidTripDataException("No pending invite found for this user"));
+
+        if (participant.getStatus() != ParticipantStatus.PENDING_APPROVAL) {
+            throw new InvalidTripDataException("Invite is not pending approval");
+        }
+
+        participant.setStatus(ParticipantStatus.INVITED);
+        participant = participantRepository.save(participant);
+
+        log.info("Invite approved for user {} on trip {}", targetUserId, tripId);
+        publishEvent("trip.participant.invited", tripId, targetUserId);
+
+        return new ParticipantActionResponse("Invite approved successfully", toResponse(participant));
+    }
+
+    @Transactional
+    public ParticipantActionResponse rejectInvite(UUID tripId, UUID targetUserId, UUID rejecterId) {
+        log.info("Owner {} rejecting invite of user {} for trip {}", rejecterId, targetUserId, tripId);
+        findTripOrThrow(tripId);
+        ensureOwner(tripId, rejecterId);
+
+        Participant participant = participantRepository.findByTripIdAndUserId(tripId, targetUserId)
+                .orElseThrow(() -> new InvalidTripDataException("No pending invite found for this user"));
+
+        if (participant.getStatus() != ParticipantStatus.PENDING_APPROVAL) {
+            throw new InvalidTripDataException("Invite is not pending approval");
+        }
+
+        participantRepository.delete(participant);
+
+        log.info("Invite rejected for user {} on trip {}", targetUserId, tripId);
+
+        return new ParticipantActionResponse("Invite rejected", null);
     }
 
     @Transactional
