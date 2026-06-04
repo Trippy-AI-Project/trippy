@@ -77,6 +77,15 @@ public class ParticipantController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/request-join")
+    public ResponseEntity<ParticipantActionResponse> requestJoin(
+            @PathVariable UUID tripId,
+            @RequestHeader("X-User-Id") UUID userId) {
+        log.info("POST /trips/{}/participants/request-join — user={}", tripId, userId);
+        ParticipantActionResponse response = participantService.requestJoin(tripId, userId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
     @DeleteMapping("/leave")
     public ResponseEntity<Void> leave(
             @PathVariable UUID tripId,

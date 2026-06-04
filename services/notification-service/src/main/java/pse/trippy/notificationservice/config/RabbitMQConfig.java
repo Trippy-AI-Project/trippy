@@ -28,6 +28,8 @@ public class RabbitMQConfig {
     public static final String ROUTING_ITINERARY_READY = "ai.itinerary.ready";
     public static final String ROUTING_ITINERARY_GENERATED = "ai.itinerary.generated";
     public static final String ROUTING_SYSTEM_NOTIFICATION = "system.notification";
+    public static final String ROUTING_JOIN_REQUESTED = "trip.participant.join_requested";
+    public static final String ROUTING_INVITE_PROPOSED = "trip.participant.invite_proposed";
 
     @Bean
     public TopicExchange trippyExchange() {
@@ -122,6 +124,20 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(notificationQueue)
                 .to(trippyExchange)
                 .with(ROUTING_SYSTEM_NOTIFICATION);
+    }
+
+    @Bean
+    public Binding joinRequestedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_JOIN_REQUESTED);
+    }
+
+    @Bean
+    public Binding inviteProposedBinding(Queue notificationQueue, TopicExchange trippyExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(trippyExchange)
+                .with(ROUTING_INVITE_PROPOSED);
     }
 
     @Bean

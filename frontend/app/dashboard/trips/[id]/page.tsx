@@ -712,63 +712,69 @@ function DayCard({
       )}
     >
       {/* Day header */}
-      <button
-        onClick={onToggle}
-        className="flex w-full items-center gap-4 p-5 text-left cursor-pointer"
-      >
+      <div className="p-5">
         <div
-          className={cn(
-            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl font-bold text-lg transition-colors",
-            expanded
-              ? "bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow-md shadow-accent-500/20"
-              : "bg-shore-100 text-muted"
-          )}
+          role="button"
+          tabIndex={0}
+          onClick={onToggle}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(); }}
+          className="flex w-full items-center gap-4 text-left cursor-pointer"
         >
-          {day.dayNumber}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={day.title ?? ""}
-              onChange={(e) => {
-                e.stopPropagation();
-                onUpdateDay({ ...day, title: e.target.value });
-              }}
-              onClick={(e) => e.stopPropagation()}
-              placeholder={`Day ${day.dayNumber} — Give it a title`}
-              className={cn(
-                "flex-1 bg-transparent text-sm font-bold placeholder:text-muted/50 focus:outline-none",
-                expanded ? "text-foreground" : "text-foreground"
+          <div
+            className={cn(
+              "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl font-bold text-lg transition-colors",
+              expanded
+                ? "bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow-md shadow-accent-500/20"
+                : "bg-shore-100 text-muted"
+            )}
+          >
+            {day.dayNumber}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={day.title ?? ""}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onUpdateDay({ ...day, title: e.target.value });
+                }}
+                onClick={(e) => e.stopPropagation()}
+                placeholder={`Day ${day.dayNumber} — Give it a title`}
+                className={cn(
+                  "flex-1 bg-transparent text-sm font-bold placeholder:text-muted/50 focus:outline-none",
+                  expanded ? "text-foreground" : "text-foreground"
+                )}
+              />
+            </div>
+            <div className="flex items-center gap-3 mt-0.5">
+              {dayDate && (
+                <span className="text-[11px] text-muted flex items-center gap-1">
+                  <Calendar size={10} /> {dayDate}
+                </span>
               )}
-            />
-          </div>
-          <div className="flex items-center gap-3 mt-0.5">
-            {dayDate && (
-              <span className="text-[11px] text-muted flex items-center gap-1">
-                <Calendar size={10} /> {dayDate}
+              <span className="text-[11px] text-muted">
+                {day.activities.length} activit{day.activities.length !== 1 ? "ies" : "y"}
               </span>
-            )}
-            <span className="text-[11px] text-muted">
-              {day.activities.length} activit{day.activities.length !== 1 ? "ies" : "y"}
-            </span>
-            {totalCost > 0 && (
-              <span className="text-[11px] text-accent-600 font-medium flex items-center gap-0.5">
-                <DollarSign size={9} /> ~{currencies.find((c) => c.code === currency)?.symbol ?? "$"}{totalCost.toFixed(0)}
-              </span>
-            )}
+              {totalCost > 0 && (
+                <span className="text-[11px] text-accent-600 font-medium flex items-center gap-0.5">
+                  <DollarSign size={9} /> ~{currencies.find((c) => c.code === currency)?.symbol ?? "$"}{totalCost.toFixed(0)}
+                </span>
+              )}
+            </div>
           </div>
-          <VotingBar day={day} tripId={tripId} onVoteUpdate={onVoteUpdate} />
+          <div
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-xl transition-colors",
+              expanded ? "bg-accent-100 text-accent-600" : "bg-shore-100 text-muted"
+            )}
+          >
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
         </div>
-        <div
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-xl transition-colors",
-            expanded ? "bg-accent-100 text-accent-600" : "bg-shore-100 text-muted"
-          )}
-        >
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
-      </button>
+        {/* Voting bar - outside the toggle to avoid button-in-button */}
+        <VotingBar day={day} tripId={tripId} onVoteUpdate={onVoteUpdate} />
+      </div>
 
       {/* Day content */}
       <AnimatePresence initial={false}>

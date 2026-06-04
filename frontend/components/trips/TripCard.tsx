@@ -17,6 +17,8 @@ interface TripCardProps {
   status: "DRAFT" | "PLANNED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
   participantCount: number;
   coverImageUrl?: string | null;
+  onJoin?: () => void;
+  joinLoading?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -97,6 +99,8 @@ export default function TripCard({
   status,
   participantCount,
   coverImageUrl,
+  onJoin,
+  joinLoading,
 }: TripCardProps) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.DRAFT;
 
@@ -188,6 +192,17 @@ export default function TripCard({
             </span>
           </div>
         </div>
+
+        {/* Join button for public trips */}
+        {onJoin && (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onJoin(); }}
+            disabled={joinLoading}
+            className="w-full rounded-lg bg-accent-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {joinLoading ? "Sending request…" : "Join Trip"}
+          </button>
+        )}
 
         {/* Bottom accent line */}
         <div className="relative h-0.5 w-full overflow-hidden rounded-full bg-border">

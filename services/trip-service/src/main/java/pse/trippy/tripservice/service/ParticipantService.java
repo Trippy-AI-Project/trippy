@@ -17,11 +17,14 @@ import pse.trippy.tripservice.model.entity.Participant;
 import pse.trippy.tripservice.model.entity.Trip;
 import pse.trippy.tripservice.model.enums.ParticipantRole;
 import pse.trippy.tripservice.model.enums.ParticipantStatus;
+import pse.trippy.tripservice.model.enums.TripVisibility;
 import pse.trippy.tripservice.repository.ParticipantRepository;
 import pse.trippy.tripservice.repository.TripRepository;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -71,7 +74,7 @@ public class ParticipantService {
             return new ParticipantActionResponse("Participant invited successfully", toResponse(participant));
         } else {
             log.info("User {} invite proposed for trip {} — awaiting owner approval", request.userId(), tripId);
-            publishEvent("trip.participant.invite_proposed", tripId, request.userId());
+            publishInviteProposedEvent(trip, request.userId(), inviterId);
             return new ParticipantActionResponse("Invite proposed — awaiting owner approval", toResponse(participant));
         }
     }
@@ -162,6 +165,43 @@ public class ParticipantService {
     }
 
     @Transactional
+    public ParticipantActionResponse requestJoin(UUID tripId, UUID userId) {
+        log.info("User {} requesting to join public trip {}", userId, tripId);
+        Trip trip = findTripOrThrow(tripId);
+
+        if (trip.getVisibility() != TripVisibility.PUBLIC) {
+            throw new ForbiddenException("This trip is not public. You can only join public trips.");
+        }
+
+        if (participantRepository.existsByTripIdAndUserId(tripId, userId)) {
+            throw new InvalidTripDataException("You are already a participant or have a pending request for this trip");
+        }
+
+        long currentCount = participantRepository.countByTripIdAndStatusIn(
+                tripId, List.of(ParticipantStatus.INVITED, ParticipantStatus.ACCEPTED, ParticipantStatus.PENDING_APPROVAL));
+        if (currentCount >= trip.getMaxParticipants()) {
+            throw new InvalidTripDataException("Trip has reached maximum number of participants");
+        }
+
+        Participant participant = Participant.builder()
+                .trip(trip)
+                .userId(userId)
+                .role(ParticipantRole.MEMBER)
+                .status(ParticipantStatus.PENDING_APPROVAL)
+                .build();
+        participant = participantRepository.save(participant);
+
+        log.info("User {} join request created for trip {} — awaiting owner approval", userId, tripId);
+
+        // Notify the trip owner about the join request
+        publishJoinRequestEvent(trip, userId);
+
+        return new ParticipantActionResponse(
+                "Your request to join has been sent. The trip owner needs to approve it.",
+                toResponse(participant));
+    }
+
+    @Transactional
     public void leaveTrip(UUID tripId, UUID userId) {
         log.info("User {} leaving trip {}", userId, tripId);
         findTripOrThrow(tripId);
@@ -220,5 +260,43 @@ public class ParticipantService {
     private void publishEvent(String routingKey, UUID tripId, UUID userId) {
         ParticipantEvent event = new ParticipantEvent(routingKey, tripId, userId, Instant.now());
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, routingKey, event);
+    }
+
+    private void publishJoinRequestEvent(Trip trip, UUID requesterId) {
+        // Find the trip owner
+        Participant owner = participantRepository.findByTripId(trip.getId()).stream()
+                .filter(p -> p.getRole() == ParticipantRole.OWNER)
+                .findFirst()
+                .orElse(null);
+        if (owner == null) return;
+
+        Map<String, Object> event = new HashMap<>();
+        event.put("eventType", "trip.participant.join_requested");
+        event.put("tripId", trip.getId().toString());
+        event.put("tripTitle", trip.getTitle());
+        event.put("userId", owner.getUserId().toString());
+        event.put("requesterId", requesterId.toString());
+        event.put("timestamp", Instant.now().toString());
+
+        rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.join_requested", event);
+    }
+
+    private void publishInviteProposedEvent(Trip trip, UUID inviteeId, UUID inviterId) {
+        Participant owner = participantRepository.findByTripId(trip.getId()).stream()
+                .filter(p -> p.getRole() == ParticipantRole.OWNER)
+                .findFirst()
+                .orElse(null);
+        if (owner == null) return;
+
+        Map<String, Object> event = new HashMap<>();
+        event.put("eventType", "trip.participant.invite_proposed");
+        event.put("tripId", trip.getId().toString());
+        event.put("tripTitle", trip.getTitle());
+        event.put("userId", owner.getUserId().toString());
+        event.put("requesterId", inviteeId.toString());
+        event.put("inviterId", inviterId.toString());
+        event.put("timestamp", Instant.now().toString());
+
+        rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.invite_proposed", event);
     }
 }

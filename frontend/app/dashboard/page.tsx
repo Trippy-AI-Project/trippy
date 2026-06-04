@@ -17,12 +17,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button, Input } from "@/components/ui";
 import TripCard from "@/components/trips/TripCard";
 import CreateTripModal from "@/components/trips/CreateTripModal";
-import { tripsApi, type Trip, type CreateTripRequest } from "@/lib/api";
+import { tripsApi, participantsApi, type Trip, type CreateTripRequest } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast";
 import { cn, tripSlug } from "@/lib/utils";
 
 const STATUS_TABS = [
   { key: "", label: "All trips" },
+  { key: "MY", label: "My trips" },
   { key: "DRAFT", label: "Drafts" },
   { key: "PLANNED", label: "Planned" },
   { key: "ONGOING", label: "Active" },
@@ -31,6 +33,7 @@ const STATUS_TABS = [
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -41,6 +44,7 @@ export default function DashboardPage() {
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [publicTrips, setPublicTrips] = useState<Trip[]>([]);
   const [publicLoading, setPublicLoading] = useState(true);
+  const [joiningTripId, setJoiningTripId] = useState<string | null>(null);
 
   const fetchTrips = useCallback(async () => {
     setLoading(true);
@@ -82,9 +86,25 @@ export default function DashboardPage() {
     }
   }
 
-  const filteredTrips = filterStatus
-    ? trips.filter((t) => t.status === filterStatus)
-    : trips;
+  async function handleJoinTrip(tripId: string) {
+    setJoiningTripId(tripId);
+    try {
+      const res = await participantsApi.requestJoin(tripId);
+      addToast(res.message || "Join request sent! Awaiting admin approval.", "success");
+      setPublicTrips((prev) => prev.filter((t) => t.tripId !== tripId));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send join request";
+      addToast(msg, "error");
+    } finally {
+      setJoiningTripId(null);
+    }
+  }
+
+  const filteredTrips = filterStatus === "MY"
+    ? trips.filter((t) => t.organizerId === user?.userId)
+    : filterStatus
+      ? trips.filter((t) => t.status === filterStatus)
+      : trips;
 
   const tripCount = filteredTrips.length;
 
@@ -106,7 +126,7 @@ export default function DashboardPage() {
             transition={{ duration: 0.45 }}
           >
             <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-              My Trips
+              {filterStatus === "MY" ? "My Trips" : "All Trips"}
             </h1>
             <p className="mt-1.5 text-sm text-muted">
               {loading
@@ -393,6 +413,8 @@ export default function DashboardPage() {
                     }
                     participantCount={trip.participantCount}
                     coverImageUrl={trip.coverImageUrl}
+                    onJoin={() => handleJoinTrip(trip.tripId)}
+                    joinLoading={joiningTripId === trip.tripId}
                   />
                 </motion.div>
               ))}
