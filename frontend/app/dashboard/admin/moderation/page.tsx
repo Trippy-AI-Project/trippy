@@ -379,28 +379,44 @@ function UserPicker({ label, value, onChange, placeholder }: UserPickerProps) {
 
   // Debounced search
   useEffect(() => {
-    if (value) return; // already picked, no need to search
+    if (value) {
+      setOpen(false);
+      setSearching(false);
+      return;
+    }
+
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
       setError(null);
+      setOpen(false);
+      setSearching(false);
       return;
     }
-    setSearching(true);
-    setError(null);
+
+    let alive = true;
     const handle = window.setTimeout(async () => {
+      setSearching(true);
+      setError(null);
       try {
         const r = await usersApi.search(q, 8);
+        if (!alive) return;
         setResults(r);
         setOpen(true);
       } catch (e) {
-        setError((e as Error).message);
+        if (!alive) return;
+        setError(e instanceof Error ? e.message : "Unknown error");
         setResults([]);
+        setOpen(false);
       } finally {
-        setSearching(false);
+        if (alive) setSearching(false);
       }
     }, 250);
-    return () => window.clearTimeout(handle);
+
+    return () => {
+      alive = false;
+      window.clearTimeout(handle);
+    };
   }, [query, value]);
 
   // Close dropdown on outside click
