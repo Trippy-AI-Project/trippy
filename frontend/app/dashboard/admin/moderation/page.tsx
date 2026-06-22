@@ -296,8 +296,8 @@ export default function ModerationPage() {
         </GlassCard>
 
         {/* DELETE MESSAGE — messages have no human handle, keep raw ID input */}
-        <GlassCard>
-          <div className="space-y-3 p-5 md:col-span-2">
+        <GlassCard className="md:col-span-2">
+          <div className="space-y-3 p-5">
             <div className="flex items-center gap-2 text-rose-300">
               <Trash2 className="size-5" />
               <h2 className="text-lg font-semibold">Delete Message</h2>
