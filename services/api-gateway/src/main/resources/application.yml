@@ -54,6 +54,13 @@ spring:
           predicates:
             - Path=/chats/**
 
+        # Chat Moderation (ADMIN-only) - /admin/chat/**
+        # Ban/mute users, soft-delete messages. Role enforcement happens in chat-service.
+        - id: admin-chat-route
+          uri: http://localhost:8083
+          predicates:
+            - Path=/admin/chat/**
+
         # WebSocket Route
         - id: websocket-route
           uri: http://localhost:8083
