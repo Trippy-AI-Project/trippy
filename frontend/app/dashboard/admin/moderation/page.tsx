@@ -81,8 +81,9 @@ export default function ModerationPage() {
     }
     setBanState({ kind: "loading" });
     try {
-      const mins = Number.parseInt(banDuration, 10);
-      await moderationApi.banUser(banTarget.id, Number.isFinite(mins) ? mins : 0);
+      const minsRaw = Number.parseInt(banDuration, 10);
+      const mins = Number.isFinite(minsRaw) ? Math.max(0, minsRaw) : 0;
+      await moderationApi.banUser(banTarget.id, mins);
       const who = banTarget.email ?? banTarget.displayName;
       setBanState({
         kind: "success",
