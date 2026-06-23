@@ -118,8 +118,9 @@ export default function ModerationPage() {
     }
     setMuteState({ kind: "loading" });
     try {
-      const mins = Number.parseInt(muteDuration, 10);
-      await moderationApi.muteUser(muteTarget.id, Number.isFinite(mins) ? mins : 0);
+      const minsRaw = Number.parseInt(muteDuration, 10);
+      const mins = Number.isFinite(minsRaw) ? Math.max(0, minsRaw) : 0;
+      await moderationApi.muteUser(muteTarget.id, mins);
       const who = muteTarget.email ?? muteTarget.displayName;
       setMuteState({
         kind: "success",
