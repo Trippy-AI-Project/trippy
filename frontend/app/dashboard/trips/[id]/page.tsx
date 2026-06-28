@@ -1767,6 +1767,21 @@ export default function TripDetailPage() {
     }
   }
 
+  async function handleRevokeInvite(invitedUserId: string) {
+    if (!tripId) return;
+    setProcessingRequestUserId(invitedUserId);
+    try {
+      await participantsApi.reject(tripId, invitedUserId);
+      addToast("Invitation revoked.", "success");
+      await refreshTrip();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to revoke invitation";
+      addToast(msg, "error");
+    } finally {
+      setProcessingRequestUserId(null);
+    }
+  }
+
   useEffect(() => {
     if (!tripId) return;
     setLoading(true);
@@ -1831,6 +1846,9 @@ export default function TripDetailPage() {
   );
   const pendingRequests = (trip?.participants ?? []).filter(
     (p) => p.status === "PENDING_APPROVAL"
+  );
+  const pendingInvites = (trip?.participants ?? []).filter(
+    (p) => p.status === "INVITED"
   );
 
   function toggleDay(dayNumber: number) {
@@ -2258,6 +2276,67 @@ export default function TripDetailPage() {
                         Decline
                       </Button>
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+
+      {/* ─── Pending Invites Section (owner/editor only) ───────────── */}
+      {isOwnerOrEditor && pendingInvites.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.13 }}
+        >
+          <GlassCard className="!p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Users size={15} className="text-blue-500" />
+              <h3 className="text-sm font-bold text-foreground">Pending Invites</h3>
+              <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                {pendingInvites.length} invited
+              </span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {pendingInvites.map((p) => {
+                const name = p.displayName ?? "User";
+                const initials = name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const processing = processingRequestUserId === p.userId;
+                return (
+                  <div
+                    key={p.participantId}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold border-2 bg-blue-50 text-blue-600 border-blue-200">
+                        {p.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.avatarUrl} alt={name} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          initials
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-semibold text-foreground truncate max-w-[160px]">{name}</span>
+                        <span className="text-[10px] text-muted">Invitation sent — awaiting response</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="text-xs shrink-0"
+                      disabled={processing}
+                      onClick={() => handleRevokeInvite(p.userId)}
+                    >
+                      Revoke
+                    </Button>
                   </div>
                 );
               })}
