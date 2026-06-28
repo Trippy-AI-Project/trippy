@@ -2131,7 +2131,7 @@ export default function TripDetailPage() {
                   {members.length} member{members.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              {isOwnerOrEditor && (
+              {isParticipant && (
                 <Button variant="secondary" size="sm" className="text-xs" onClick={() => setInviteOpen(true)}>
                   <Plus size={12} /> Invite
                 </Button>
