@@ -1,7 +1,7 @@
 # =============================================================================
 # Trippy Platform - Production-Ready Infrastructure Docker Compose
 # =============================================================================
-# Services: PostgreSQL, Redis, RabbitMQ, SonarQube
+# Services: PostgreSQL, Redis, RabbitMQ
 #
 # Usage:
 #   cp .env.example .env  # Then edit .env with your values
@@ -184,53 +184,54 @@ services:
 
   # ===========================================================================
   # SONARQUBE - Code Quality Analysis
+  # Disabled: not needed for the current local stack.
   # ===========================================================================
-  sonarqube:
-    image: sonarqube:10.6-community
-    container_name: trippy-sonarqube
-    restart: unless-stopped
+  # sonarqube:
+  #   image: sonarqube:10.6-community
+  #   container_name: trippy-sonarqube
+  #   restart: unless-stopped
 
-    depends_on:
-      postgres:
-        condition: service_healthy
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
 
-    environment:
-      SONAR_JDBC_URL: ${SONARQUBE_JDBC_URL:-jdbc:postgresql://postgres:5432/sonarqube_db}
-      SONAR_JDBC_USERNAME: ${SONARQUBE_JDBC_USERNAME:-sonar_user}
-      SONAR_JDBC_PASSWORD: ${SONARQUBE_JDBC_PASSWORD:?SONARQUBE_JDBC_PASSWORD is required}
-      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: ${SONAR_ES_BOOTSTRAP_CHECKS_DISABLE:-true}
+  #   environment:
+  #     SONAR_JDBC_URL: ${SONARQUBE_JDBC_URL:-jdbc:postgresql://postgres:5432/sonarqube_db}
+  #     SONAR_JDBC_USERNAME: ${SONARQUBE_JDBC_USERNAME:-sonar_user}
+  #     SONAR_JDBC_PASSWORD: ${SONARQUBE_JDBC_PASSWORD:?SONARQUBE_JDBC_PASSWORD is required}
+  #     SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: ${SONAR_ES_BOOTSTRAP_CHECKS_DISABLE:-true}
 
-    volumes:
-      - sonarqube_data:/opt/sonarqube/data
-      - sonarqube_extensions:/opt/sonarqube/extensions
-      - sonarqube_logs:/opt/sonarqube/logs
+  #   volumes:
+  #     - sonarqube_data:/opt/sonarqube/data
+  #     - sonarqube_extensions:/opt/sonarqube/extensions
+  #     - sonarqube_logs:/opt/sonarqube/logs
 
-    ports:
-      - "${SONARQUBE_PORT:-9000}:9000"
+  #   ports:
+  #     - "${SONARQUBE_PORT:-9000}:9000"
 
-    networks:
-      - trippy-network
+  #   networks:
+  #     - trippy-network
 
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9000/api/system/status || exit 1"]
-      interval: ${HEALTHCHECK_INTERVAL:-30s}
-      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
-      retries: 10
-      start_period: 120s
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9000/api/system/status || exit 1"]
+  #     interval: ${HEALTHCHECK_INTERVAL:-30s}
+  #     timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+  #     retries: 10
+  #     start_period: 120s
 
-    deploy:
-      resources:
-        limits:
-          cpus: ${SONARQUBE_CPU_LIMIT:-2}
-          memory: ${SONARQUBE_MEMORY_LIMIT:-4g}
-        reservations:
-          memory: ${SONARQUBE_MEMORY_RESERVATION:-2g}
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: ${SONARQUBE_CPU_LIMIT:-2}
+  #         memory: ${SONARQUBE_MEMORY_LIMIT:-4g}
+  #       reservations:
+  #         memory: ${SONARQUBE_MEMORY_RESERVATION:-2g}
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "${LOG_MAX_SIZE:-50m}"
-        max-file: "${LOG_MAX_FILE:-5}"
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "${LOG_MAX_SIZE:-50m}"
+  #       max-file: "${LOG_MAX_FILE:-5}"
 
 
 
@@ -262,14 +263,14 @@ volumes:
     driver: local
     name: trippy-rabbitmq-data
 
-  sonarqube_data:
-    driver: local
-    name: trippy-sonarqube-data
+  # sonarqube_data:
+  #   driver: local
+  #   name: trippy-sonarqube-data
 
-  sonarqube_extensions:
-    driver: local
-    name: trippy-sonarqube-extensions
+  # sonarqube_extensions:
+  #   driver: local
+  #   name: trippy-sonarqube-extensions
 
-  sonarqube_logs:
-    driver: local
-    name: trippy-sonarqube-logs
+  # sonarqube_logs:
+  #   driver: local
+  #   name: trippy-sonarqube-logs

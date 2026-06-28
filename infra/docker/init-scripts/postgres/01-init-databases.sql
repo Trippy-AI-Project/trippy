@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Trippy Platform - Database Initialization Script
 -- =============================================================================
--- Creates isolated schemas for each microservice and the SonarQube database.
+-- Creates isolated schemas for each microservice.
 -- Executed automatically on first PostgreSQL container start.
 -- =============================================================================
 
