@@ -262,9 +262,8 @@ export default function NotificationBell() {
               notifications.map((n) => {
                 const Icon = typeIcon[n.type] ?? Bell;
                 const hasActions = isJoinRequest(n) || isInviteNotification(n);
-                const Wrapper = hasActions ? "div" : "button";
                 return (
-                  <Wrapper
+                  <div
                     key={n.id}
                     onClick={hasActions ? undefined : () => handleClickNotification(n)}
                     className={cn(
@@ -334,7 +333,7 @@ export default function NotificationBell() {
                     >
                       <Trash2 size={12} />
                     </button>
-                  </Wrapper>
+                  </div>
                 );
               })
             )}
