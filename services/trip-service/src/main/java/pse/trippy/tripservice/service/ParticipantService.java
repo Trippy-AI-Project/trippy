@@ -111,8 +111,9 @@ public class ParticipantService {
         Participant participant = participantRepository.findByTripIdAndUserId(tripId, targetUserId)
                 .orElseThrow(() -> new InvalidTripDataException("No pending invite found for this user"));
 
-        if (participant.getStatus() != ParticipantStatus.PENDING_APPROVAL) {
-            throw new InvalidTripDataException("Invite is not pending approval");
+        if (participant.getStatus() != ParticipantStatus.PENDING_APPROVAL
+                && participant.getStatus() != ParticipantStatus.INVITED) {
+            throw new InvalidTripDataException("Participant is not in a pending or invited state");
         }
 
         participantRepository.delete(participant);
