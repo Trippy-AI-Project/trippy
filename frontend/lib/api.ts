@@ -484,8 +484,8 @@ export const tripsApi = {
 /* ------------------------------------------------------------------ */
 
 export const participantsApi = {
-  invite: (tripId: string, userId: string, email?: string, message?: string) =>
-    api.post<{ message: string; participant?: unknown }>(`/trips/${tripId}/participants/invite`, { userId, email, message }),
+  invite: (tripId: string, userId: string, email?: string, message?: string, inviterName?: string) =>
+    api.post<{ message: string; participant?: unknown }>(`/trips/${tripId}/participants/invite`, { userId, email, message, inviterName }),
   approve: (tripId: string, userId: string) =>
     api.post<{ message: string }>(`/trips/${tripId}/participants/approve`, { userId }),
   reject: (tripId: string, userId: string) =>

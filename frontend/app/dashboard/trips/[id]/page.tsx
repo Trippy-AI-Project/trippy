@@ -1331,11 +1331,13 @@ function InviteModal({
   existingParticipantIds,
   onClose,
   onInvited,
+  currentUserName,
 }: {
   tripId: string;
   existingParticipantIds: string[];
   onClose: () => void;
   onInvited: () => void;
+  currentUserName: string;
 }) {
   const { addToast } = useToast();
   const [query, setQuery] = useState("");
@@ -1343,6 +1345,7 @@ function InviteModal({
   const [searching, setSearching] = useState(false);
   const [inviting, setInviting] = useState<string | null>(null);
   const [invited, setInvited] = useState<Set<string>>(new Set());
+  const [inviteMessage, setInviteMessage] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   function handleSearch(value: string) {
@@ -1369,7 +1372,13 @@ function InviteModal({
   async function handleInvite(userId: string, email?: string) {
     setInviting(userId);
     try {
-      await participantsApi.invite(tripId, userId, email);
+      await participantsApi.invite(
+        tripId,
+        userId,
+        email,
+        inviteMessage.trim() || undefined,
+        currentUserName || undefined,
+      );
       setInvited((prev) => new Set([...prev, userId]));
       addToast("Invitation sent!", "success");
       onInvited();
@@ -1406,7 +1415,7 @@ function InviteModal({
         </div>
 
         {/* Search input */}
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 space-y-3">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
@@ -1421,6 +1430,14 @@ function InviteModal({
               <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-accent-500" />
             )}
           </div>
+          <textarea
+            value={inviteMessage}
+            onChange={(e) => setInviteMessage(e.target.value)}
+            placeholder="Add a message (optional)..."
+            rows={2}
+            maxLength={300}
+            className="w-full rounded-xl border border-border bg-shore-50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100 transition-colors resize-none"
+          />
         </div>
 
         {/* Results */}
@@ -2518,6 +2535,7 @@ export default function TripDetailPage() {
               // Refresh trip data to show new participant
               tripsApi.get(tripId).then((data) => setTrip(data)).catch(() => {});
             }}
+            currentUserName={user?.displayName ?? ""}
           />
         )}
       </AnimatePresence>

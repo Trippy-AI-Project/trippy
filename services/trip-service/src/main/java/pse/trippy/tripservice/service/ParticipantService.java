@@ -70,7 +70,7 @@ public class ParticipantService {
 
         if (directInvite) {
             log.info("User {} invited to trip {} directly by owner/editor", request.userId(), tripId);
-            publishInviteNotification(trip, request.userId(), inviterId, request.message());
+            publishInviteNotification(trip, request.userId(), inviterId, request.message(), request.inviterName());
             return new ParticipantActionResponse("Participant invited successfully", toResponse(participant));
         } else {
             log.info("User {} invite proposed for trip {} — awaiting owner approval", request.userId(), tripId);
@@ -315,7 +315,7 @@ public class ParticipantService {
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.approved", event);
     }
 
-    private void publishInviteNotification(Trip trip, UUID inviteeId, UUID inviterId, String message) {
+    private void publishInviteNotification(Trip trip, UUID inviteeId, UUID inviterId, String message, String inviterName) {
         Map<String, Object> event = new HashMap<>();
         event.put("eventType", "trip.participant.invited");
         event.put("tripId", trip.getId().toString());
@@ -323,6 +323,9 @@ public class ParticipantService {
         event.put("inviteeId", inviteeId.toString());
         event.put("inviterId", inviterId.toString());
         event.put("timestamp", Instant.now().toString());
+        if (inviterName != null && !inviterName.isBlank()) {
+            event.put("inviterName", inviterName);
+        }
         if (message != null && !message.isBlank()) {
             event.put("inviteMessage", message);
         }

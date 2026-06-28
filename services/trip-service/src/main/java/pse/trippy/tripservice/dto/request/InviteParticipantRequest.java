@@ -5,6 +5,7 @@ import java.util.UUID;
 public record InviteParticipantRequest(
         UUID userId,
         String email,
-        String message
+        String message,
+        String inviterName
 ) {
 }
