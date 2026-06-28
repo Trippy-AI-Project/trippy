@@ -137,40 +137,48 @@ public class NotificationEventListener {
 
     void handleTripInvitation(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String inviteeEmail = text(map, "inviteeEmail", "participantEmail", "email");
-            String inviteeName = fallback(
-                    text(map, "inviteeName", "participantName", "userName", "displayName"),
-                    "Traveler");
-            String inviterName = fallback(text(map, "inviterName", "actorName"), "Someone");
-            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
-            String inviteeId = validUuidText(map, "inviteeId", "inviteeUserId", "participantId", "userId");
-            String tripId = text(map, "tripId");
-            String inviteMessage = text(map, "inviteMessage", "message");
-            String actionUrl = fallback(text(map, "actionUrl", "inviteLink", "link"), tripUrl(tripId));
+            try {
+                String inviteeEmail = text(map, "inviteeEmail", "participantEmail", "email");
+                String inviteeName = fallback(
+                        text(map, "inviteeName", "participantName", "userName", "displayName"),
+                        "Traveler");
+                String inviterName = fallback(text(map, "inviterName", "actorName"), "Someone");
+                String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
+                String inviteeId = validUuidText(map, "inviteeId", "inviteeUserId", "participantId", "userId");
+                String tripId = text(map, "tripId");
+                String inviteMessage = text(map, "inviteMessage", "message");
+                String actionUrl = fallback(text(map, "actionUrl", "inviteLink", "link"), tripUrl(tripId));
 
-            String body = inviterName + " invited you to " + tripTitle;
-            if (inviteMessage != null && !inviteMessage.isBlank()) {
-                body = body + ": \"" + inviteMessage + "\"";
+                log.info("Processing trip invitation: inviteeId={} tripId={} tripTitle={} inviterName={}",
+                        inviteeId, tripId, tripTitle, inviterName);
+
+                String body = inviterName + " invited you to " + tripTitle;
+                if (inviteMessage != null && !inviteMessage.isBlank()) {
+                    body = body + ": \"" + inviteMessage + "\"";
+                }
+
+                sendTemplate(inviteeEmail, inviterName + " invited you to " + tripTitle,
+                        "trip-invite",
+                        variables("inviteeName", inviteeName,
+                                "userName", inviteeName,
+                                "inviterName", inviterName,
+                                "tripTitle", tripTitle,
+                                "tripName", tripTitle,
+                                "dashboardUrl", emailUrl(actionUrl),
+                                "link", emailUrl(actionUrl)));
+
+                createNotification(inviteeId, NotificationType.TRIP_INVITE,
+                        "Trip Invitation",
+                        body,
+                        actionUrl,
+                        metadata(map, "tripId", "tripTitle", "destination", "role",
+                                "inviterId", "inviteeId", "inviteeUserId", "participantId", "inviteMessage"));
+            } catch (Exception ex) {
+                log.error("Failed to process trip invitation event", ex);
             }
-
-            log.info("Processing notification event type=trip.invitation recipient={}",
-                    LogSanitizer.maskEmail(inviteeEmail));
-            sendTemplate(inviteeEmail, inviterName + " invited you to " + tripTitle,
-                    "trip-invite",
-                    variables("inviteeName", inviteeName,
-                            "userName", inviteeName,
-                            "inviterName", inviterName,
-                            "tripTitle", tripTitle,
-                            "tripName", tripTitle,
-                            "dashboardUrl", emailUrl(actionUrl),
-                            "link", emailUrl(actionUrl)));
-
-            createNotification(inviteeId, NotificationType.TRIP_INVITE,
-                    "Trip Invitation",
-                    body,
-                    actionUrl,
-                    metadata(map, "tripId", "tripTitle", "destination", "role",
-                            "inviterId", "inviteeId", "inviteeUserId", "participantId", "inviteMessage"));
+        } else {
+            log.warn("handleTripInvitation received non-Map payload: {}",
+                    payload != null ? payload.getClass().getName() : "null");
         }
     }
 
