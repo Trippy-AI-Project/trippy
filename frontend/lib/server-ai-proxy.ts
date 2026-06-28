@@ -1,7 +1,7 @@
 const AI_API_BASE_URL =
   process.env.AI_SERVICE_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:8080";
+  "http://localhost:8084";
 
 export async function postToAiService(
   incoming: Request,
