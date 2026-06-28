@@ -155,6 +155,10 @@ export default function NotificationBell() {
     return n.type === "TRIP_INVITE" && n.title === "Join Request" && !!n.metadata?.requesterId;
   }
 
+  function isInviteNotification(n: Notification) {
+    return n.type === "TRIP_INVITE" && n.title === "Trip Invitation" && !!n.metadata?.tripId;
+  }
+
   async function handleApprove(e: React.MouseEvent, n: Notification) {
     e.stopPropagation();
     const tripId = n.metadata?.tripId as string;
@@ -177,6 +181,34 @@ export default function NotificationBell() {
     if (!tripId || !requesterId) return;
     try {
       await participantsApi.reject(tripId, requesterId);
+      await notificationsApi.markRead(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleAcceptInvite(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    if (!tripId) return;
+    try {
+      await participantsApi.accept(tripId);
+      await notificationsApi.markRead(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleDeclineInvite(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    if (!tripId) return;
+    try {
+      await participantsApi.decline(tripId);
       await notificationsApi.markRead(n.id);
       setNotifications((prev) => prev.filter((x) => x.id !== n.id));
       if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
@@ -269,6 +301,22 @@ export default function NotificationBell() {
                             className="inline-flex items-center gap-1 rounded bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-600"
                           >
                             <UserX size={10} /> Reject
+                          </button>
+                        </div>
+                      )}
+                      {isInviteNotification(n) && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => handleAcceptInvite(e, n)}
+                            className="inline-flex items-center gap-1 rounded bg-accent-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-accent-600"
+                          >
+                            <UserCheck size={10} /> Accept
+                          </button>
+                          <button
+                            onClick={(e) => handleDeclineInvite(e, n)}
+                            className="inline-flex items-center gap-1 rounded bg-shore-400 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-shore-500"
+                          >
+                            <UserX size={10} /> Decline
                           </button>
                         </div>
                       )}

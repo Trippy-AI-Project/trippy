@@ -145,7 +145,13 @@ public class NotificationEventListener {
             String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
             String inviteeId = validUuidText(map, "inviteeId", "inviteeUserId", "participantId", "userId");
             String tripId = text(map, "tripId");
+            String inviteMessage = text(map, "inviteMessage", "message");
             String actionUrl = fallback(text(map, "actionUrl", "inviteLink", "link"), tripUrl(tripId));
+
+            String body = inviterName + " invited you to " + tripTitle;
+            if (inviteMessage != null && !inviteMessage.isBlank()) {
+                body = body + ": \"" + inviteMessage + "\"";
+            }
 
             log.info("Processing notification event type=trip.invitation recipient={}",
                     LogSanitizer.maskEmail(inviteeEmail));
@@ -161,10 +167,10 @@ public class NotificationEventListener {
 
             createNotification(inviteeId, NotificationType.TRIP_INVITE,
                     "Trip Invitation",
-                    inviterName + " invited you to " + tripTitle,
+                    body,
                     actionUrl,
                     metadata(map, "tripId", "tripTitle", "destination", "role",
-                            "inviterId", "inviteeId", "inviteeUserId", "participantId"));
+                            "inviterId", "inviteeId", "inviteeUserId", "participantId", "inviteMessage"));
         }
     }
 

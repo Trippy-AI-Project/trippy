@@ -45,7 +45,6 @@ export default function DashboardPage() {
   const [publicLoading, setPublicLoading] = useState(true);
   const [joiningTripId, setJoiningTripId] = useState<string | null>(null);
   const [requestedTripIds, setRequestedTripIds] = useState<Set<string>>(new Set());
-  const [inviteLoadingTripId, setInviteLoadingTripId] = useState<string | null>(null);
 
   const fetchTrips = useCallback(async () => {
     setLoading(true);
@@ -108,34 +107,6 @@ export default function DashboardPage() {
       addToast(msg, "error");
     } finally {
       setJoiningTripId(null);
-    }
-  }
-
-  async function handleAcceptInvite(tripId: string) {
-    setInviteLoadingTripId(tripId);
-    try {
-      await participantsApi.accept(tripId);
-      addToast("Invite accepted! You're now part of the trip.", "success");
-      fetchTrips();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to accept invite";
-      addToast(msg, "error");
-    } finally {
-      setInviteLoadingTripId(null);
-    }
-  }
-
-  async function handleDeclineInvite(tripId: string) {
-    setInviteLoadingTripId(tripId);
-    try {
-      await participantsApi.decline(tripId);
-      addToast("Invite declined.", "success");
-      fetchTrips();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to decline invite";
-      addToast(msg, "error");
-    } finally {
-      setInviteLoadingTripId(null);
     }
   }
 
@@ -396,11 +367,9 @@ export default function DashboardPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, delay: i * 0.06 }}
                   onClick={() =>
-                    trip.currentUserStatus !== "INVITED"
-                      ? router.push(`/dashboard/trips/${tripSlug(trip.title, trip.tripId)}`)
-                      : undefined
+                    router.push(`/dashboard/trips/${tripSlug(trip.title, trip.tripId)}`)
                   }
-                  className={trip.currentUserStatus !== "INVITED" ? "cursor-pointer" : ""}
+                  className="cursor-pointer"
                 >
                   <TripCard
                     title={trip.title}
@@ -420,9 +389,6 @@ export default function DashboardPage() {
                     participantCount={trip.participantCount}
                     coverImageUrl={trip.coverImageUrl}
                     invited={trip.currentUserStatus === "INVITED"}
-                    onAcceptInvite={() => handleAcceptInvite(trip.tripId)}
-                    onDeclineInvite={() => handleDeclineInvite(trip.tripId)}
-                    inviteLoading={inviteLoadingTripId === trip.tripId}
                   />
                 </motion.div>
               ))}
