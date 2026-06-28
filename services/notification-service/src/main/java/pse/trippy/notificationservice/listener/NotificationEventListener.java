@@ -28,8 +28,7 @@ public class NotificationEventListener {
     private final EmailService emailService;
     private final NotificationService notificationService;
 
-    @RabbitListener(queues = "notification.events",
-            messageConverter = "jsonMessageConverter")
+    @RabbitListener(queues = "notification.events")
     public void handleEvent(Object payload,
                             @Header(name = "amqp_receivedRoutingKey") String routingKey,
                             @Header(name = CorrelationIds.HEADER_NAME, required = false) String correlationId) {
