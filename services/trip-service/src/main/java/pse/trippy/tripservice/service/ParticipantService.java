@@ -167,7 +167,7 @@ public class ParticipantService {
     }
 
     @Transactional
-    public ParticipantActionResponse requestJoin(UUID tripId, UUID userId) {
+    public ParticipantActionResponse requestJoin(UUID tripId, UUID userId, String requesterName, String message) {
         log.info("User {} requesting to join public trip {}", userId, tripId);
         Trip trip = findTripOrThrow(tripId);
 
@@ -196,7 +196,7 @@ public class ParticipantService {
         log.info("User {} join request created for trip {} — awaiting owner approval", userId, tripId);
 
         // Notify the trip owner about the join request
-        publishJoinRequestEvent(trip, userId);
+        publishJoinRequestEvent(trip, userId, requesterName, message);
 
         return new ParticipantActionResponse(
                 "Your request to join has been sent. The trip owner needs to approve it.",
@@ -285,7 +285,7 @@ public class ParticipantService {
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, routingKey, event);
     }
 
-    private void publishJoinRequestEvent(Trip trip, UUID requesterId) {
+    private void publishJoinRequestEvent(Trip trip, UUID requesterId, String requesterName, String message) {
         // Find the trip owner
         Participant owner = participantRepository.findByTripId(trip.getId()).stream()
                 .filter(p -> p.getRole() == ParticipantRole.OWNER)
@@ -300,6 +300,12 @@ public class ParticipantService {
         event.put("userId", owner.getUserId().toString());
         event.put("requesterId", requesterId.toString());
         event.put("timestamp", Instant.now().toString());
+        if (requesterName != null && !requesterName.isBlank()) {
+            event.put("requesterName", requesterName);
+        }
+        if (message != null && !message.isBlank()) {
+            event.put("joinMessage", message);
+        }
 
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.join_requested", event);
     }

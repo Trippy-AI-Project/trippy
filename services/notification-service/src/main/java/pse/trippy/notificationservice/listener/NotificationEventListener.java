@@ -246,17 +246,25 @@ public class NotificationEventListener {
         if (payload instanceof Map<?, ?> map) {
             String userId = validUuidText(map, "userId", "ownerId");
             String requesterId = text(map, "requesterId", "userId");
+            String requesterName = fallback(text(map, "requesterName"), "Someone");
             String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
             String tripId = text(map, "tripId");
+            String joinMessage = text(map, "joinMessage", "message");
             String actionUrl = tripUrl(tripId);
 
-            log.info("Processing notification event type=trip.join_requested tripId={}", tripId);
+            log.info("Processing notification event type=trip.join_requested tripId={} requester={}",
+                    tripId, requesterName);
+
+            String body = requesterName + " wants to join " + tripTitle + ". Review and approve or reject the request.";
+            if (joinMessage != null && !joinMessage.isBlank()) {
+                body = requesterName + " wants to join " + tripTitle + ": \"" + joinMessage + "\"";
+            }
 
             createNotification(userId, NotificationType.TRIP_INVITE,
                     "Join Request",
-                    "Someone wants to join " + tripTitle + ". Review and approve or reject the request.",
+                    body,
                     actionUrl,
-                    metadata(map, "tripId", "requesterId", "tripTitle"));
+                    metadata(map, "tripId", "requesterId", "tripTitle", "requesterName", "joinMessage"));
         }
     }
 

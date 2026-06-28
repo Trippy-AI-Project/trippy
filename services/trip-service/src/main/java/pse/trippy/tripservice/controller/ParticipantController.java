@@ -80,9 +80,12 @@ public class ParticipantController {
     @PostMapping("/request-join")
     public ResponseEntity<ParticipantActionResponse> requestJoin(
             @PathVariable UUID tripId,
-            @RequestHeader("X-User-Id") UUID userId) {
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
         log.info("POST /trips/{}/participants/request-join — user={}", tripId, userId);
-        ParticipantActionResponse response = participantService.requestJoin(tripId, userId);
+        String requesterName = body != null ? body.get("requesterName") : null;
+        String message = body != null ? body.get("message") : null;
+        ParticipantActionResponse response = participantService.requestJoin(tripId, userId, requesterName, message);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
