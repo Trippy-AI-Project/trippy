@@ -13,7 +13,7 @@ import {
   UserCircle,
   Shield,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Logo from "@/components/Logo";
 import { Avatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -24,8 +24,6 @@ const navLinks = [
   { href: "/dashboard", label: "My Trips", icon: Map },
   { href: "/dashboard/chat", label: "Chat", icon: MessageSquare },
   { href: "/dashboard/payments", label: "Billing", icon: CreditCard },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-  { href: "/dashboard/profile", label: "Profile", icon: UserCircle },
 ];
 
 const adminLinks = [
@@ -37,11 +35,24 @@ export default function Navbar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   async function handleLogout() {
     await logout();
     router.push("/login");
   }
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    if (profileOpen) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [profileOpen]);
 
   return (
     <nav className="glass-strong sticky top-0 z-50 px-4 lg:px-8">
@@ -76,14 +87,51 @@ export default function Navbar() {
         {/* Right side */}
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <Link href="/dashboard/profile">
-            <Avatar
-              name={user?.displayName ?? "User"}
-              src={user?.avatarUrl}
-              size="sm"
-              className="cursor-pointer hover:ring-2 hover:ring-trippy-400/50 rounded-full transition-all"
-            />
-          </Link>
+
+          {/* Profile dropdown */}
+          <div className="relative" ref={profileRef}>
+            <button
+              onClick={() => setProfileOpen(!profileOpen)}
+              className="cursor-pointer"
+              aria-label="User menu"
+            >
+              <Avatar
+                name={user?.displayName ?? "User"}
+                src={user?.avatarUrl}
+                size="sm"
+                className="hover:ring-2 hover:ring-trippy-400/50 rounded-full transition-all"
+              />
+            </button>
+
+            {profileOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-border bg-white shadow-xl z-50 py-1 overflow-hidden">
+                <Link
+                  href="/dashboard/profile"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-foreground hover:bg-shore-50 transition-colors"
+                >
+                  <UserCircle size={16} className="text-muted" />
+                  Profile
+                </Link>
+                <Link
+                  href="/dashboard/settings"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-foreground hover:bg-shore-50 transition-colors"
+                >
+                  <Settings size={16} className="text-muted" />
+                  Settings
+                </Link>
+                <div className="border-t border-border my-1" />
+                <button
+                  onClick={() => { setProfileOpen(false); handleLogout(); }}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 w-full transition-colors"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Mobile hamburger */}
           <button
@@ -119,11 +167,20 @@ export default function Navbar() {
             );
           })}
           <Link
-            href="/dashboard/notifications"
+            href="/dashboard/profile"
             onClick={() => setMobileOpen(false)}
             className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface transition-all"
           >
-            Notifications
+            <UserCircle size={16} />
+            Profile
+          </Link>
+          <Link
+            href="/dashboard/settings"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface transition-all"
+          >
+            <Settings size={16} />
+            Settings
           </Link>
           <button
             onClick={() => { setMobileOpen(false); handleLogout(); }}

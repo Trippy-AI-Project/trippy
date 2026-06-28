@@ -107,9 +107,14 @@ public class TripService {
 
         // Resolve the current user's participation status per trip
         Map<UUID, String> userStatusByTrip = new HashMap<>();
+        Map<UUID, Integer> memberCountByTrip = new HashMap<>();
         if (!tripIds.isEmpty()) {
             for (Participant p : participantRepository.findByUserIdAndTripIds(userId, tripIds)) {
                 userStatusByTrip.put(p.getTrip().getId(), p.getStatus().name());
+            }
+            for (Participant p : participantRepository.findByTripIdsAndStatusIn(
+                    tripIds, List.of(ParticipantStatus.ACCEPTED))) {
+                memberCountByTrip.merge(p.getTrip().getId(), 1, Integer::sum);
             }
         }
 
@@ -117,7 +122,7 @@ public class TripService {
                 .map(trip -> toTripResponse(
                         trip,
                         userStatusByTrip.get(trip.getId()),
-                        0))
+                        memberCountByTrip.getOrDefault(trip.getId(), 0)))
                 .toList();
 
         return new TripPageResponse(
