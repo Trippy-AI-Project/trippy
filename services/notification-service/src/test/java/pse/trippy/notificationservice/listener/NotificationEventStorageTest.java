@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import pse.trippy.notificationservice.model.entity.Notification;
 import pse.trippy.notificationservice.model.enums.NotificationType;
 import pse.trippy.notificationservice.repository.NotificationRepository;
@@ -24,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @ActiveProfiles("test")
-@Import({NotificationService.class, NotificationEventListener.class})
+@Import({NotificationService.class, NotificationEventListener.class, ObjectMapper.class})
 @DisplayName("Notification event storage")
 class NotificationEventStorageTest {
 

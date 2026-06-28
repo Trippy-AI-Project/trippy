@@ -1,8 +1,10 @@
 package pse.trippy.notificationservice.listener;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
@@ -27,23 +29,46 @@ public class NotificationEventListener {
 
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final ObjectMapper objectMapper;
 
     @RabbitListener(queues = "notification.events")
-    public void handleEvent(Object payload,
+    public void handleEvent(Message rawMessage,
                             @Header(name = "amqp_receivedRoutingKey") String routingKey,
                             @Header(name = CorrelationIds.HEADER_NAME, required = false) String correlationId) {
         String resolvedCorrelationId = CorrelationIds.resolve(correlationId);
         MDC.put(CorrelationIds.MDC_KEY, resolvedCorrelationId);
         try {
             log.info("Received notification event routingKey={}", LogSanitizer.safeDetail(routingKey));
+            Object payload = deserializePayload(rawMessage);
             dispatchEvent(payload, routingKey);
         } finally {
             MDC.remove(CorrelationIds.MDC_KEY);
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private Object deserializePayload(Message message) {
+        try {
+            return objectMapper.readValue(message.getBody(), Map.class);
+        } catch (Exception ex) {
+            log.warn("Failed to deserialize RabbitMQ message body as Map, falling back to raw: {}",
+                    ex.getMessage());
+            return message;
+        }
+    }
+
     void handleEvent(Object payload, String routingKey) {
         handleEvent(payload, routingKey, null);
+    }
+
+    void handleEvent(Object payload, String routingKey, String correlationId) {
+        String resolvedCorrelationId = CorrelationIds.resolve(correlationId);
+        MDC.put(CorrelationIds.MDC_KEY, resolvedCorrelationId);
+        try {
+            dispatchEvent(payload, routingKey);
+        } finally {
+            MDC.remove(CorrelationIds.MDC_KEY);
+        }
     }
 
     private void dispatchEvent(Object payload, String routingKey) {
