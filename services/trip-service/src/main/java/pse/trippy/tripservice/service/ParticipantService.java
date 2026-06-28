@@ -237,6 +237,25 @@ public class ParticipantService {
                 .toList();
     }
 
+    @Transactional
+    public ParticipantActionResponse kickParticipant(UUID tripId, UUID targetUserId, UUID kickerId) {
+        log.info("Owner {} kicking user {} from trip {}", kickerId, targetUserId, tripId);
+        findTripOrThrow(tripId);
+        ensureOwner(tripId, kickerId);
+
+        Participant participant = participantRepository.findByTripIdAndUserId(tripId, targetUserId)
+                .orElseThrow(() -> new InvalidTripDataException("User is not a participant of this trip"));
+
+        if (participant.getRole() == ParticipantRole.OWNER) {
+            throw new ForbiddenException("Cannot kick the trip owner");
+        }
+
+        participantRepository.delete(participant);
+        log.info("User {} kicked from trip {} by owner {}", targetUserId, tripId, kickerId);
+
+        return new ParticipantActionResponse("Participant removed from trip", null);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private Trip findTripOrThrow(UUID tripId) {

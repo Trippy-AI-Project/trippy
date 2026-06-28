@@ -195,7 +195,7 @@ export default function NotificationBell() {
     if (!tripId) return;
     try {
       await participantsApi.accept(tripId);
-      await notificationsApi.markRead(n.id);
+      await notificationsApi.deleteNotification(n.id);
       setNotifications((prev) => prev.filter((x) => x.id !== n.id));
       if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
     } catch {
@@ -209,7 +209,7 @@ export default function NotificationBell() {
     if (!tripId) return;
     try {
       await participantsApi.decline(tripId);
-      await notificationsApi.markRead(n.id);
+      await notificationsApi.deleteNotification(n.id);
       setNotifications((prev) => prev.filter((x) => x.id !== n.id));
       if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
     } catch {

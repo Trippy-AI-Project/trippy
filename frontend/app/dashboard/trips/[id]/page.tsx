@@ -1799,6 +1799,18 @@ export default function TripDetailPage() {
     }
   }
 
+  async function handleKickMember(targetUserId: string) {
+    if (!tripId) return;
+    try {
+      await participantsApi.kick(tripId, targetUserId);
+      addToast("Member removed from trip.", "success");
+      await refreshTrip();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to remove member";
+      addToast(msg, "error");
+    }
+  }
+
   useEffect(() => {
     if (!tripId) return;
     setLoading(true);
@@ -2218,6 +2230,14 @@ export default function TripDetailPage() {
                               {new Date(p.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                             </span>
                           </div>
+                        )}
+                        {isOwnerOrEditor && !isOwner && (
+                          <button
+                            onClick={() => handleKickMember(p.userId)}
+                            className="mt-2 w-full rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
+                          >
+                            Remove from trip
+                          </button>
                         )}
                       </div>
                     </div>

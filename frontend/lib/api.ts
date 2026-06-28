@@ -496,6 +496,8 @@ export const participantsApi = {
     api.post<{ message: string }>(`/trips/${tripId}/participants/decline`, {}),
   requestJoin: (tripId: string) =>
     api.post<{ message: string }>(`/trips/${tripId}/participants/request-join`, {}),
+  kick: (tripId: string, userId: string) =>
+    api.delete<{ message: string }>(`/trips/${tripId}/participants/kick/${userId}`),
 };
 
 /* ------------------------------------------------------------------ */

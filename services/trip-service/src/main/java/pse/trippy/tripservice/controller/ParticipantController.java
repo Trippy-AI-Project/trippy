@@ -103,4 +103,14 @@ public class ParticipantController {
         List<ParticipantResponse> response = participantService.listParticipants(tripId, userId);
         return ResponseEntity.ok(response);
     }
+
+    @DeleteMapping("/kick/{targetUserId}")
+    public ResponseEntity<ParticipantActionResponse> kick(
+            @PathVariable UUID tripId,
+            @PathVariable UUID targetUserId,
+            @RequestHeader("X-User-Id") UUID userId) {
+        log.info("DELETE /trips/{}/participants/kick/{} — by={}", tripId, targetUserId, userId);
+        ParticipantActionResponse response = participantService.kickParticipant(tripId, targetUserId, userId);
+        return ResponseEntity.ok(response);
+    }
 }
