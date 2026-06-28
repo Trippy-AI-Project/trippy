@@ -45,6 +45,8 @@ export default function DashboardPage() {
   const [publicLoading, setPublicLoading] = useState(true);
   const [joiningTripId, setJoiningTripId] = useState<string | null>(null);
   const [requestedTripIds, setRequestedTripIds] = useState<Set<string>>(new Set());
+  const [joinModalTripId, setJoinModalTripId] = useState<string | null>(null);
+  const [joinMessage, setJoinMessage] = useState("");
 
   const fetchTrips = useCallback(async () => {
     setLoading(true);
@@ -99,9 +101,15 @@ export default function DashboardPage() {
   async function handleJoinTrip(tripId: string) {
     setJoiningTripId(tripId);
     try {
-      const res = await participantsApi.requestJoin(tripId);
+      const res = await participantsApi.requestJoin(
+        tripId,
+        user?.displayName || undefined,
+        joinMessage.trim() || undefined,
+      );
       addToast(res.message || "Join request sent! Awaiting owner approval.", "success");
       setRequestedTripIds((prev) => new Set(prev).add(tripId));
+      setJoinModalTripId(null);
+      setJoinMessage("");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send join request";
       addToast(msg, "error");
@@ -125,6 +133,59 @@ export default function DashboardPage() {
         onClose={() => setCreateOpen(false)}
         onCreate={handleCreateTrip}
       />
+
+      {/* ── Join Reason Modal ───────────────────────────────────── */}
+      <AnimatePresence>
+        {joinModalTripId && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => { setJoinModalTripId(null); setJoinMessage(""); }}
+            />
+            <motion.div
+              className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-surface border border-border shadow-2xl"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            >
+              <div className="px-6 py-5">
+                <h3 className="text-base font-bold text-foreground mb-1">Request to Join</h3>
+                <p className="text-xs text-muted mb-4">
+                  Let the host know why you&apos;d like to join this trip.
+                </p>
+                <textarea
+                  value={joinMessage}
+                  onChange={(e) => setJoinMessage(e.target.value)}
+                  placeholder="Why do you want to join? (optional)"
+                  rows={3}
+                  maxLength={300}
+                  className="w-full rounded-xl border border-border bg-shore-50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100 transition-colors resize-none"
+                />
+                <div className="mt-4 flex items-center gap-2 justify-end">
+                  <button
+                    onClick={() => { setJoinModalTripId(null); setJoinMessage(""); }}
+                    className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted hover:bg-shore-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleJoinTrip(joinModalTripId)}
+                    disabled={joiningTripId === joinModalTripId}
+                    className="rounded-lg bg-accent-500 px-4 py-2 text-xs font-semibold text-white hover:bg-accent-600 disabled:opacity-50 transition-colors"
+                  >
+                    {joiningTripId === joinModalTripId ? "Sending..." : "Send Request"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Hero header ─────────────────────────────────────────── */}
       <section className="relative mb-8">
@@ -272,7 +333,7 @@ export default function DashboardPage() {
                     }
                     participantCount={trip.participantCount}
                     coverImageUrl={trip.coverImageUrl}
-                    onJoin={() => handleJoinTrip(trip.tripId)}
+                    onJoin={() => setJoinModalTripId(trip.tripId)}
                     joinLoading={joiningTripId === trip.tripId}
                     joinRequested={requestedTripIds.has(trip.tripId)}
                   />
@@ -388,6 +449,7 @@ export default function DashboardPage() {
                     }
                     participantCount={trip.participantCount}
                     coverImageUrl={trip.coverImageUrl}
+                    invited={trip.currentUserStatus === "INVITED"}
                   />
                 </motion.div>
               ))}

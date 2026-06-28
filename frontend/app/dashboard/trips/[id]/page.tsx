@@ -1331,11 +1331,13 @@ function InviteModal({
   existingParticipantIds,
   onClose,
   onInvited,
+  currentUserName,
 }: {
   tripId: string;
   existingParticipantIds: string[];
   onClose: () => void;
   onInvited: () => void;
+  currentUserName: string;
 }) {
   const { addToast } = useToast();
   const [query, setQuery] = useState("");
@@ -1343,6 +1345,7 @@ function InviteModal({
   const [searching, setSearching] = useState(false);
   const [inviting, setInviting] = useState<string | null>(null);
   const [invited, setInvited] = useState<Set<string>>(new Set());
+  const [inviteMessage, setInviteMessage] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   function handleSearch(value: string) {
@@ -1369,7 +1372,13 @@ function InviteModal({
   async function handleInvite(userId: string, email?: string) {
     setInviting(userId);
     try {
-      await participantsApi.invite(tripId, userId, email);
+      await participantsApi.invite(
+        tripId,
+        userId,
+        email,
+        inviteMessage.trim() || undefined,
+        currentUserName || undefined,
+      );
       setInvited((prev) => new Set([...prev, userId]));
       addToast("Invitation sent!", "success");
       onInvited();
@@ -1406,7 +1415,7 @@ function InviteModal({
         </div>
 
         {/* Search input */}
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 space-y-3">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
@@ -1421,6 +1430,14 @@ function InviteModal({
               <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-accent-500" />
             )}
           </div>
+          <textarea
+            value={inviteMessage}
+            onChange={(e) => setInviteMessage(e.target.value)}
+            placeholder="Add a message (optional)..."
+            rows={2}
+            maxLength={300}
+            className="w-full rounded-xl border border-border bg-shore-50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:border-accent-400 focus:ring-1 focus:ring-accent-100 transition-colors resize-none"
+          />
         </div>
 
         {/* Results */}
@@ -1767,6 +1784,33 @@ export default function TripDetailPage() {
     }
   }
 
+  async function handleRevokeInvite(invitedUserId: string) {
+    if (!tripId) return;
+    setProcessingRequestUserId(invitedUserId);
+    try {
+      await participantsApi.reject(tripId, invitedUserId);
+      addToast("Invitation revoked.", "success");
+      await refreshTrip();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to revoke invitation";
+      addToast(msg, "error");
+    } finally {
+      setProcessingRequestUserId(null);
+    }
+  }
+
+  async function handleKickMember(targetUserId: string) {
+    if (!tripId) return;
+    try {
+      await participantsApi.kick(tripId, targetUserId);
+      addToast("Member removed from trip.", "success");
+      await refreshTrip();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to remove member";
+      addToast(msg, "error");
+    }
+  }
+
   useEffect(() => {
     if (!tripId) return;
     setLoading(true);
@@ -1831,6 +1875,9 @@ export default function TripDetailPage() {
   );
   const pendingRequests = (trip?.participants ?? []).filter(
     (p) => p.status === "PENDING_APPROVAL"
+  );
+  const pendingInvites = (trip?.participants ?? []).filter(
+    (p) => p.status === "INVITED"
   );
 
   function toggleDay(dayNumber: number) {
@@ -2084,7 +2131,7 @@ export default function TripDetailPage() {
                   {members.length} member{members.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              {isOwnerOrEditor && (
+              {isParticipant && (
                 <Button variant="secondary" size="sm" className="text-xs" onClick={() => setInviteOpen(true)}>
                   <Plus size={12} /> Invite
                 </Button>
@@ -2184,6 +2231,14 @@ export default function TripDetailPage() {
                             </span>
                           </div>
                         )}
+                        {isOwnerOrEditor && !isOwner && (
+                          <button
+                            onClick={() => handleKickMember(p.userId)}
+                            className="mt-2 w-full rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
+                          >
+                            Remove from trip
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2258,6 +2313,67 @@ export default function TripDetailPage() {
                         Decline
                       </Button>
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+
+      {/* ─── Pending Invites Section (owner/editor only) ───────────── */}
+      {isOwnerOrEditor && pendingInvites.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.13 }}
+        >
+          <GlassCard className="!p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Users size={15} className="text-blue-500" />
+              <h3 className="text-sm font-bold text-foreground">Pending Invites</h3>
+              <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                {pendingInvites.length} invited
+              </span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {pendingInvites.map((p) => {
+                const name = p.displayName ?? "User";
+                const initials = name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const processing = processingRequestUserId === p.userId;
+                return (
+                  <div
+                    key={p.participantId}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold border-2 bg-blue-50 text-blue-600 border-blue-200">
+                        {p.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.avatarUrl} alt={name} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          initials
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-semibold text-foreground truncate max-w-[160px]">{name}</span>
+                        <span className="text-[10px] text-muted">Invitation sent — awaiting response</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="text-xs shrink-0"
+                      disabled={processing}
+                      onClick={() => handleRevokeInvite(p.userId)}
+                    >
+                      Revoke
+                    </Button>
                   </div>
                 );
               })}
@@ -2439,6 +2555,7 @@ export default function TripDetailPage() {
               // Refresh trip data to show new participant
               tripsApi.get(tripId).then((data) => setTrip(data)).catch(() => {});
             }}
+            currentUserName={user?.displayName ?? ""}
           />
         )}
       </AnimatePresence>

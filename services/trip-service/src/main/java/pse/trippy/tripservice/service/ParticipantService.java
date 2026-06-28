@@ -70,11 +70,11 @@ public class ParticipantService {
 
         if (directInvite) {
             log.info("User {} invited to trip {} directly by owner/editor", request.userId(), tripId);
-            publishEvent("trip.participant.invited", tripId, request.userId());
+            publishInviteNotification(trip, request.userId(), inviterId, request.message(), request.inviterName());
             return new ParticipantActionResponse("Participant invited successfully", toResponse(participant));
         } else {
             log.info("User {} invite proposed for trip {} — awaiting owner approval", request.userId(), tripId);
-            publishInviteProposedEvent(trip, request.userId(), inviterId);
+            publishInviteProposedEvent(trip, request.userId(), inviterId, request.inviterName(), request.message());
             return new ParticipantActionResponse("Invite proposed — awaiting owner approval", toResponse(participant));
         }
     }
@@ -111,8 +111,9 @@ public class ParticipantService {
         Participant participant = participantRepository.findByTripIdAndUserId(tripId, targetUserId)
                 .orElseThrow(() -> new InvalidTripDataException("No pending invite found for this user"));
 
-        if (participant.getStatus() != ParticipantStatus.PENDING_APPROVAL) {
-            throw new InvalidTripDataException("Invite is not pending approval");
+        if (participant.getStatus() != ParticipantStatus.PENDING_APPROVAL
+                && participant.getStatus() != ParticipantStatus.INVITED) {
+            throw new InvalidTripDataException("Participant is not in a pending or invited state");
         }
 
         participantRepository.delete(participant);
@@ -166,7 +167,7 @@ public class ParticipantService {
     }
 
     @Transactional
-    public ParticipantActionResponse requestJoin(UUID tripId, UUID userId) {
+    public ParticipantActionResponse requestJoin(UUID tripId, UUID userId, String requesterName, String message) {
         log.info("User {} requesting to join public trip {}", userId, tripId);
         Trip trip = findTripOrThrow(tripId);
 
@@ -195,7 +196,7 @@ public class ParticipantService {
         log.info("User {} join request created for trip {} — awaiting owner approval", userId, tripId);
 
         // Notify the trip owner about the join request
-        publishJoinRequestEvent(trip, userId);
+        publishJoinRequestEvent(trip, userId, requesterName, message);
 
         return new ParticipantActionResponse(
                 "Your request to join has been sent. The trip owner needs to approve it.",
@@ -236,6 +237,25 @@ public class ParticipantService {
                 .toList();
     }
 
+    @Transactional
+    public ParticipantActionResponse kickParticipant(UUID tripId, UUID targetUserId, UUID kickerId) {
+        log.info("Owner {} kicking user {} from trip {}", kickerId, targetUserId, tripId);
+        findTripOrThrow(tripId);
+        ensureOwner(tripId, kickerId);
+
+        Participant participant = participantRepository.findByTripIdAndUserId(tripId, targetUserId)
+                .orElseThrow(() -> new InvalidTripDataException("User is not a participant of this trip"));
+
+        if (participant.getRole() == ParticipantRole.OWNER) {
+            throw new ForbiddenException("Cannot kick the trip owner");
+        }
+
+        participantRepository.delete(participant);
+        log.info("User {} kicked from trip {} by owner {}", targetUserId, tripId, kickerId);
+
+        return new ParticipantActionResponse("Participant removed from trip", null);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private Trip findTripOrThrow(UUID tripId) {
@@ -265,7 +285,7 @@ public class ParticipantService {
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, routingKey, event);
     }
 
-    private void publishJoinRequestEvent(Trip trip, UUID requesterId) {
+    private void publishJoinRequestEvent(Trip trip, UUID requesterId, String requesterName, String message) {
         // Find the trip owner
         Participant owner = participantRepository.findByTripId(trip.getId()).stream()
                 .filter(p -> p.getRole() == ParticipantRole.OWNER)
@@ -280,11 +300,17 @@ public class ParticipantService {
         event.put("userId", owner.getUserId().toString());
         event.put("requesterId", requesterId.toString());
         event.put("timestamp", Instant.now().toString());
+        if (requesterName != null && !requesterName.isBlank()) {
+            event.put("requesterName", requesterName);
+        }
+        if (message != null && !message.isBlank()) {
+            event.put("joinMessage", message);
+        }
 
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.join_requested", event);
     }
 
-    private void publishInviteProposedEvent(Trip trip, UUID inviteeId, UUID inviterId) {
+    private void publishInviteProposedEvent(Trip trip, UUID inviteeId, UUID inviterId, String inviterName, String message) {
         Participant owner = participantRepository.findByTripId(trip.getId()).stream()
                 .filter(p -> p.getRole() == ParticipantRole.OWNER)
                 .findFirst()
@@ -299,6 +325,12 @@ public class ParticipantService {
         event.put("requesterId", inviteeId.toString());
         event.put("inviterId", inviterId.toString());
         event.put("timestamp", Instant.now().toString());
+        if (inviterName != null && !inviterName.isBlank()) {
+            event.put("requesterName", inviterName);
+        }
+        if (message != null && !message.isBlank()) {
+            event.put("joinMessage", message);
+        }
 
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.invite_proposed", event);
     }
@@ -312,5 +344,23 @@ public class ParticipantService {
         event.put("timestamp", Instant.now().toString());
 
         rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.approved", event);
+    }
+
+    private void publishInviteNotification(Trip trip, UUID inviteeId, UUID inviterId, String message, String inviterName) {
+        Map<String, Object> event = new HashMap<>();
+        event.put("eventType", "trip.participant.invited");
+        event.put("tripId", trip.getId().toString());
+        event.put("tripTitle", trip.getTitle());
+        event.put("inviteeId", inviteeId.toString());
+        event.put("inviterId", inviterId.toString());
+        event.put("timestamp", Instant.now().toString());
+        if (inviterName != null && !inviterName.isBlank()) {
+            event.put("inviterName", inviterName);
+        }
+        if (message != null && !message.isBlank()) {
+            event.put("inviteMessage", message);
+        }
+
+        rabbitTemplate.convertAndSend(RabbitMQConfig.TRIP_EXCHANGE, "trip.participant.invited", event);
     }
 }

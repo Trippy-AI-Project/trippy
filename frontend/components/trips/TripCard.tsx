@@ -20,6 +20,7 @@ interface TripCardProps {
   onJoin?: () => void;
   joinLoading?: boolean;
   joinRequested?: boolean;
+  invited?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -103,6 +104,7 @@ export default function TripCard({
   onJoin,
   joinLoading,
   joinRequested,
+  invited,
 }: TripCardProps) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.DRAFT;
 
@@ -196,7 +198,7 @@ export default function TripCard({
         </div>
 
         {/* Join button for public trips */}
-        {onJoin && !joinRequested && (
+        {onJoin && !joinRequested && !invited && (
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onJoin(); }}
             disabled={joinLoading}
@@ -212,6 +214,13 @@ export default function TripCard({
           >
             Requested to Join
           </button>
+        )}
+
+        {/* Invited badge — accept/decline via notifications */}
+        {invited && (
+          <div className="w-full rounded-lg bg-accent-50 border border-accent-200 px-3 py-2 text-center text-xs font-semibold text-accent-700">
+            ✉️ Invited — check notifications to respond
+          </div>
         )}
 
         {/* Bottom accent line */}

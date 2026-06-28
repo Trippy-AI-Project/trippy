@@ -31,6 +31,7 @@ spring:
     default-schema: notification_schema
     schemas: notification_schema
     create-schemas: true
+    baseline-on-migrate: true
     locations: classpath:db/migration
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}

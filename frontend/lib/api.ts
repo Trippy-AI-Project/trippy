@@ -484,8 +484,8 @@ export const tripsApi = {
 /* ------------------------------------------------------------------ */
 
 export const participantsApi = {
-  invite: (tripId: string, userId: string, email?: string) =>
-    api.post<{ message: string; participant?: unknown }>(`/trips/${tripId}/participants/invite`, { userId, email }),
+  invite: (tripId: string, userId: string, email?: string, message?: string, inviterName?: string) =>
+    api.post<{ message: string; participant?: unknown }>(`/trips/${tripId}/participants/invite`, { userId, email, message, inviterName }),
   approve: (tripId: string, userId: string) =>
     api.post<{ message: string }>(`/trips/${tripId}/participants/approve`, { userId }),
   reject: (tripId: string, userId: string) =>
@@ -494,8 +494,10 @@ export const participantsApi = {
     api.post<{ message: string }>(`/trips/${tripId}/participants/accept`, {}),
   decline: (tripId: string) =>
     api.post<{ message: string }>(`/trips/${tripId}/participants/decline`, {}),
-  requestJoin: (tripId: string) =>
-    api.post<{ message: string }>(`/trips/${tripId}/participants/request-join`, {}),
+  requestJoin: (tripId: string, requesterName?: string, message?: string) =>
+    api.post<{ message: string }>(`/trips/${tripId}/participants/request-join`, { requesterName, message }),
+  kick: (tripId: string, userId: string) =>
+    api.delete<{ message: string }>(`/trips/${tripId}/participants/kick/${userId}`),
 };
 
 /* ------------------------------------------------------------------ */

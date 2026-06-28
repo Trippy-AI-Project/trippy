@@ -1,8 +1,10 @@
 package pse.trippy.notificationservice.listener;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
@@ -27,24 +29,46 @@ public class NotificationEventListener {
 
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final ObjectMapper objectMapper;
 
-    @RabbitListener(queues = "notification.events",
-            messageConverter = "jsonMessageConverter")
-    public void handleEvent(Object payload,
+    @RabbitListener(queues = "notification.events")
+    public void handleEvent(Message rawMessage,
                             @Header(name = "amqp_receivedRoutingKey") String routingKey,
                             @Header(name = CorrelationIds.HEADER_NAME, required = false) String correlationId) {
         String resolvedCorrelationId = CorrelationIds.resolve(correlationId);
         MDC.put(CorrelationIds.MDC_KEY, resolvedCorrelationId);
         try {
             log.info("Received notification event routingKey={}", LogSanitizer.safeDetail(routingKey));
+            Object payload = deserializePayload(rawMessage);
             dispatchEvent(payload, routingKey);
         } finally {
             MDC.remove(CorrelationIds.MDC_KEY);
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private Object deserializePayload(Message message) {
+        try {
+            return objectMapper.readValue(message.getBody(), Map.class);
+        } catch (Exception ex) {
+            log.warn("Failed to deserialize RabbitMQ message body as Map, falling back to raw: {}",
+                    ex.getMessage());
+            return message;
+        }
+    }
+
     void handleEvent(Object payload, String routingKey) {
         handleEvent(payload, routingKey, null);
+    }
+
+    void handleEvent(Object payload, String routingKey, String correlationId) {
+        String resolvedCorrelationId = CorrelationIds.resolve(correlationId);
+        MDC.put(CorrelationIds.MDC_KEY, resolvedCorrelationId);
+        try {
+            dispatchEvent(payload, routingKey);
+        } finally {
+            MDC.remove(CorrelationIds.MDC_KEY);
+        }
     }
 
     private void dispatchEvent(Object payload, String routingKey) {
@@ -137,34 +161,48 @@ public class NotificationEventListener {
 
     void handleTripInvitation(Object payload) {
         if (payload instanceof Map<?, ?> map) {
-            String inviteeEmail = text(map, "inviteeEmail", "participantEmail", "email");
-            String inviteeName = fallback(
-                    text(map, "inviteeName", "participantName", "userName", "displayName"),
-                    "Traveler");
-            String inviterName = fallback(text(map, "inviterName", "actorName"), "Someone");
-            String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
-            String inviteeId = validUuidText(map, "inviteeId", "inviteeUserId", "participantId", "userId");
-            String tripId = text(map, "tripId");
-            String actionUrl = fallback(text(map, "actionUrl", "inviteLink", "link"), tripUrl(tripId));
+            try {
+                String inviteeEmail = text(map, "inviteeEmail", "participantEmail", "email");
+                String inviteeName = fallback(
+                        text(map, "inviteeName", "participantName", "userName", "displayName"),
+                        "Traveler");
+                String inviterName = fallback(text(map, "inviterName", "actorName"), "Someone");
+                String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
+                String inviteeId = validUuidText(map, "inviteeId", "inviteeUserId", "participantId", "userId");
+                String tripId = text(map, "tripId");
+                String inviteMessage = text(map, "inviteMessage", "message");
+                String actionUrl = fallback(text(map, "actionUrl", "inviteLink", "link"), tripUrl(tripId));
 
-            log.info("Processing notification event type=trip.invitation recipient={}",
-                    LogSanitizer.maskEmail(inviteeEmail));
-            sendTemplate(inviteeEmail, inviterName + " invited you to " + tripTitle,
-                    "trip-invite",
-                    variables("inviteeName", inviteeName,
-                            "userName", inviteeName,
-                            "inviterName", inviterName,
-                            "tripTitle", tripTitle,
-                            "tripName", tripTitle,
-                            "dashboardUrl", emailUrl(actionUrl),
-                            "link", emailUrl(actionUrl)));
+                log.info("Processing trip invitation: inviteeId={} tripId={} tripTitle={} inviterName={}",
+                        inviteeId, tripId, tripTitle, inviterName);
 
-            createNotification(inviteeId, NotificationType.TRIP_INVITE,
-                    "Trip Invitation",
-                    inviterName + " invited you to " + tripTitle,
-                    actionUrl,
-                    metadata(map, "tripId", "tripTitle", "destination", "role",
-                            "inviterId", "inviteeId", "inviteeUserId", "participantId"));
+                String body = inviterName + " invited you to " + tripTitle;
+                if (inviteMessage != null && !inviteMessage.isBlank()) {
+                    body = body + ": \"" + inviteMessage + "\"";
+                }
+
+                sendTemplate(inviteeEmail, inviterName + " invited you to " + tripTitle,
+                        "trip-invite",
+                        variables("inviteeName", inviteeName,
+                                "userName", inviteeName,
+                                "inviterName", inviterName,
+                                "tripTitle", tripTitle,
+                                "tripName", tripTitle,
+                                "dashboardUrl", emailUrl(actionUrl),
+                                "link", emailUrl(actionUrl)));
+
+                createNotification(inviteeId, NotificationType.TRIP_INVITE,
+                        "Trip Invitation",
+                        body,
+                        actionUrl,
+                        metadata(map, "tripId", "tripTitle", "destination", "role",
+                                "inviterId", "inviteeId", "inviteeUserId", "participantId", "inviteMessage"));
+            } catch (Exception ex) {
+                log.error("Failed to process trip invitation event", ex);
+            }
+        } else {
+            log.warn("handleTripInvitation received non-Map payload: {}",
+                    payload != null ? payload.getClass().getName() : "null");
         }
     }
 
@@ -208,17 +246,25 @@ public class NotificationEventListener {
         if (payload instanceof Map<?, ?> map) {
             String userId = validUuidText(map, "userId", "ownerId");
             String requesterId = text(map, "requesterId", "userId");
+            String requesterName = fallback(text(map, "requesterName"), "Someone");
             String tripTitle = fallback(text(map, "tripTitle", "tripName", "title"), "a trip");
             String tripId = text(map, "tripId");
+            String joinMessage = text(map, "joinMessage", "message");
             String actionUrl = tripUrl(tripId);
 
-            log.info("Processing notification event type=trip.join_requested tripId={}", tripId);
+            log.info("Processing notification event type=trip.join_requested tripId={} requester={}",
+                    tripId, requesterName);
+
+            String body = requesterName + " wants to join " + tripTitle + ". Review and approve or reject the request.";
+            if (joinMessage != null && !joinMessage.isBlank()) {
+                body = requesterName + " wants to join " + tripTitle + ": \"" + joinMessage + "\"";
+            }
 
             createNotification(userId, NotificationType.TRIP_INVITE,
                     "Join Request",
-                    "Someone wants to join " + tripTitle + ". Review and approve or reject the request.",
+                    body,
                     actionUrl,
-                    metadata(map, "tripId", "requesterId", "tripTitle"));
+                    metadata(map, "tripId", "requesterId", "tripTitle", "requesterName", "joinMessage"));
         }
     }
 

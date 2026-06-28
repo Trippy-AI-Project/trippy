@@ -114,9 +114,9 @@ class ParticipantServiceTest {
     class InviteParticipant {
 
         @Test
-        @DisplayName("owner can invite a new participant")
+        @DisplayName("owner can invite a new participant directly")
         void ownerCanInvite() {
-            InviteParticipantRequest request = new InviteParticipantRequest(INVITEE_ID, null);
+            InviteParticipantRequest request = new InviteParticipantRequest(INVITEE_ID, null, null, "TestOwner");
 
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
             when(participantRepository.findByTripIdAndUserId(TRIP_ID, OWNER_ID))
@@ -135,7 +135,38 @@ class ParticipantServiceTest {
             assertThat(response.participant().userId()).isEqualTo(INVITEE_ID);
             assertThat(response.participant().role()).isEqualTo("MEMBER");
             assertThat(response.participant().status()).isEqualTo("INVITED");
-            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE), eq("trip.participant.invited"), any(ParticipantEvent.class));
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE), eq("trip.participant.invited"), any(java.util.Map.class));
+        }
+
+        @Test
+        @DisplayName("regular member invite creates PENDING_APPROVAL and notifies owner")
+        void memberInviteProposesForApproval() {
+            UUID memberUserId = UUID.randomUUID();
+            Participant memberParticipant = Participant.builder()
+                    .trip(trip).userId(memberUserId)
+                    .role(ParticipantRole.MEMBER).status(ParticipantStatus.ACCEPTED)
+                    .build();
+            memberParticipant.setId(UUID.randomUUID());
+
+            InviteParticipantRequest request = new InviteParticipantRequest(INVITEE_ID, null, "Great traveler!", "MemberName");
+
+            when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
+            when(participantRepository.findByTripIdAndUserId(TRIP_ID, memberUserId))
+                    .thenReturn(Optional.of(memberParticipant));
+            when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(false);
+            when(participantRepository.countByTripIdAndStatusIn(eq(TRIP_ID), any(Collection.class))).thenReturn(2L);
+            when(participantRepository.save(any(Participant.class))).thenAnswer(invocation -> {
+                Participant p = invocation.getArgument(0);
+                p.setId(UUID.randomUUID());
+                return p;
+            });
+            when(participantRepository.findByTripId(TRIP_ID)).thenReturn(List.of(ownerParticipant()));
+
+            ParticipantActionResponse response = participantService.inviteParticipant(TRIP_ID, request, memberUserId);
+
+            assertThat(response.message()).contains("awaiting owner approval");
+            assertThat(response.participant().status()).isEqualTo("PENDING_APPROVAL");
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.TRIP_EXCHANGE), eq("trip.participant.invite_proposed"), any(java.util.Map.class));
         }
 
         @Test
@@ -144,7 +175,7 @@ class ParticipantServiceTest {
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null), OWNER_ID))
+                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null, null, null), OWNER_ID))
                     .isInstanceOf(TripNotFoundException.class);
         }
 
@@ -156,7 +187,7 @@ class ParticipantServiceTest {
                     .thenReturn(Optional.of(invitedParticipant()));
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(UUID.randomUUID(), null), INVITEE_ID))
+                    TRIP_ID, new InviteParticipantRequest(UUID.randomUUID(), null, null, null), INVITEE_ID))
                     .isInstanceOf(ForbiddenException.class);
         }
 
@@ -169,7 +200,7 @@ class ParticipantServiceTest {
             when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(true);
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null), OWNER_ID))
+                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null, null, null), OWNER_ID))
                     .isInstanceOf(InvalidTripDataException.class)
                     .hasMessageContaining("already a participant");
         }
@@ -184,7 +215,7 @@ class ParticipantServiceTest {
             when(participantRepository.countByTripIdAndStatusIn(eq(TRIP_ID), any(Collection.class))).thenReturn(20L);
 
             assertThatThrownBy(() -> participantService.inviteParticipant(
-                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null), OWNER_ID))
+                    TRIP_ID, new InviteParticipantRequest(INVITEE_ID, null, null, null), OWNER_ID))
                     .isInstanceOf(InvalidTripDataException.class)
                     .hasMessageContaining("maximum");
         }
@@ -396,7 +427,7 @@ class ParticipantServiceTest {
             });
             when(participantRepository.findByTripId(TRIP_ID)).thenReturn(List.of(ownerParticipant()));
 
-            ParticipantActionResponse response = participantService.requestJoin(TRIP_ID, INVITEE_ID);
+            ParticipantActionResponse response = participantService.requestJoin(TRIP_ID, INVITEE_ID, "TestUser", null);
 
             assertThat(response.message()).contains("request to join");
             assertThat(response.participant().status()).isEqualTo("PENDING_APPROVAL");
@@ -411,7 +442,7 @@ class ParticipantServiceTest {
             trip.setVisibility(TripVisibility.PRIVATE);
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
 
-            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID))
+            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID, "TestUser", null))
                     .isInstanceOf(ForbiddenException.class)
                     .hasMessageContaining("not public");
         }
@@ -422,7 +453,7 @@ class ParticipantServiceTest {
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
             when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(true);
 
-            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID))
+            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID, "TestUser", null))
                     .isInstanceOf(InvalidTripDataException.class)
                     .hasMessageContaining("already a participant");
         }
@@ -434,7 +465,7 @@ class ParticipantServiceTest {
             when(participantRepository.existsByTripIdAndUserId(TRIP_ID, INVITEE_ID)).thenReturn(false);
             when(participantRepository.countByTripIdAndStatusIn(eq(TRIP_ID), any(Collection.class))).thenReturn(20L);
 
-            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID))
+            assertThatThrownBy(() -> participantService.requestJoin(TRIP_ID, INVITEE_ID, "TestUser", null))
                     .isInstanceOf(InvalidTripDataException.class)
                     .hasMessageContaining("maximum");
         }
@@ -535,7 +566,7 @@ class ParticipantServiceTest {
         }
 
         @Test
-        @DisplayName("throws when invite is not PENDING_APPROVAL")
+        @DisplayName("throws when participant is not in pending or invited state")
         void throwsWhenNotPending() {
             Participant accepted = acceptedMember();
             when(tripRepository.findById(TRIP_ID)).thenReturn(Optional.of(trip));
@@ -546,7 +577,7 @@ class ParticipantServiceTest {
 
             assertThatThrownBy(() -> participantService.rejectInvite(TRIP_ID, INVITEE_ID, OWNER_ID))
                     .isInstanceOf(InvalidTripDataException.class)
-                    .hasMessageContaining("not pending");
+                    .hasMessageContaining("not in a pending or invited state");
         }
 
         @Test

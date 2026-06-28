@@ -155,6 +155,10 @@ export default function NotificationBell() {
     return n.type === "TRIP_INVITE" && n.title === "Join Request" && !!n.metadata?.requesterId;
   }
 
+  function isInviteNotification(n: Notification) {
+    return n.type === "TRIP_INVITE" && n.title === "Trip Invitation" && !!n.metadata?.tripId;
+  }
+
   async function handleApprove(e: React.MouseEvent, n: Notification) {
     e.stopPropagation();
     const tripId = n.metadata?.tripId as string;
@@ -162,7 +166,7 @@ export default function NotificationBell() {
     if (!tripId || !requesterId) return;
     try {
       await participantsApi.approve(tripId, requesterId);
-      await notificationsApi.markRead(n.id);
+      await notificationsApi.deleteNotification(n.id);
       setNotifications((prev) => prev.filter((x) => x.id !== n.id));
       if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
     } catch {
@@ -177,7 +181,35 @@ export default function NotificationBell() {
     if (!tripId || !requesterId) return;
     try {
       await participantsApi.reject(tripId, requesterId);
-      await notificationsApi.markRead(n.id);
+      await notificationsApi.deleteNotification(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleAcceptInvite(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    if (!tripId) return;
+    try {
+      await participantsApi.accept(tripId);
+      await notificationsApi.deleteNotification(n.id);
+      setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+      if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleDeclineInvite(e: React.MouseEvent, n: Notification) {
+    e.stopPropagation();
+    const tripId = n.metadata?.tripId as string;
+    if (!tripId) return;
+    try {
+      await participantsApi.decline(tripId);
+      await notificationsApi.deleteNotification(n.id);
       setNotifications((prev) => prev.filter((x) => x.id !== n.id));
       if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
     } catch {
@@ -229,13 +261,15 @@ export default function NotificationBell() {
             ) : (
               notifications.map((n) => {
                 const Icon = typeIcon[n.type] ?? Bell;
+                const hasActions = isJoinRequest(n) || isInviteNotification(n);
                 return (
-                  <button
+                  <div
                     key={n.id}
-                    onClick={() => handleClickNotification(n)}
+                    onClick={hasActions ? undefined : () => handleClickNotification(n)}
                     className={cn(
                       "group flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface transition-colors",
                       !n.read && "bg-trippy-500/5",
+                      !hasActions && "cursor-pointer",
                     )}
                   >
                     <div
@@ -257,18 +291,34 @@ export default function NotificationBell() {
                         {timeAgo(n.createdAt)}
                       </p>
                       {isJoinRequest(n) && (
-                        <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className="mt-2 flex items-center gap-2">
                           <button
-                            onClick={(e) => handleApprove(e, n)}
-                            className="inline-flex items-center gap-1 rounded bg-green-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-green-600"
+                            onClick={() => handleApprove({ stopPropagation: () => {} } as React.MouseEvent, n)}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-green-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-600 transition-colors"
                           >
-                            <UserCheck size={10} /> Approve
+                            <UserCheck size={12} /> Approve
                           </button>
                           <button
-                            onClick={(e) => handleReject(e, n)}
-                            className="inline-flex items-center gap-1 rounded bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-600"
+                            onClick={() => handleReject({ stopPropagation: () => {} } as React.MouseEvent, n)}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600 transition-colors"
                           >
-                            <UserX size={10} /> Reject
+                            <UserX size={12} /> Reject
+                          </button>
+                        </div>
+                      )}
+                      {isInviteNotification(n) && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            onClick={() => handleAcceptInvite({ stopPropagation: () => {} } as React.MouseEvent, n)}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-accent-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-600 transition-colors"
+                          >
+                            <UserCheck size={12} /> Accept
+                          </button>
+                          <button
+                            onClick={() => handleDeclineInvite({ stopPropagation: () => {} } as React.MouseEvent, n)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-muted hover:bg-shore-100 transition-colors"
+                          >
+                            <UserX size={12} /> Decline
                           </button>
                         </div>
                       )}
@@ -277,13 +327,13 @@ export default function NotificationBell() {
                       <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-trippy-500" />
                     )}
                     <button
-                      onClick={(e) => handleDeleteNotification(e, n.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteNotification(e, n.id); }}
                       className="mt-1 shrink-0 rounded p-1 text-muted hover:text-danger hover:bg-danger/10 transition-colors opacity-0 group-hover:opacity-100"
                       aria-label="Delete notification"
                     >
                       <Trash2 size={12} />
                     </button>
-                  </button>
+                  </div>
                 );
               })
             )}

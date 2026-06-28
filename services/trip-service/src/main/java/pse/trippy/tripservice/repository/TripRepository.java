@@ -28,13 +28,16 @@ public interface TripRepository extends JpaRepository<Trip, UUID> {
     List<Trip> findByCreatedByAndStatus(UUID createdBy, TripStatus status);
 
     /**
-     * Returns a page of trips where the given user is an ACCEPTED participant.
+     * Returns a page of trips where the given user is an ACCEPTED or INVITED participant.
      */
     @Query("""
             SELECT t FROM Trip t
             WHERE t.id IN (
                 SELECT p.trip.id FROM Participant p
-                WHERE p.userId = :userId AND p.status = pse.trippy.tripservice.model.enums.ParticipantStatus.ACCEPTED
+                WHERE p.userId = :userId AND p.status IN (
+                    pse.trippy.tripservice.model.enums.ParticipantStatus.ACCEPTED,
+                    pse.trippy.tripservice.model.enums.ParticipantStatus.INVITED
+                )
             )
             AND t.status <> pse.trippy.tripservice.model.enums.TripStatus.CANCELLED
             """)
@@ -46,7 +49,10 @@ public interface TripRepository extends JpaRepository<Trip, UUID> {
             AND t.status <> pse.trippy.tripservice.model.enums.TripStatus.CANCELLED
             AND t.id NOT IN (
                 SELECT p.trip.id FROM Participant p
-                WHERE p.userId = :userId AND p.status = pse.trippy.tripservice.model.enums.ParticipantStatus.ACCEPTED
+                WHERE p.userId = :userId AND p.status IN (
+                    pse.trippy.tripservice.model.enums.ParticipantStatus.ACCEPTED,
+                    pse.trippy.tripservice.model.enums.ParticipantStatus.INVITED
+                )
             )
             """)
     Page<Trip> findPublicTripsExcludingUser(@Param("userId") UUID userId, Pageable pageable);
