@@ -20,6 +20,10 @@ interface TripCardProps {
   onJoin?: () => void;
   joinLoading?: boolean;
   joinRequested?: boolean;
+  invited?: boolean;
+  onAcceptInvite?: () => void;
+  onDeclineInvite?: () => void;
+  inviteLoading?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -103,6 +107,10 @@ export default function TripCard({
   onJoin,
   joinLoading,
   joinRequested,
+  invited,
+  onAcceptInvite,
+  onDeclineInvite,
+  inviteLoading,
 }: TripCardProps) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.DRAFT;
 
@@ -196,7 +204,7 @@ export default function TripCard({
         </div>
 
         {/* Join button for public trips */}
-        {onJoin && !joinRequested && (
+        {onJoin && !joinRequested && !invited && (
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onJoin(); }}
             disabled={joinLoading}
@@ -212,6 +220,26 @@ export default function TripCard({
           >
             Requested to Join
           </button>
+        )}
+
+        {/* Invite acceptance buttons */}
+        {invited && (
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAcceptInvite?.(); }}
+              disabled={inviteLoading}
+              className="flex-1 rounded-lg bg-accent-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {inviteLoading ? "…" : "Accept Invite"}
+            </button>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeclineInvite?.(); }}
+              disabled={inviteLoading}
+              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-semibold text-muted transition-colors hover:bg-shore-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Decline
+            </button>
+          </div>
         )}
 
         {/* Bottom accent line */}
